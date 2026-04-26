@@ -182,7 +182,7 @@ Use raw Effect HTTP routes where `HttpApi` does not fit. The goal is deleting Ho
 | `workspace`               | `bridged`         | adaptor/list/status/create/remove/session-restore                                        |
 | top-level instance routes | `bridged`         | path, vcs, command, agent, skill, lsp, formatter, dispose                                |
 | experimental JSON routes  | `bridged`         | console, tool, worktree list/mutations, global session list, resource list              |
-| `session`                 | `later/special`   | large stateful surface plus streaming                                                    |
+| `session`                 | `bridged` partial | read routes; lifecycle, message mutations, streaming remain                              |
 | `sync`                    | `bridged`         | start/replay/history                                                                      |
 | `event`                   | `special`         | SSE                                                                                      |
 | `pty`                     | `special`         | websocket                                                                                |
@@ -286,11 +286,11 @@ This checklist tracks bridge parity only. Checked routes are available through t
 
 ### Session Routes
 
-- [ ] `GET /session` - list sessions.
-- [ ] `GET /session/status` - session status map.
-- [ ] `GET /session/:sessionID` - get session.
-- [ ] `GET /session/:sessionID/children` - get child sessions.
-- [ ] `GET /session/:sessionID/todo` - get session todos.
+- [x] `GET /session` - list sessions.
+- [x] `GET /session/status` - session status map.
+- [x] `GET /session/:sessionID` - get session.
+- [x] `GET /session/:sessionID/children` - get child sessions.
+- [x] `GET /session/:sessionID/todo` - get session todos.
 - [ ] `POST /session` - create session.
 - [ ] `DELETE /session/:sessionID` - delete session.
 - [ ] `PATCH /session/:sessionID` - update session metadata.
@@ -298,11 +298,11 @@ This checklist tracks bridge parity only. Checked routes are available through t
 - [ ] `POST /session/:sessionID/fork` - fork session.
 - [ ] `POST /session/:sessionID/abort` - abort session.
 - [ ] `POST /session/:sessionID/share` - share session.
-- [ ] `GET /session/:sessionID/diff` - session diff.
+- [x] `GET /session/:sessionID/diff` - session diff.
 - [ ] `DELETE /session/:sessionID/share` - unshare session.
 - [ ] `POST /session/:sessionID/summarize` - summarize session.
-- [ ] `GET /session/:sessionID/message` - list session messages.
-- [ ] `GET /session/:sessionID/message/:messageID` - get message.
+- [x] `GET /session/:sessionID/message` - list session messages.
+- [x] `GET /session/:sessionID/message/:messageID` - get message.
 - [ ] `DELETE /session/:sessionID/message/:messageID` - delete message.
 - [ ] `DELETE /session/:sessionID/message/:messageID/part/:partID` - delete part.
 - [ ] `PATCH /session/:sessionID/message/:messageID/part/:partID` - update part.
@@ -354,7 +354,7 @@ Prefer smaller PRs from here so route behavior and SDK/OpenAPI fallout stays rev
 5. [x] Bridge experimental global session list.
 6. [x] Bridge workspace create/remove/session-restore routes.
 7. [x] Bridge sync start/replay/history routes.
-8. [ ] Bridge session read routes: list, status, get, children, todo, diff, messages.
+8. [x] Bridge session read routes: list, status, get, children, todo, diff, messages.
 9. [ ] Bridge session lifecycle mutation routes: create, delete, update, fork, abort.
 10. [ ] Bridge session share/summary/message/part mutation routes.
 11. [ ] Replace event SSE with non-Hono Effect HTTP.
