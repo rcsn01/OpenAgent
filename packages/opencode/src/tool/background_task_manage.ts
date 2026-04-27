@@ -32,10 +32,10 @@ type CancelMetadata = {
 }
 
 const LIST_DESCRIPTION =
-  "List background subagent tasks for the current session. Use this after context compaction or when you need to see which delegated tasks are still running or waiting to be delivered."
+  "List background subagent tasks for the current session. Use this after context compaction or for a concrete status check, not as a heartbeat loop while waiting for automatic background-task delivery."
 
 const GET_DESCRIPTION =
-  "Get the current status and details for one background subagent task by task_id. Use this when you need to inspect a specific delegated task."
+  "Get the current status and details for one background subagent task by task_id. Use this for a concrete inspection or explicit status request, not to poll for completion because finished background tasks are delivered automatically."
 
 const CANCEL_DESCRIPTION =
   "Cancel a background subagent task by task_id. Use this when the delegated work is no longer needed or should not be delivered back into the conversation."

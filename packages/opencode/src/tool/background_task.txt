@@ -5,6 +5,7 @@ When using the BackgroundTask tool, you must specify a subagent_type parameter t
 The BackgroundTask tool is the supported way to create an OpenCode subagent session that keeps running while you continue the current task.
 Use it whenever delegated work can proceed independently and you do not need the result before taking your next step.
 If your next step depends on the subagent result right away, use the Task tool instead.
+After launching a background task, do not call `background_task_get` in a wait loop just to see whether it finished yet. Keep working, and if there is nothing else to do, send one concise status update to the user and stop until the background result is delivered automatically.
 If the user explicitly asks for background tasks, parallel subagents, or to keep working while delegated work runs, you MUST use this tool if it is available instead of doing the work directly yourself.
 Do not use MCP tools or provider-native tools for subagent delegation, even if their names mention spawning or subagents.
 
@@ -24,6 +25,7 @@ Usage notes:
 1. Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
 2. The tool returns immediately with a running status and a task_id you can reuse later to continue the same subagent session if needed.
 3. When the background subagent finishes, its result will be delivered back into your conversation asynchronously. Continue your current work until then.
-4. Each agent invocation starts with a fresh context unless you provide task_id to resume the same subagent session (which continues with its previous messages and tool outputs). When starting fresh, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
-5. The agent's outputs should generally be trusted.
-6. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).
+4. Use `background_task_get` or `background_task_list` only for a concrete reason, such as an explicit user status request, after context compaction, or when you need to inspect or cancel a specific task. Do not poll them repeatedly while waiting.
+5. Each agent invocation starts with a fresh context unless you provide task_id to resume the same subagent session (which continues with its previous messages and tool outputs). When starting fresh, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
+6. The agent's outputs should generally be trusted.
+7. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).

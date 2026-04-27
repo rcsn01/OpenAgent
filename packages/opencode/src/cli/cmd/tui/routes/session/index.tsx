@@ -1572,6 +1572,9 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
         <Match when={props.part.tool === "task"}>
           <Task {...toolprops} />
         </Match>
+        <Match when={props.part.tool === "background_task"}>
+          <Task {...toolprops} />
+        </Match>
         <Match when={props.part.tool === "apply_patch"}>
           <ApplyPatch {...toolprops} />
         </Match>
@@ -1961,6 +1964,12 @@ function WebSearch(props: ToolProps<typeof WebSearchTool>) {
 function Task(props: ToolProps<typeof TaskTool>) {
   const { navigate } = useRoute()
   const sync = useSync()
+  const background = createMemo(() => props.tool === "background_task")
+  const childStatus = createMemo(() => {
+    const sessionId = props.metadata.sessionId
+    if (!sessionId) return
+    return sync.data.session_status[sessionId]
+  })
 
   onMount(() => {
     if (props.metadata.sessionId && !sync.data.message[props.metadata.sessionId]?.length)
@@ -1981,7 +1990,12 @@ function Task(props: ToolProps<typeof TaskTool>) {
     tools().findLast((x) => (x.state.status === "running" || x.state.status === "completed") && x.state.title),
   )
 
-  const isRunning = createMemo(() => props.part.state.status === "running")
+  const isRunning = createMemo(() => {
+    if (!background()) return props.part.state.status === "running"
+    const status = childStatus()?.type
+    if (status) return status !== "idle"
+    return props.metadata.status === "running"
+  })
 
   const duration = createMemo(() => {
     const first = messages().find((x) => x.role === "user")?.time.created
@@ -1992,7 +2006,8 @@ function Task(props: ToolProps<typeof TaskTool>) {
 
   const content = createMemo(() => {
     if (!props.input.description) return ""
-    let content = [`${Locale.titlecase(props.input.subagent_type ?? "General")} Task — ${props.input.description}`]
+    const taskLabel = background() ? "Background Task" : `${Locale.titlecase(props.input.subagent_type ?? "General")} Task`
+    let content = [`${taskLabel} — ${props.input.description}`]
 
     if (isRunning() && tools().length > 0) {
       // content[0] += ` · ${tools().length} toolcalls`
@@ -2015,7 +2030,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
       icon="│"
       spinner={isRunning()}
       complete={props.input.description}
-      pending="Delegating..."
+      pending={background() ? "Starting background task..." : "Delegating..."}
       part={props.part}
       onClick={() => {
         if (props.metadata.sessionId) {

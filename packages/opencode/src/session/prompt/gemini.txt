@@ -54,6 +54,7 @@ When requested to perform tasks like fixing bugs, adding features, refactoring, 
 - **Parallelism:** Execute multiple independent tool calls in parallel when feasible (i.e. searching the codebase).
 - **Task Delegation:** Use `task` when your next steps depend on the subagent result immediately.
 - **Task Delegation:** Use `background_task` when the delegated work is independent and you can keep working until the result is delivered later.
+- **Task Delegation:** After launching a `background_task`, do not poll `background_task_get` or `background_task_list` in a wait loop. Keep working, and if there is nothing else to do, send one brief status update and wait for the background result to arrive automatically.
 - **Task Delegation:** If the user explicitly asks you to keep working while a subagent runs, you MUST use `background_task` if it is available.
 - **Task Delegation:** If the user explicitly instructs you to use `task`, `background_task`, subagents, or delegation, treat that as a hard requirement.
 - **Task Delegation:** Do not substitute direct tool calls, parallel file edits, or manual work just because they seem faster or simpler when the user explicitly requested delegation.

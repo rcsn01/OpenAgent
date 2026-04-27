@@ -1,8 +1,10 @@
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { createMemo, For, Show } from "solid-js"
+import { tint } from "@tui/context/theme"
 import { Locale } from "@/util"
 
 const id = "internal:sidebar-subagent"
+type SidebarPart = ReturnType<TuiPluginApi["state"]["part"]>[number]
 
 function agentLabel(title: string) {
   const match = title.match(/@([^)]+?)\s+subagent/i)
@@ -14,6 +16,17 @@ function taskLabel(title: string) {
   const value = title.replace(/\s+\(@[^)]+ subagent\)$/i, "").trim()
   if (value) return value
   return agentLabel(title)
+}
+
+function executionMode(part: SidebarPart) {
+  if (part.type === "tool" && (part.tool === "task" || part.tool === "background_task")) {
+    const metadata = part.state.status === "pending" ? undefined : part.state.metadata
+    if (metadata?.executionMode === "blocking" || metadata?.executionMode === "background") {
+      return metadata.executionMode
+    }
+    if (part.tool === "background_task") return "background"
+    return "blocking"
+  }
 }
 
 function statusLabel(status: ReturnType<TuiPluginApi["state"]["session"]["status"]>) {
@@ -28,19 +41,52 @@ function statusColor(api: TuiPluginApi, status: ReturnType<TuiPluginApi["state"]
   return api.theme.current.success
 }
 
+function rowBackground(
+  api: TuiPluginApi,
+  mode: "blocking" | "background" | undefined,
+  status: ReturnType<TuiPluginApi["state"]["session"]["status"]>,
+) {
+  if (mode !== "blocking") return undefined
+  if (status?.type === "busy" || status?.type === "retry") return tint(api.theme.current.backgroundPanel, api.theme.current.warning, 0.2)
+  return tint(api.theme.current.backgroundPanel, api.theme.current.success, 0.2)
+}
+
 function View(props: { api: TuiPluginApi; session_id: string }) {
   const theme = () => props.api.theme.current
   const current = createMemo(() => props.api.state.session.get(props.session_id))
-  const list = createMemo(() => {
+  const rootID = createMemo(() => {
     const session = current()
-    const rootID = session?.parentID ?? session?.id
-    if (!rootID) return []
+    return session?.parentID ?? session?.id
+  })
+  const list = createMemo(() => {
+    const id = rootID()
+    if (!id) return []
 
     return props.api.state.session
       .list()
-      .filter((item) => item.parentID === rootID)
+      .filter((item) => item.parentID === id)
       .toSorted((a, b) => a.time.created - b.time.created)
   })
+  const rootTaskModes = createMemo(() => {
+    const id = rootID()
+    if (!id) return new Map<string, "blocking" | "background">()
+
+    return props.api.state.session.messages(id).reduce((acc, message) => {
+      props.api.state.part(message.id).forEach((part) => {
+        const mode = executionMode(part)
+        if (part.type !== "tool" || !mode) return
+        const metadata = part.state.status === "pending" ? undefined : part.state.metadata
+        if (typeof metadata?.sessionId !== "string") return
+        acc.set(metadata.sessionId, mode)
+      })
+      return acc
+    }, new Map<string, "blocking" | "background">())
+  })
+
+  const sessionMode = (sessionID: string) => {
+    const direct = rootTaskModes().get(sessionID)
+    return direct
+  }
 
   return (
     <box>
@@ -55,10 +101,12 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
         <For each={list()}>
           {(item) => {
             const status = () => props.api.state.session.status(item.id)
+            const mode = () => sessionMode(item.id)
             return (
               <box
                 flexDirection="row"
                 gap={1}
+                backgroundColor={rowBackground(props.api, mode(), status())}
                 onMouseDown={() => props.api.route.navigate("session", { sessionID: item.id })}
               >
                 <text flexShrink={0} style={{ fg: statusColor(props.api, status()) }}>
