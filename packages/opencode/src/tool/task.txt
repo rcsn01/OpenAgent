@@ -8,6 +8,8 @@ If the delegated work can proceed independently and you should keep working whil
 If the user explicitly asks you to use subagents or delegation, do not substitute direct tool calls for this tool family just because they seem faster or simpler.
 Do not use MCP tools or provider-native tools for subagent delegation, even if their names mention spawning or subagents.
 
+If the user wants several independent deliverables, split them into multiple background_task calls rather than blocking on task.
+
 When to use the Task tool:
 - When you are instructed to execute custom slash commands. Use the Task tool with the slash command invocation as the entire prompt. The slash command can take arguments. For example: Task(description="Check the file", prompt="/check-file path/to/file.py")
 

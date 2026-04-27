@@ -8,6 +8,9 @@ If your next step depends on the subagent result right away, use the Task tool i
 If the user explicitly asks for background tasks, parallel subagents, or to keep working while delegated work runs, you MUST use this tool if it is available instead of doing the work directly yourself.
 Do not use MCP tools or provider-native tools for subagent delegation, even if their names mention spawning or subagents.
 
+If the user wants several independent deliverables, use one background_task call per deliverable and launch them in parallel.
+If you need to rediscover, inspect, or cancel delegated background work later, use the background_task_list, background_task_get, and background_task_cancel tools instead of guessing.
+
 When to use the BackgroundTask tool:
 - When you want to delegate work to a subagent and continue working while it runs.
 - When the user explicitly asks you to keep going while a subagent works in parallel.

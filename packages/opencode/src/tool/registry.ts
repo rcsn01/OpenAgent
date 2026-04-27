@@ -2,6 +2,7 @@ import { PlanExitTool } from "./plan"
 import { Session } from "../session"
 import { QuestionTool } from "./question"
 import { BashTool } from "./bash"
+import { BackgroundTaskCancelTool, BackgroundTaskGetTool, BackgroundTaskListTool } from "./background_task_manage"
 import { EditTool } from "./edit"
 import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
@@ -103,6 +104,9 @@ export const layer: Layer.Layer<
     const invalid = yield* InvalidTool
     const task = yield* TaskTool
     const backgroundTask = yield* BackgroundTaskTool
+    const backgroundTaskList = yield* BackgroundTaskListTool
+    const backgroundTaskGet = yield* BackgroundTaskGetTool
+    const backgroundTaskCancel = yield* BackgroundTaskCancelTool
     const read = yield* ReadTool
     const question = yield* QuestionTool
     const todo = yield* TodoWriteTool
@@ -199,6 +203,9 @@ export const layer: Layer.Layer<
           write: Tool.init(writetool),
           task: Tool.init(task),
           backgroundTask: Tool.init(backgroundTask),
+          backgroundTaskList: Tool.init(backgroundTaskList),
+          backgroundTaskGet: Tool.init(backgroundTaskGet),
+          backgroundTaskCancel: Tool.init(backgroundTaskCancel),
           fetch: Tool.init(webfetch),
           todo: Tool.init(todo),
           search: Tool.init(websearch),
@@ -223,6 +230,9 @@ export const layer: Layer.Layer<
             tool.write,
             tool.task,
             tool.backgroundTask,
+            tool.backgroundTaskList,
+            tool.backgroundTaskGet,
+            tool.backgroundTaskCancel,
             tool.fetch,
             tool.todo,
             tool.search,

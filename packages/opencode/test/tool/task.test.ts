@@ -10,6 +10,11 @@ import { MessageV2 } from "../../src/session/message-v2"
 import type { SessionPrompt } from "../../src/session/prompt"
 import { MessageID, PartID } from "../../src/session/schema"
 import { ModelID, ProviderID } from "../../src/provider/schema"
+import {
+  BackgroundTaskCancelTool,
+  BackgroundTaskGetTool,
+  BackgroundTaskListTool,
+} from "../../src/tool/background_task_manage"
 import { BackgroundTaskTool, TaskTool, type TaskPromptOps } from "../../src/tool/task"
 import { Truncate } from "../../src/tool"
 import { ToolRegistry } from "../../src/tool"
@@ -133,8 +138,10 @@ describe("tool.task", () => {
           })
           const first = yield* get()
           const second = yield* get()
+          const ids = (yield* registry.ids()).sort()
 
           expect(first).toEqual(second)
+          expect(ids).toEqual(expect.arrayContaining(["background_task", "background_task_cancel", "background_task_get", "background_task_list", "task"]))
 
           const alpha = first.task.indexOf("- alpha: Alpha agent")
           const explore = first.task.indexOf("- explore:")
@@ -475,6 +482,137 @@ describe("tool.task", () => {
           },
         },
       },
+    ),
+  )
+
+  it.live("background task management tools can list, inspect, and cancel tasks", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed()
+        const start = yield* BackgroundTaskTool
+        const list = yield* BackgroundTaskListTool
+        const get = yield* BackgroundTaskGetTool
+        const cancel = yield* BackgroundTaskCancelTool
+        const startDef = yield* start.init()
+        const listDef = yield* list.init()
+        const getDef = yield* get.init()
+        const cancelDef = yield* cancel.init()
+        const childStarted = defer<void>()
+        const childRelease = defer<void>()
+        const asks: unknown[] = []
+
+        const started = yield* startDef.execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: {
+              promptOps: {
+                cancel() {},
+                resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
+                prompt: (input) =>
+                  Effect.promise(async () => {
+                    childStarted.resolve()
+                    await childRelease.promise
+                    return reply(input, "background done")
+                  }),
+              } satisfies TaskPromptOps,
+            },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        yield* Effect.promise(() => childStarted.promise)
+
+        const listed = yield* listDef.execute(
+          {},
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(listed.metadata.count).toBe(1)
+        expect(listed.output).toContain(`id="${started.metadata.sessionId}"`)
+        expect(listed.output).toContain('status="running"')
+
+        const inspected = yield* getDef.execute(
+          { task_id: started.metadata.sessionId },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(inspected.metadata.found).toBe(true)
+        expect(inspected.metadata.task?.status).toBe("running")
+
+        const cancelled = yield* cancelDef.execute(
+          { task_id: started.metadata.sessionId },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            messages: [],
+            metadata: () => Effect.void,
+            ask: (input) =>
+              Effect.sync(() => {
+                asks.push(input)
+              }),
+          },
+        )
+
+        expect(asks).toEqual([
+          {
+            permission: "task",
+            patterns: ["general"],
+            always: ["general"],
+            metadata: {
+              task_id: started.metadata.sessionId,
+              description: "inspect bug",
+              subagent_type: "general",
+            },
+          },
+        ])
+        expect(cancelled.metadata.cancelled).toBe(true)
+        expect(cancelled.output).toContain("status: cancelled")
+
+        const afterCancel = yield* listDef.execute(
+          {},
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(afterCancel.metadata.count).toBe(0)
+
+        yield* Effect.sync(() => childRelease.resolve())
+      }),
     ),
   )
 })

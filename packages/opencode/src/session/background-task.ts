@@ -66,6 +66,8 @@ export interface Interface {
   readonly complete: (input: CompleteInput) => Effect.Effect<void>
   readonly fail: (input: FailInput) => Effect.Effect<void>
   readonly list: (sessionID?: SessionID) => Effect.Effect<Info[]>
+  readonly get: (taskID: SessionID) => Effect.Effect<Info | undefined>
+  readonly cancel: (taskID: SessionID) => Effect.Effect<Info | undefined>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/SessionBackgroundTask") {}
@@ -201,10 +203,32 @@ export const layer = Layer.effect(
 
     const list: Interface["list"] = Effect.fn("SessionBackgroundTask.list")(function* (sessionID) {
       const data = yield* InstanceState.get(state)
-      return [...data.tasks.values()].filter((item) => !sessionID || item.parentSessionID === sessionID)
+      return [...data.tasks.values()]
+        .filter((item) => !sessionID || item.parentSessionID === sessionID)
+        .sort((left, right) => left.createdAt - right.createdAt)
     })
 
-    return Service.of({ register, complete, fail, list })
+    const get: Interface["get"] = Effect.fn("SessionBackgroundTask.get")(function* (taskID) {
+      const data = yield* InstanceState.get(state)
+      const task = data.tasks.get(taskID)
+      if (!task) return
+      return { ...task }
+    })
+
+    const cancel: Interface["cancel"] = Effect.fn("SessionBackgroundTask.cancel")(function* (taskID) {
+      const data = yield* InstanceState.get(state)
+      const task = data.tasks.get(taskID)
+      if (!task) return
+      const cancelled = { ...task }
+      data.tasks.delete(taskID)
+      yield* cleanupParent(cancelled.parentSessionID)
+      if (cancelled.status === "running") {
+        yield* runState.cancel(taskID)
+      }
+      return cancelled
+    })
+
+    return Service.of({ register, complete, fail, list, get, cancel })
   }),
 )
 
