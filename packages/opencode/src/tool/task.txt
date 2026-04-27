@@ -5,6 +5,7 @@ When using the Task tool, you must specify a subagent_type parameter to select w
 The Task tool is the supported way to create a blocking OpenCode subagent session.
 Use it whenever you need to delegate work, spawn a subagent, or hand part of the job to another agent and you must wait for the result before continuing.
 If the delegated work can proceed independently and you should keep working while it runs, use the background_task tool instead.
+If the user explicitly asks you to use subagents or delegation, do not substitute direct tool calls for this tool family just because they seem faster or simpler.
 Do not use MCP tools or provider-native tools for subagent delegation, even if their names mention spawning or subagents.
 
 When to use the Task tool:

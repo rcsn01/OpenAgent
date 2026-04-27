@@ -5,6 +5,7 @@ When using the BackgroundTask tool, you must specify a subagent_type parameter t
 The BackgroundTask tool is the supported way to create an OpenCode subagent session that keeps running while you continue the current task.
 Use it whenever delegated work can proceed independently and you do not need the result before taking your next step.
 If your next step depends on the subagent result right away, use the Task tool instead.
+If the user explicitly asks for background tasks, parallel subagents, or to keep working while delegated work runs, you MUST use this tool if it is available instead of doing the work directly yourself.
 Do not use MCP tools or provider-native tools for subagent delegation, even if their names mention spawning or subagents.
 
 When to use the BackgroundTask tool:
