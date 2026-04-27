@@ -190,6 +190,19 @@ describe("tool parameters", () => {
       })
       expect(parsed.questions.length).toBe(1)
     })
+    test("accepts compatibility question fields", () => {
+      const parsed = parse(Question, {
+        questions: [
+          {
+            message: "pick one",
+            options: [{ label: "a", recommended: true }],
+            multiSelect: true,
+            allowFreeformInput: false,
+          },
+        ],
+      })
+      expect(parsed.questions.length).toBe(1)
+    })
     test("rejects missing questions", () => {
       expect(accepts(Question, {})).toBe(false)
     })
@@ -230,7 +243,13 @@ describe("tool parameters", () => {
       const parsed = parse(Todo, {
         todos: [{ id: "t1", content: "do x", status: "pending", priority: "medium" }],
       })
-      expect(parsed.todos.length).toBe(1)
+      expect("todos" in parsed && parsed.todos.length).toBe(1)
+    })
+    test("accepts compatibility todoList array", () => {
+      const parsed = parse(Todo, {
+        todoList: [{ id: 1, title: "do x", status: "not-started" }],
+      })
+      expect("todoList" in parsed && parsed.todoList.length).toBe(1)
     })
     test("rejects missing todos", () => {
       expect(accepts(Todo, {})).toBe(false)

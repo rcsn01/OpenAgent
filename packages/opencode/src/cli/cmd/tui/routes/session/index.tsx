@@ -2171,12 +2171,14 @@ function ApplyPatch(props: ToolProps<typeof ApplyPatchTool>) {
 }
 
 function TodoWrite(props: ToolProps<typeof TodoWriteTool>) {
+  const todos = () => props.metadata.todos ?? []
+
   return (
     <Switch>
       <Match when={props.metadata.todos?.length}>
         <BlockTool title="# Todos" part={props.part}>
           <box>
-            <For each={props.input.todos ?? []}>
+            <For each={todos()}>
               {(todo) => <TodoItem status={todo.status} content={todo.content} />}
             </For>
           </box>
@@ -2193,7 +2195,8 @@ function TodoWrite(props: ToolProps<typeof TodoWriteTool>) {
 
 function Question(props: ToolProps<typeof QuestionTool>) {
   const { theme } = useTheme()
-  const count = createMemo(() => props.input.questions?.length ?? 0)
+  const questions = createMemo(() => props.metadata.questions ?? [])
+  const count = createMemo(() => questions().length)
 
   function format(answer?: ReadonlyArray<string>) {
     if (!answer?.length) return "(no answer)"
@@ -2205,7 +2208,7 @@ function Question(props: ToolProps<typeof QuestionTool>) {
       <Match when={props.metadata.answers}>
         <BlockTool title="# Questions" part={props.part}>
           <box gap={1}>
-            <For each={props.input.questions ?? []}>
+            <For each={questions()}>
               {(q, i) => (
                 <box flexDirection="column">
                   <text fg={theme.textMuted}>{q.question}</text>
