@@ -7,6 +7,14 @@
     },
   },
   "mcp": {},
+  "experimental": {
+    "primary_tools": [
+      "background_task",
+      "background_task_list",
+      "background_task_get",
+      "background_task_cancel",
+    ],
+  },
   "tools": {
     "github-triage": false,
     "github-pr-search": false,
