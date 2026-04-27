@@ -40,6 +40,7 @@ import { Format } from "../format"
 import { InstanceState } from "@/effect"
 import { Question } from "../question"
 import { Todo } from "../session/todo"
+import { SessionBackgroundTask } from "../session/background-task"
 import { LSP } from "../lsp"
 import { Instruction } from "../session/instruction"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
@@ -79,6 +80,7 @@ export const layer: Layer.Layer<
   | Agent.Service
   | Skill.Service
   | Session.Service
+  | SessionBackgroundTask.Service
   | Provider.Service
   | LSP.Service
   | Instruction.Service
@@ -335,6 +337,7 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Skill.defaultLayer),
     Layer.provide(Agent.defaultLayer),
     Layer.provide(Session.defaultLayer),
+    Layer.provide(SessionBackgroundTask.defaultLayer),
     Layer.provide(Provider.defaultLayer),
     Layer.provide(LSP.defaultLayer),
     Layer.provide(Instruction.defaultLayer),

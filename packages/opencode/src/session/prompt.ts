@@ -566,6 +566,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
             prompt: task.prompt,
             description: task.description,
             subagent_type: task.agent,
+            execution_mode: task.execution_mode,
             command: task.command,
           },
           time: { start: Date.now() },
@@ -575,6 +576,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         prompt: task.prompt,
         description: task.description,
         subagent_type: task.agent,
+        execution_mode: task.execution_mode,
         command: task.command,
       }
       yield* plugin.trigger(
@@ -697,7 +699,7 @@ NOTE: At any point in time through this workflow you should feel free to ask the
         } satisfies MessageV2.ToolPart)
       }
 
-      if (!task.command) return
+      if (!task.command || task.execution_mode === "background") return
 
       const summaryUserMsg: MessageV2.User = {
         id: MessageID.ascending(),

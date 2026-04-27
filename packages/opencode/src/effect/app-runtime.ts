@@ -25,6 +25,7 @@ import { Todo } from "@/session/todo"
 import { Session } from "@/session"
 import { SessionStatus } from "@/session/status"
 import { SessionRunState } from "@/session/run-state"
+import { SessionBackgroundTask } from "@/session/background-task"
 import { SessionProcessor } from "@/session/processor"
 import { SessionCompaction } from "@/session/compaction"
 import { SessionRevert } from "@/session/revert"
@@ -74,6 +75,7 @@ export const AppLayer = Layer.mergeAll(
   Session.defaultLayer,
   SessionStatus.defaultLayer,
   SessionRunState.defaultLayer,
+  SessionBackgroundTask.defaultLayer,
   SessionProcessor.defaultLayer,
   SessionCompaction.defaultLayer,
   SessionRevert.defaultLayer,

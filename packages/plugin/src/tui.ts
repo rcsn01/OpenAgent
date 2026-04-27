@@ -11,6 +11,7 @@ import type {
   Provider,
   PermissionRequest,
   QuestionRequest,
+  Session,
   SessionStatus,
   TextPart,
   Config as SdkConfig,
@@ -272,6 +273,8 @@ export type TuiState = {
   }
   readonly vcs: { branch?: string } | undefined
   session: {
+    list: () => ReadonlyArray<Session>
+    get: (sessionID: string) => Session | undefined
     count: () => number
     diff: (sessionID: string) => ReadonlyArray<TuiSidebarFileItem>
     todo: (sessionID: string) => ReadonlyArray<TuiSidebarTodoItem>
@@ -346,6 +349,12 @@ export type TuiHostSlotMap = {
     share_url?: string
   }
   sidebar_content: {
+    session_id: string
+  }
+  sidebar_fill_top: {
+    session_id: string
+  }
+  sidebar_fill_bottom: {
     session_id: string
   }
   sidebar_footer: {

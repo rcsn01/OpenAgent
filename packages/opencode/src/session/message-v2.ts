@@ -220,6 +220,11 @@ export const SubtaskPart = Schema.Struct({
   prompt: Schema.String,
   description: Schema.String,
   agent: Schema.String,
+  execution_mode: Schema.optional(
+    Schema.Union([Schema.Literal("blocking"), Schema.Literal("background")]).annotate({
+      identifier: "SubtaskExecutionMode",
+    }),
+  ),
   model: Schema.optional(
     Schema.Struct({
       providerID: ProviderID,
@@ -514,6 +519,11 @@ export const SubtaskPartInput = Schema.Struct({
   prompt: Schema.String,
   description: Schema.String,
   agent: Schema.String,
+  execution_mode: Schema.optional(
+    Schema.Union([Schema.Literal("blocking"), Schema.Literal("background")]).annotate({
+      identifier: "SubtaskInputExecutionMode",
+    }),
+  ),
   model: Schema.optional(
     Schema.Struct({
       providerID: ProviderID,

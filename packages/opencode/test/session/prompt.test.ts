@@ -23,6 +23,7 @@ import { LLM } from "../../src/session/llm"
 import { MessageV2 } from "../../src/session/message-v2"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { SessionCompaction } from "../../src/session/compaction"
+import { SessionBackgroundTask } from "../../src/session/background-task"
 import { SessionSummary } from "../../src/session/summary"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
@@ -171,12 +172,14 @@ function makeHttp() {
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
+  const background = SessionBackgroundTask.layer.pipe(Layer.provideMerge(run), Layer.provideMerge(deps))
   const registry = ToolRegistry.layer.pipe(
     Layer.provide(Skill.defaultLayer),
     Layer.provide(FetchHttpClient.layer),
     Layer.provide(CrossSpawnSpawner.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
+    Layer.provideMerge(background),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
     Layer.provideMerge(deps),

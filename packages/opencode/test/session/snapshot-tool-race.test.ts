@@ -44,6 +44,7 @@ import { Skill } from "../../src/skill"
 import { SystemPrompt } from "../../src/session/system"
 import { Todo } from "../../src/session/todo"
 import { SessionCompaction } from "../../src/session/compaction"
+import { SessionBackgroundTask } from "../../src/session/background-task"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
 import { SessionRunState } from "../../src/session/run-state"
@@ -124,12 +125,14 @@ function makeHttp() {
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
+  const background = SessionBackgroundTask.layer.pipe(Layer.provideMerge(run), Layer.provideMerge(deps))
   const registry = ToolRegistry.layer.pipe(
     Layer.provide(Skill.defaultLayer),
     Layer.provide(FetchHttpClient.layer),
     Layer.provide(CrossSpawnSpawner.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
+    Layer.provideMerge(background),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
     Layer.provideMerge(deps),

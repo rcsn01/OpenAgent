@@ -5,6 +5,7 @@ import { Config } from "../../src/config"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Instance } from "../../src/project/instance"
 import { Session } from "../../src/session"
+import { SessionBackgroundTask } from "../../src/session/background-task"
 import { MessageV2 } from "../../src/session/message-v2"
 import type { SessionPrompt } from "../../src/session/prompt"
 import { MessageID, PartID } from "../../src/session/schema"
@@ -24,12 +25,21 @@ const ref = {
   modelID: ModelID.make("test-model"),
 }
 
+function defer<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 const it = testEffect(
   Layer.mergeAll(
     Agent.defaultLayer,
     Config.defaultLayer,
     CrossSpawnSpawner.defaultLayer,
     Session.defaultLayer,
+    SessionBackgroundTask.defaultLayer,
     Truncate.defaultLayer,
     ToolRegistry.defaultLayer,
   ),
@@ -309,6 +319,82 @@ describe("tool.task", () => {
         expect(result.metadata.sessionId).not.toBe("ses_missing")
         expect(result.output).toContain(`task_id: ${result.metadata.sessionId}`)
         expect(seen?.sessionID).toBe(result.metadata.sessionId)
+      }),
+    ),
+  )
+
+  it.live("execute can start a background subagent and deliver its result later", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        const childStarted = defer<void>()
+        const childRelease = defer<void>()
+        const delivered = defer<SessionPrompt.PromptInput>()
+
+        const result = yield* def.execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+            execution_mode: "background",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: {
+              promptOps: {
+                cancel() {},
+                resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
+                prompt: (input) => {
+                  if (input.sessionID === chat.id) {
+                    return Effect.sync(() => {
+                      delivered.resolve(input)
+                      return reply(input, "parent delivery")
+                    })
+                  }
+                  return Effect.promise(async () => {
+                    childStarted.resolve()
+                    await childRelease.promise
+                    return reply(input, "background done")
+                  })
+                },
+              } satisfies TaskPromptOps,
+            },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(result.metadata.status).toBe("running")
+        expect(result.metadata.executionMode).toBe("background")
+        expect(result.output).toContain("mode: background")
+        const kids = yield* sessions.children(chat.id)
+        expect(kids).toHaveLength(1)
+
+        yield* Effect.promise(() => childStarted.promise)
+
+        let deliveredBeforeChildFinished = false
+        void delivered.promise.then(() => {
+          deliveredBeforeChildFinished = true
+        })
+        yield* Effect.promise(() => Promise.resolve())
+        expect(deliveredBeforeChildFinished).toBe(false)
+
+        yield* Effect.sync(() => childRelease.resolve())
+
+        const followup = yield* Effect.promise(() => delivered.promise)
+        expect(followup.sessionID).toBe(chat.id)
+        expect(followup.parts[0]).toMatchObject({ type: "text", synthetic: true })
+        expect(followup.parts[0]?.type).toBe("text")
+        if (followup.parts[0]?.type !== "text") throw new Error("Expected synthetic text part")
+        expect(followup.parts[0].text).toContain("<background_task")
+        expect(followup.parts[0].text).toContain("background done")
       }),
     ),
   )

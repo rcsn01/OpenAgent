@@ -29,6 +29,56 @@ A local preview of your documentation will be available at `http://localhost:300
 </Step>
 </Steps>
 
+## Running a local OpenCode checkout
+
+If you already have the official `opencode` installed via Homebrew, you do not need to remove it to test this repository's version. Keep the brewed install for normal use and run the local checkout explicitly while developing.
+
+### Install workspace dependencies
+
+From the repository root:
+
+```bash
+cd /path/to/OpenAgent
+bun install
+```
+
+### Run the local source version
+
+From the CLI package directory:
+
+```bash
+cd /path/to/OpenAgent/packages/opencode
+bun run --conditions=browser ./src/index.ts /path/to/project
+```
+
+The positional `[project]` argument is optional. If you omit it, OpenCode starts in the current directory.
+
+### Build a standalone local binary
+
+If you want to use this checkout from other repositories without replacing the brewed `opencode`, build a local binary and run it directly:
+
+```bash
+cd /path/to/OpenAgent/packages/opencode
+bun run build --single
+./dist/opencode-darwin-arm64/bin/opencode /path/to/project
+```
+
+On Intel macOS, use `./dist/opencode-darwin-x64/bin/opencode` instead.
+
+### Optional shell alias
+
+If you want a stable shortcut for the local build without changing your Homebrew installation, add an alias in your shell:
+
+```bash
+alias opencode-dev=/path/to/OpenAgent/packages/opencode/dist/opencode-darwin-arm64/bin/opencode
+```
+
+Use `opencode-dev` for the local checkout and `opencode` for the Homebrew version.
+
+<Note>
+  Do not use `packages/opencode/bin/opencode` directly from the repository checkout. That wrapper is intended for packaged installs and expects platform binaries to already be present in `node_modules`.
+</Note>
+
 ## Custom ports
 
 By default, Mintlify uses port 3000. You can customize the port Mintlify runs on by using the `--port` flag. For example, to run Mintlify on port 3333, use this command:
