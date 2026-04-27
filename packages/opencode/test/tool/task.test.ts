@@ -10,7 +10,7 @@ import { MessageV2 } from "../../src/session/message-v2"
 import type { SessionPrompt } from "../../src/session/prompt"
 import { MessageID, PartID } from "../../src/session/schema"
 import { ModelID, ProviderID } from "../../src/provider/schema"
-import { TaskTool, type TaskPromptOps } from "../../src/tool/task"
+import { BackgroundTaskTool, TaskTool, type TaskPromptOps } from "../../src/tool/task"
 import { Truncate } from "../../src/tool"
 import { ToolRegistry } from "../../src/tool"
 import { provideTmpdirInstance } from "../fixture/fixture"
@@ -126,22 +126,27 @@ describe("tool.task", () => {
           const registry = yield* ToolRegistry.Service
           const get = Effect.fnUntraced(function* () {
             const tools = yield* registry.tools({ ...ref, agent: build })
-            return tools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
+            return {
+              task: tools.find((tool) => tool.id === TaskTool.id)?.description ?? "",
+              background: tools.find((tool) => tool.id === BackgroundTaskTool.id)?.description ?? "",
+            }
           })
           const first = yield* get()
           const second = yield* get()
 
-          expect(first).toBe(second)
+          expect(first).toEqual(second)
 
-          const alpha = first.indexOf("- alpha: Alpha agent")
-          const explore = first.indexOf("- explore:")
-          const general = first.indexOf("- general:")
-          const zebra = first.indexOf("- zebra: Zebra agent")
+          const alpha = first.task.indexOf("- alpha: Alpha agent")
+          const explore = first.task.indexOf("- explore:")
+          const general = first.task.indexOf("- general:")
+          const zebra = first.task.indexOf("- zebra: Zebra agent")
 
           expect(alpha).toBeGreaterThan(-1)
           expect(explore).toBeGreaterThan(alpha)
           expect(general).toBeGreaterThan(explore)
           expect(zebra).toBeGreaterThan(general)
+          expect(first.background).toContain("keeps running while you continue the current task")
+          expect(first.background).toContain("- alpha: Alpha agent")
         }),
       {
         config: {
@@ -167,11 +172,14 @@ describe("tool.task", () => {
           const agent = yield* Agent.Service
           const build = yield* agent.get("build")
           const registry = yield* ToolRegistry.Service
-          const description =
-            (yield* registry.tools({ ...ref, agent: build })).find((tool) => tool.id === TaskTool.id)?.description ?? ""
+          const tools = yield* registry.tools({ ...ref, agent: build })
+          const description = tools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
+          const backgroundDescription = tools.find((tool) => tool.id === BackgroundTaskTool.id)?.description ?? ""
 
           expect(description).toContain("- alpha: Alpha agent")
           expect(description).not.toContain("- zebra: Zebra agent")
+          expect(backgroundDescription).toContain("- alpha: Alpha agent")
+          expect(backgroundDescription).not.toContain("- zebra: Zebra agent")
         }),
       {
         config: {
@@ -328,7 +336,7 @@ describe("tool.task", () => {
       Effect.gen(function* () {
         const sessions = yield* Session.Service
         const { chat, assistant } = yield* seed()
-        const tool = yield* TaskTool
+        const tool = yield* BackgroundTaskTool
         const def = yield* tool.init()
         const childStarted = defer<void>()
         const childRelease = defer<void>()
@@ -339,7 +347,6 @@ describe("tool.task", () => {
             description: "inspect bug",
             prompt: "look into the cache key path",
             subagent_type: "general",
-            execution_mode: "background",
           },
           {
             sessionID: chat.id,
