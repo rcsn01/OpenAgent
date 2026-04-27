@@ -4,10 +4,19 @@ import { AppRuntime } from "@/effect/app-runtime"
 import { Git } from "@/git"
 import { Instance } from "@/project/instance"
 import { Process } from "@/util"
+import path from "path"
+
+function currentCliCommand() {
+  const entrypoint = process.argv[1]
+  if (entrypoint && [".ts", ".js", ".mjs", ".cjs"].includes(path.extname(entrypoint))) {
+    return [process.execPath, entrypoint]
+  }
+  return [process.execPath]
+}
 
 export const PrCommand = cmd({
   command: "pr <number>",
-  describe: "fetch and checkout a GitHub PR branch, then run opencode",
+  describe: "fetch and checkout a GitHub PR branch, then run openagent",
   builder: (yargs) =>
     yargs.positional("number", {
       type: "number",
@@ -101,7 +110,7 @@ export const PrCommand = cmd({
                 UI.println(`Found opencode session: ${sessionUrl}`)
                 UI.println(`Importing session...`)
 
-                const importResult = await Process.text(["opencode", "import", sessionUrl], {
+                const importResult = await Process.text([...currentCliCommand(), "import", sessionUrl], {
                   nothrow: true,
                 })
                 if (importResult.code === 0) {
@@ -120,18 +129,18 @@ export const PrCommand = cmd({
 
         UI.println(`Successfully checked out PR #${prNumber} as branch '${localBranchName}'`)
         UI.println()
-        UI.println("Starting opencode...")
+        UI.println("Starting openagent...")
         UI.println()
 
-        const opencodeArgs = sessionId ? ["-s", sessionId] : []
-        const opencodeProcess = Process.spawn(["opencode", ...opencodeArgs], {
+        const cliArgs = sessionId ? ["-s", sessionId] : []
+        const cliProcess = Process.spawn([...currentCliCommand(), ...cliArgs], {
           stdin: "inherit",
           stdout: "inherit",
           stderr: "inherit",
           cwd: process.cwd(),
         })
-        const code = await opencodeProcess.exited
-        if (code !== 0) throw new Error(`opencode exited with code ${code}`)
+        const code = await cliProcess.exited
+        if (code !== 0) throw new Error(`openagent exited with code ${code}`)
       },
     })
   },

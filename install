@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-APP=opencode
+APP=openagent
+UPSTREAM_APP=opencode
 
 MUTED='\033[0;2m'
 RED='\033[0;31m'
@@ -9,7 +10,7 @@ NC='\033[0m' # No Color
 
 usage() {
     cat <<EOF
-OpenCode Installer
+OpenAgent Installer
 
 Usage: install.sh [options]
 
@@ -22,7 +23,7 @@ Options:
 Examples:
     curl -fsSL https://opencode.ai/install | bash
     curl -fsSL https://opencode.ai/install | bash -s -- --version 1.0.180
-    ./install --binary /path/to/opencode
+    ./install --binary /path/to/openagent
 EOF
 }
 
@@ -65,7 +66,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-INSTALL_DIR=$HOME/.opencode/bin
+INSTALL_DIR=$HOME/.openagent/bin
 mkdir -p "$INSTALL_DIR"
 
 # If --binary is provided, skip all download/detection logic
@@ -165,7 +166,7 @@ else
       target="$target-musl"
     fi
 
-    filename="$APP-$target$archive_ext"
+    filename="$UPSTREAM_APP-$target$archive_ext"
 
 
     if [ "$os" = "linux" ]; then
@@ -219,11 +220,11 @@ print_message() {
 }
 
 check_version() {
-    if command -v opencode >/dev/null 2>&1; then
-        opencode_path=$(which opencode)
+    if command -v "$APP" >/dev/null 2>&1; then
+        installed_path=$(which "$APP")
 
         ## Check the installed version
-        installed_version=$(opencode --version 2>/dev/null || echo "")
+        installed_version=$($APP --version 2>/dev/null || echo "")
 
         if [[ "$installed_version" != "$specific_version" ]]; then
             print_message info "${MUTED}Installed version: ${NC}$installed_version."
@@ -325,7 +326,7 @@ download_with_progress() {
 }
 
 download_and_install() {
-    print_message info "\n${MUTED}Installing ${NC}opencode ${MUTED}version: ${NC}$specific_version"
+    print_message info "\n${MUTED}Installing ${NC}$APP ${MUTED}version: ${NC}$specific_version"
     local tmp_dir="${TMPDIR:-/tmp}/opencode_install_$$"
     mkdir -p "$tmp_dir"
 
@@ -340,15 +341,28 @@ download_and_install() {
         unzip -q "$tmp_dir/$filename" -d "$tmp_dir"
     fi
 
-    mv "$tmp_dir/opencode" "$INSTALL_DIR"
-    chmod 755 "${INSTALL_DIR}/opencode"
+    local extracted_binary=""
+    for candidate in "$tmp_dir/$APP" "$tmp_dir/$UPSTREAM_APP"; do
+        if [ -f "$candidate" ]; then
+            extracted_binary="$candidate"
+            break
+        fi
+    done
+
+    if [ -z "$extracted_binary" ]; then
+        echo -e "${RED}Error: Could not find a compatible binary in the downloaded archive${NC}"
+        exit 1
+    fi
+
+    mv "$extracted_binary" "$INSTALL_DIR/$APP"
+    chmod 755 "${INSTALL_DIR}/$APP"
     rm -rf "$tmp_dir"
 }
 
 install_from_binary() {
-    print_message info "\n${MUTED}Installing ${NC}opencode ${MUTED}from: ${NC}$binary_path"
-    cp "$binary_path" "${INSTALL_DIR}/opencode"
-    chmod 755 "${INSTALL_DIR}/opencode"
+    print_message info "\n${MUTED}Installing ${NC}$APP ${MUTED}from: ${NC}$binary_path"
+    cp "$binary_path" "${INSTALL_DIR}/$APP"
+    chmod 755 "${INSTALL_DIR}/$APP"
 }
 
 if [ -n "$binary_path" ]; then
@@ -366,9 +380,9 @@ add_to_path() {
     if grep -Fxq "$command" "$config_file"; then
         print_message info "Command already exists in $config_file, skipping write."
     elif [[ -w $config_file ]]; then
-        echo -e "\n# opencode" >> "$config_file"
+        echo -e "\n# $APP" >> "$config_file"
         echo "$command" >> "$config_file"
-        print_message info "${MUTED}Successfully added ${NC}opencode ${MUTED}to \$PATH in ${NC}$config_file"
+        print_message info "${MUTED}Successfully added ${NC}$APP ${MUTED}to \$PATH in ${NC}$config_file"
     else
         print_message warning "Manually add the directory to $config_file (or similar):"
         print_message info "  $command"
@@ -443,6 +457,18 @@ if [ -n "${GITHUB_ACTIONS-}" ] && [ "${GITHUB_ACTIONS}" == "true" ]; then
     print_message info "Added $INSTALL_DIR to \$GITHUB_PATH"
 fi
 
+if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
+    echo -e ""
+    print_message warning "Your current shell does not have $INSTALL_DIR on PATH yet."
+    if [[ -n "${config_file:-}" ]]; then
+        print_message info "Start a new shell or run:"
+        print_message info "  source $config_file"
+    else
+        print_message info "Start a new shell after adding this to your PATH:"
+        print_message info "  export PATH=$INSTALL_DIR:\$PATH"
+    fi
+fi
+
 echo -e ""
 echo -e "${MUTED}                    ${NC}             ▄     "
 echo -e "${MUTED}█▀▀█ █▀▀█ █▀▀█ █▀▀▄ ${NC}█▀▀▀ █▀▀█ █▀▀█ █▀▀█"
@@ -450,10 +476,10 @@ echo -e "${MUTED}█░░█ █░░█ █▀▀▀ █░░█ ${NC}█░
 echo -e "${MUTED}▀▀▀▀ █▀▀▀ ▀▀▀▀ ▀  ▀ ${NC}▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀"
 echo -e ""
 echo -e ""
-echo -e "${MUTED}OpenCode includes free models, to start:${NC}"
+echo -e "${MUTED}OpenAgent includes free models, to start:${NC}"
 echo -e ""
 echo -e "cd <project>  ${MUTED}# Open directory${NC}"
-echo -e "opencode      ${MUTED}# Run command${NC}"
+echo -e "openagent     ${MUTED}# Run command${NC}"
 echo -e ""
 echo -e "${MUTED}For more information visit ${NC}https://opencode.ai/docs"
 echo -e ""
