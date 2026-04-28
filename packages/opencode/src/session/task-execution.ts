@@ -196,10 +196,12 @@ export const layer = Layer.effect(
   }),
 )
 
-export const defaultLayer = layer.pipe(
-  Layer.provide(Agent.defaultLayer),
-  Layer.provide(Config.defaultLayer),
-  Layer.provide(Session.defaultLayer),
+export const defaultLayer = Layer.suspend(() =>
+  layer.pipe(
+    Layer.provide(Agent.defaultLayer),
+    Layer.provide(Config.defaultLayer),
+    Layer.provide(Session.defaultLayer),
+  ),
 )
 
 export * as TaskExecution from "./task-execution"
