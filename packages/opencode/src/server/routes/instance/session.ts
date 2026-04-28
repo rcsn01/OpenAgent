@@ -12,6 +12,7 @@ import { SessionRevert } from "@/session/revert"
 import { SessionShare } from "@/share"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
+import * as SessionTaskGraph from "@/session/task-graph"
 import { Todo } from "@/session/todo"
 import { Effect } from "effect"
 import { Agent } from "@/agent/agent"
@@ -29,6 +30,40 @@ import { NamedError } from "@opencode-ai/core/util/error"
 import { jsonRequest, runRequest } from "./trace"
 
 const log = Log.create({ service: "server" })
+
+const SessionGraphNodeSchema = z.object({
+  graphID: z.string(),
+  nodeID: z.string(),
+  description: z.string(),
+  agent: z.string(),
+  dependencies: z.string().array(),
+  status: z.enum(["pending", "running", "completed", "failed", "blocked", "cancelled"]),
+  sessionID: SessionID.zod.optional(),
+  title: z.string().optional(),
+  output: z.string().optional(),
+  error: z.string().optional(),
+  blockedBy: z.string().array().optional(),
+  createdAt: z.number(),
+  startedAt: z.number().optional(),
+  completedAt: z.number().optional(),
+})
+
+const SessionGraphSchema = z.object({
+  graphID: z.string(),
+  parentSessionID: SessionID.zod,
+  origin: z.enum(["background_task", "background_task_graph"]),
+  status: z.enum(["active", "completed", "failed", "cancelled"]),
+  createdAt: z.number(),
+  completedAt: z.number().optional(),
+  nodes: SessionGraphNodeSchema.array(),
+})
+
+const SessionGraphsResponseSchema = z.object({
+  sessionID: SessionID.zod,
+  rootSessionID: SessionID.zod,
+  focusGraphID: z.string().optional(),
+  graphs: SessionGraphSchema.array(),
+})
 
 export const SessionRoutes = lazy(() =>
   new Hono()
@@ -196,6 +231,53 @@ export const SessionRoutes = lazy(() =>
         return jsonRequest("SessionRoutes.todo", c, function* () {
           const todo = yield* Todo.Service
           return yield* todo.get(sessionID)
+        })
+      },
+    )
+    .get(
+      "/:sessionID/graphs",
+      describeRoute({
+        summary: "Get session task graphs",
+        description: "Retrieve live background task graph state for a session and its root session tree.",
+        operationId: "session.graphs",
+        responses: {
+          200: {
+            description: "Task graphs for the session tree",
+            content: {
+              "application/json": {
+                schema: resolver(SessionGraphsResponseSchema),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          sessionID: SessionID.zod,
+        }),
+      ),
+      async (c) => {
+        const sessionID = c.req.valid("param").sessionID
+        return jsonRequest("SessionRoutes.graphs", c, function* () {
+          const session = yield* Session.Service
+          const taskGraph = yield* SessionTaskGraph.Service
+
+          let current = yield* session.get(sessionID)
+          while (current.parentID) {
+            current = yield* session.get(current.parentID)
+          }
+
+          const graphs = yield* taskGraph.list(current.id)
+          const focusGraphID = (yield* taskGraph.findBySession(sessionID))?.graphID
+
+          return {
+            sessionID,
+            rootSessionID: current.id,
+            focusGraphID,
+            graphs,
+          }
         })
       },
     )
