@@ -10,6 +10,7 @@ import { MessageV2 } from "../../src/session/message-v2"
 import type { SessionPrompt } from "../../src/session/prompt"
 import { MessageID, PartID } from "../../src/session/schema"
 import { ModelID, ProviderID } from "../../src/provider/schema"
+import { TaskExecution } from "../../src/session/task-execution"
 import {
   BackgroundTaskCancelTool,
   BackgroundTaskGetTool,
@@ -44,6 +45,7 @@ const it = testEffect(
     Config.defaultLayer,
     CrossSpawnSpawner.defaultLayer,
     Session.defaultLayer,
+    TaskExecution.defaultLayer,
     SessionBackgroundTask.defaultLayer,
     Truncate.defaultLayer,
     ToolRegistry.defaultLayer,

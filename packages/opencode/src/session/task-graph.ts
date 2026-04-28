@@ -75,7 +75,7 @@ type SubmitNode = {
   description: string
   agent: string
   dependencies?: string[]
-  prepare: () => Effect.Effect<PreparedNode>
+  prepare: () => Effect.Effect<PreparedNode, Error>
 }
 
 type SubmitInput = {

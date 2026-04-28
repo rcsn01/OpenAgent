@@ -1,5 +1,6 @@
 import { afterEach, describe, expect } from "bun:test"
-import { Cause, Effect, Exit } from "effect"
+import { Cause, Effect, Exit, Layer } from "effect"
+import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { SessionTaskGraph } from "../../src/session/task-graph"
 import { SessionID } from "../../src/session/schema"
 import { Instance } from "../../src/project/instance"
@@ -18,7 +19,7 @@ function defer<T>() {
   return { promise, resolve }
 }
 
-const it = testEffect(SessionTaskGraph.defaultLayer)
+const it = testEffect(Layer.mergeAll(SessionTaskGraph.defaultLayer, CrossSpawnSpawner.defaultLayer))
 
 describe("session.task-graph", () => {
   it.live("rejects duplicate ids, unknown dependencies, self dependencies, and cycles", () =>

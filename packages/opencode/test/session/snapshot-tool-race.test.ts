@@ -127,7 +127,8 @@ function makeHttp() {
   ).pipe(Layer.provideMerge(infra))
   const question = Question.layer.pipe(Layer.provideMerge(deps))
   const todo = Todo.layer.pipe(Layer.provideMerge(deps))
-  const background = SessionBackgroundTask.layer.pipe(Layer.provideMerge(run), Layer.provideMerge(deps))
+  const graph = SessionTaskGraph.layer.pipe(Layer.provideMerge(run), Layer.provideMerge(deps))
+  const background = SessionBackgroundTask.layer.pipe(Layer.provideMerge(graph))
   const registry = ToolRegistry.layer.pipe(
     Layer.provide(Skill.defaultLayer),
     Layer.provide(FetchHttpClient.layer),
@@ -135,7 +136,7 @@ function makeHttp() {
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
     Layer.provide(TaskExecution.defaultLayer),
-    Layer.provide(SessionTaskGraph.defaultLayer),
+    Layer.provideMerge(graph),
     Layer.provideMerge(background),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
