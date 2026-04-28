@@ -45,10 +45,12 @@ import { SystemPrompt } from "../../src/session/system"
 import { Todo } from "../../src/session/todo"
 import { SessionCompaction } from "../../src/session/compaction"
 import { SessionBackgroundTask } from "../../src/session/background-task"
+import { SessionTaskGraph } from "../../src/session/task-graph"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
 import { SessionRunState } from "../../src/session/run-state"
 import { SessionStatus } from "../../src/session/status"
+import { TaskExecution } from "../../src/session/task-execution"
 import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "../../src/tool"
 import { Truncate } from "../../src/tool"
@@ -132,6 +134,8 @@ function makeHttp() {
     Layer.provide(CrossSpawnSpawner.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
+    Layer.provide(TaskExecution.defaultLayer),
+    Layer.provide(SessionTaskGraph.defaultLayer),
     Layer.provideMerge(background),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),

@@ -46,6 +46,12 @@ import type { ApplyPatchTool } from "@/tool/apply_patch"
 import type { WebFetchTool } from "@/tool/webfetch"
 import type { CodeSearchTool } from "@/tool/codesearch"
 import type { WebSearchTool } from "@/tool/websearch"
+import type { BackgroundTaskGraphTool } from "@/tool/background_task_graph"
+import type {
+  BackgroundTaskGraphCancelTool,
+  BackgroundTaskGraphGetTool,
+  BackgroundTaskGraphListTool,
+} from "@/tool/background_task_graph_manage"
 import type { TaskTool } from "@/tool/task"
 import type { QuestionTool } from "@/tool/question"
 import type { SkillTool } from "@/tool/skill"
@@ -1575,6 +1581,18 @@ function ToolPart(props: { last: boolean; part: ToolPart; message: AssistantMess
         <Match when={props.part.tool === "background_task"}>
           <Task {...toolprops} />
         </Match>
+        <Match when={props.part.tool === "background_task_graph"}>
+          <BackgroundTaskGraph {...toolprops} />
+        </Match>
+        <Match when={props.part.tool === "background_task_graph_list"}>
+          <BackgroundTaskGraphList {...toolprops} />
+        </Match>
+        <Match when={props.part.tool === "background_task_graph_get"}>
+          <BackgroundTaskGraphGet {...toolprops} />
+        </Match>
+        <Match when={props.part.tool === "background_task_graph_cancel"}>
+          <BackgroundTaskGraphCancel {...toolprops} />
+        </Match>
         <Match when={props.part.tool === "apply_patch"}>
           <ApplyPatch {...toolprops} />
         </Match>
@@ -2039,6 +2057,52 @@ function Task(props: ToolProps<typeof TaskTool>) {
       }}
     >
       {content()}
+    </InlineTool>
+  )
+}
+
+function BackgroundTaskGraph(props: ToolProps<typeof BackgroundTaskGraphTool>) {
+  const count = createMemo(() => {
+    const value = props.input.nodes
+    return Array.isArray(value) ? value.length : 0
+  })
+  const graphId = createMemo(() => (typeof props.metadata.graphId === "string" ? props.metadata.graphId : undefined))
+  const running = createMemo(() => (typeof props.metadata.running === "number" ? props.metadata.running : 0))
+  const waiting = createMemo(() => (typeof props.metadata.waiting === "number" ? props.metadata.waiting : 0))
+  const complete = createMemo(() => (props.part.state.status === "completed" ? graphId() ?? true : false))
+
+  return (
+    <InlineTool icon="⋈" pending="Starting background graph..." complete={complete()} part={props.part}>
+      Background Graph
+      <Show when={graphId()}>{` ${graphId()}`}</Show>
+      {` · ${count()} node${count() === 1 ? "" : "s"}`}
+      <Show when={running() > 0}>{` · ${running()} running`}</Show>
+      <Show when={waiting() > 0}>{` · ${waiting()} waiting`}</Show>
+    </InlineTool>
+  )
+}
+
+function BackgroundTaskGraphList(props: ToolProps<typeof BackgroundTaskGraphListTool>) {
+  const count = createMemo(() => (typeof props.metadata.count === "number" ? props.metadata.count : 0))
+  return (
+    <InlineTool icon="⋈" pending="Listing background graphs..." complete={true} part={props.part}>
+      Background Graphs ({count()})
+    </InlineTool>
+  )
+}
+
+function BackgroundTaskGraphGet(props: ToolProps<typeof BackgroundTaskGraphGetTool>) {
+  return (
+    <InlineTool icon="⋈" pending="Inspecting background graph..." complete={props.input.graph_id} part={props.part}>
+      Background Graph {props.input.graph_id}
+    </InlineTool>
+  )
+}
+
+function BackgroundTaskGraphCancel(props: ToolProps<typeof BackgroundTaskGraphCancelTool>) {
+  return (
+    <InlineTool icon="×" pending="Cancelling background graph..." complete={props.input.graph_id} part={props.part}>
+      Cancel Background Graph {props.input.graph_id}
     </InlineTool>
   )
 }

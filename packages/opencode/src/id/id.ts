@@ -5,6 +5,7 @@ const prefixes = {
   event: "evt",
   session: "ses",
   message: "msg",
+  task_graph: "tgr",
   permission: "per",
   question: "que",
   user: "usr",

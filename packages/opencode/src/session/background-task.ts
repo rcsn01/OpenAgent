@@ -1,13 +1,6 @@
-import { Bus } from "@/bus"
-import { InstanceState } from "@/effect"
-import { Log } from "@/util"
-import { SessionRunState } from "./run-state"
+import { SessionTaskGraph } from "./task-graph"
 import { SessionID } from "./schema"
-import { SessionStatus } from "./status"
-import { Cause, Effect, Layer, Scope, Context } from "effect"
-import * as Stream from "effect/Stream"
-
-const log = Log.create({ service: "session.background-task" })
+import { Context, Effect, Layer } from "effect"
 
 export type Delivery = {
   taskID: SessionID
@@ -21,7 +14,7 @@ export type Delivery = {
   completedAt: number
 }
 
-type Status = "running" | Delivery["status"]
+type Status = "running" | Delivery["status"] | "cancelled"
 
 export type Info = {
   taskID: SessionID
@@ -36,35 +29,16 @@ export type Info = {
   completedAt?: number
 }
 
-type RegisterInput = {
-  taskID: SessionID
+type SubmitInput = {
   parentSessionID: SessionID
   description: string
   agent: string
   deliver: (tasks: Delivery[]) => Effect.Effect<void>
-}
-
-type CompleteInput = {
-  taskID: SessionID
-  title: string
-  output: string
-}
-
-type FailInput = {
-  taskID: SessionID
-  error: string
-}
-
-type State = {
-  tasks: Map<SessionID, Info>
-  delivery: Map<SessionID, RegisterInput["deliver"]>
-  flushing: Set<SessionID>
+  prepare: () => Effect.Effect<SessionTaskGraph.PreparedNode>
 }
 
 export interface Interface {
-  readonly register: (input: RegisterInput) => Effect.Effect<void>
-  readonly complete: (input: CompleteInput) => Effect.Effect<void>
-  readonly fail: (input: FailInput) => Effect.Effect<void>
+  readonly submit: (input: SubmitInput) => Effect.Effect<Info>
   readonly list: (sessionID?: SessionID) => Effect.Effect<Info[]>
   readonly get: (taskID: SessionID) => Effect.Effect<Info | undefined>
   readonly cancel: (taskID: SessionID) => Effect.Effect<Info | undefined>
@@ -75,167 +49,98 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Se
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
-    const bus = yield* Bus.Service
-    const status = yield* SessionStatus.Service
-    const runState = yield* SessionRunState.Service
-    let flush: (parentSessionID: SessionID) => Effect.Effect<void> = () => Effect.void
+    const graph = yield* SessionTaskGraph.Service
 
-    const state = yield* InstanceState.make<State>(
-      Effect.fn("SessionBackgroundTask.state")((): Effect.Effect<State, never, Scope.Scope> =>
-        Effect.gen(function* () {
-          const value: State = {
-            tasks: new Map(),
-            delivery: new Map(),
-            flushing: new Set(),
-          }
+    function mapStatus(node: SessionTaskGraph.NodeInfo): Status {
+      if (node.status === "completed") return "completed"
+      if (node.status === "failed" || node.status === "blocked") return "failed"
+      if (node.status === "cancelled") return "cancelled"
+      return "running"
+    }
 
-          yield* bus.subscribe(SessionStatus.Event.Idle).pipe(
-            Stream.runForEach((event) => flush(event.properties.sessionID)),
-            Effect.forkScoped,
-          )
+    function toInfo(item: SessionTaskGraph.Info): Info | undefined {
+      const node = item.nodes[0]
+      if (!node?.sessionID) return
+      return {
+        taskID: node.sessionID,
+        parentSessionID: item.parentSessionID,
+        description: node.description,
+        agent: node.agent,
+        status: mapStatus(node),
+        title: node.title,
+        output: node.output,
+        error: node.error,
+        createdAt: item.createdAt,
+        completedAt: node.completedAt,
+      }
+    }
 
-          return value
-        }),
-      ),
-    )
-
-    const cleanupParent = Effect.fnUntraced(function* (parentSessionID: SessionID) {
-      const data = yield* InstanceState.get(state)
-      const hasPending = [...data.tasks.values()].some((item) => item.parentSessionID === parentSessionID)
-      if (!hasPending) data.delivery.delete(parentSessionID)
-    })
-
-    flush = Effect.fn("SessionBackgroundTask.flush")(function* (parentSessionID: SessionID) {
-      const data = yield* InstanceState.get(state)
-      if (data.flushing.has(parentSessionID)) return
-      data.flushing.add(parentSessionID)
-
-      yield* Effect.gen(function* () {
-        while (true) {
-          if ((yield* status.get(parentSessionID)).type !== "idle") return
-
-          const available = yield* runState
-            .assertNotBusy(parentSessionID)
-            .pipe(Effect.as(true), Effect.catchCause(() => Effect.succeed(false)))
-          if (!available) return
-
-          const deliver = data.delivery.get(parentSessionID)
-          if (!deliver) return
-
-          const ready = [...data.tasks.values()]
-            .filter((item) => item.parentSessionID === parentSessionID && item.status !== "running")
-            .sort((left, right) => (left.completedAt ?? left.createdAt) - (right.completedAt ?? right.createdAt))
-
-          if (ready.length === 0) {
-            yield* cleanupParent(parentSessionID)
-            return
-          }
-
-          const delivered = yield* deliver(
-            ready.map((item) => ({
-              taskID: item.taskID,
-              parentSessionID: item.parentSessionID,
-              description: item.description,
-              agent: item.agent,
-              status: item.status === "failed" ? "failed" : "completed",
-              title: item.title,
-              output: item.output,
-              error: item.error,
-              completedAt: item.completedAt ?? item.createdAt,
-            })),
-          ).pipe(
-            Effect.as(true),
-            Effect.catchCause((cause) => {
-              log.error("failed to deliver background tasks", {
-                parentSessionID,
-                error: Cause.squash(cause),
-              })
-              return Effect.succeed(false)
-            }),
-          )
-
-          if (!delivered) return
-
-          ready.forEach((item) => data.tasks.delete(item.taskID))
-          yield* cleanupParent(parentSessionID)
-        }
-      }).pipe(Effect.ensuring(Effect.sync(() => data.flushing.delete(parentSessionID))))
-    })
-
-    const maybeFlush = Effect.fnUntraced(function* (parentSessionID: SessionID) {
-      if ((yield* status.get(parentSessionID)).type !== "idle") return
-      yield* flush(parentSessionID)
-    })
-
-    const register: Interface["register"] = Effect.fn("SessionBackgroundTask.register")(function* (input) {
-      const data = yield* InstanceState.get(state)
-      data.tasks.set(input.taskID, {
-        taskID: input.taskID,
+    const submit: Interface["submit"] = Effect.fn("SessionBackgroundTask.submit")(function* (input) {
+      const created = yield* graph.submit({
         parentSessionID: input.parentSessionID,
-        description: input.description,
-        agent: input.agent,
-        status: "running",
-        createdAt: Date.now(),
+        origin: "background_task",
+        deliver: (deliveries) =>
+          input.deliver(
+            deliveries.flatMap((delivery) =>
+              delivery.nodes.flatMap((node) => {
+                if (!node.sessionID || node.status === "blocked") return []
+                return [
+                  {
+                    taskID: node.sessionID,
+                    parentSessionID: delivery.parentSessionID,
+                    description: node.description,
+                    agent: node.agent,
+                    status: node.status,
+                    title: node.title,
+                    output: node.output,
+                    error: node.error,
+                    completedAt: node.completedAt,
+                  } satisfies Delivery,
+                ]
+              }),
+            ),
+          ),
+        nodes: [
+          {
+            nodeID: "task",
+            description: input.description,
+            agent: input.agent,
+            prepare: input.prepare,
+          },
+        ],
       })
-      data.delivery.set(input.parentSessionID, input.deliver)
-    })
 
-    const complete: Interface["complete"] = Effect.fn("SessionBackgroundTask.complete")(function* (input) {
-      const data = yield* InstanceState.get(state)
-      const task = data.tasks.get(input.taskID)
-      if (!task) return
-      task.status = "completed"
-      task.title = input.title
-      task.output = input.output
-      task.completedAt = Date.now()
-      yield* maybeFlush(task.parentSessionID)
-    })
-
-    const fail: Interface["fail"] = Effect.fn("SessionBackgroundTask.fail")(function* (input) {
-      const data = yield* InstanceState.get(state)
-      const task = data.tasks.get(input.taskID)
-      if (!task) return
-      task.status = "failed"
-      task.error = input.error
-      task.completedAt = Date.now()
-      yield* maybeFlush(task.parentSessionID)
+      const info = toInfo(created)
+      if (!info) return yield* Effect.fail(new Error("Background task did not start a child session"))
+      return info
     })
 
     const list: Interface["list"] = Effect.fn("SessionBackgroundTask.list")(function* (sessionID) {
-      const data = yield* InstanceState.get(state)
-      return [...data.tasks.values()]
-        .filter((item) => !sessionID || item.parentSessionID === sessionID)
-        .sort((left, right) => left.createdAt - right.createdAt)
+      return (yield* graph.list(sessionID))
+        .filter((item) => item.origin === "background_task")
+        .flatMap((item) => {
+          const info = toInfo(item)
+          return info ? [info] : []
+        })
     })
 
     const get: Interface["get"] = Effect.fn("SessionBackgroundTask.get")(function* (taskID) {
-      const data = yield* InstanceState.get(state)
-      const task = data.tasks.get(taskID)
-      if (!task) return
-      return { ...task }
+      const item = yield* graph.findBySession(taskID)
+      if (!item || item.origin !== "background_task") return
+      return toInfo(item)
     })
 
     const cancel: Interface["cancel"] = Effect.fn("SessionBackgroundTask.cancel")(function* (taskID) {
-      const data = yield* InstanceState.get(state)
-      const task = data.tasks.get(taskID)
-      if (!task) return
-      const cancelled = { ...task }
-      data.tasks.delete(taskID)
-      yield* cleanupParent(cancelled.parentSessionID)
-      if (cancelled.status === "running") {
-        yield* runState.cancel(taskID)
-      }
-      return cancelled
+      const item = yield* graph.findBySession(taskID)
+      if (!item || item.origin !== "background_task") return
+      const cancelled = yield* graph.cancel(item.graphID)
+      return cancelled ? toInfo(cancelled) : undefined
     })
 
-    return Service.of({ register, complete, fail, list, get, cancel })
+    return Service.of({ submit, list, get, cancel })
   }),
-)
+).pipe(Layer.provide(SessionTaskGraph.layer))
 
-export const defaultLayer = layer.pipe(
-  Layer.provide(Bus.layer),
-  Layer.provide(SessionStatus.defaultLayer),
-  Layer.provide(SessionRunState.defaultLayer),
-)
+export const defaultLayer = layer
 
 export * as SessionBackgroundTask from "./background-task"

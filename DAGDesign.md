@@ -1,13 +1,14 @@
-# DAG Background Task Design
+# Background Task Graph Design
 
 ## Summary
 
-OpenCode already supports background subagent execution, but the current runtime only tracks a flat set of independently launched tasks. DAG support should add dependency-aware scheduling for background subagents without changing the core user experience for existing one-off background tasks.
+OpenCode already supports background subagent execution, but the current runtime only tracks a flat set of independently launched tasks. The next version should move all background subagent work onto one graph runtime instead of keeping a flat background-task system beside a DAG system.
 
 The simplified design is:
 
-- Keep the current background_task tool for independent work.
-- Add a separate graph submission path for dependent work.
+- Represent every background submission as a graph.
+- Keep the current background_task tool for independent work, but implement it as a single-node graph with no dependencies.
+- Use background_task_graph only when the caller needs to submit multiple nodes or explicit dependency edges.
 - Treat dependencies as ordering only, not as a mechanism for passing outputs between subagents.
 - Let downstream subagents work from the shared codebase and files, not injected upstream results.
 - Report every completed graph node back to the main agent, using the existing parent-idle delivery behavior.
@@ -31,7 +32,7 @@ What this means in practice:
 - Completed task results are delivered back to the parent conversation automatically.
 - State is in memory only and does not survive process restart.
 
-Those constraints matter because a DAG needs stable node identities before execution begins, needs to represent nodes that are waiting on dependencies, and should usually avoid auto-delivering every intermediate node result back into the parent assistant.
+Those constraints matter because the unified graph runtime needs stable graph and node identities before execution begins, needs to represent nodes that are waiting on dependencies, and should avoid keeping a second flat registry in sync with graph state. One-off background tasks should become single-node graphs that launch immediately.
 
 ## Child Sessions In This System
 
@@ -39,12 +40,13 @@ A child session is the subagent's own session created under the main session.
 
 - It has its own message history, run state, tool calls, and status.
 - It is linked to the parent session so the main assistant can treat it as delegated work.
-- For one-off background tasks, the child session ID is the task ID that gets returned and tracked.
+- Every background task belongs to a graph, even when that graph has only one node.
 - The parent can keep working while the child session runs in the background.
 - The TUI already treats these as subagent sessions.
 
-For DAGs, child sessions should be used in the same way, with one important difference:
+For graph-backed background work, child sessions should be used in the same way, with one important difference:
 
+- A single-node background task graph should launch its only node immediately so the current one-off UX stays intact.
 - A graph node should get a child session only when it becomes runnable.
 - Pending graph nodes should exist before launch but should not have child sessions yet.
 - Running, completed, failed, and cancelled graph nodes may reference the child session that executed them.
@@ -52,7 +54,8 @@ For DAGs, child sessions should be used in the same way, with one important diff
 ## Design Goals
 
 - Support dependent background subagent work within a single parent session.
-- Preserve current one-off background_task behavior.
+- Unify one-off and dependent background work under one runtime.
+- Preserve current one-off background_task behavior at the user surface.
 - Keep scheduling independent from the main assistant loop.
 - Reject malformed graphs before any child session starts.
 - Keep the first version simple enough to implement without a second coordination channel between subagents.
@@ -60,14 +63,15 @@ For DAGs, child sessions should be used in the same way, with one important diff
 
 ## Non-Goals
 
-- Replacing the existing background_task tool for simple independent work.
-- Making DAG state durable in the initial implementation.
+- Maintaining a separate flat background-task runtime beside graphs.
 - Passing upstream outputs into downstream prompts through a special dependency injection format.
 - Supporting workflows that depend on reasoning that is never written to files or other durable state.
 - Introducing a generic workflow engine unrelated to subagent execution.
 
 ## Simplified DAG Model
 
+- Every background submission is a graph.
+- background_task creates a graph with one node and zero dependencies.
 - Dependencies define start order only.
 - A node with no dependencies can start immediately.
 - A node with dependencies stays pending until all prerequisites complete.
@@ -78,16 +82,17 @@ For DAGs, child sessions should be used in the same way, with one important diff
 - Failure or cancellation of a node blocks downstream pending nodes.
 - Graph cancellation suppresses further automatic reporting for that graph.
 
-This makes the graph model much simpler. The graph is only responsible for validation, readiness, launching, failure handling, cancellation, and parent delivery. It is not responsible for translating one subagent's reasoning into the next subagent's prompt.
+This makes the graph model much simpler. The graph is responsible for validation, readiness, launching, failure handling, cancellation, parent delivery, and compatibility with one-off background tasks. It is not responsible for translating one subagent's reasoning into the next subagent's prompt.
 
 ## Implementation Principles
 
-- Do not overload the existing flat background task registry with pending graph nodes.
+- Replace the existing flat background-task registry with graph-backed state instead of running both models.
 - Extract reusable subagent execution first, then build graph scheduling on top of it.
-- Use graph IDs and node IDs as the stable graph identity model.
+- Use graph IDs as the stable identity for all background work.
+- Use node IDs as the stable identity within a graph.
 - Use child session IDs only after a node actually launches.
 - Keep scheduling event-driven instead of polling.
-- Keep one-off background task tools backward-compatible.
+- Keep one-off background task tools as backward-compatible views over the graph runtime.
 - Keep the first implementation scoped to the current in-process runtime.
 
 ## Detailed Implementation Plan
@@ -96,22 +101,25 @@ The work should land in the following order:
 
 1. Extract reusable subagent execution from packages/opencode/src/tool/task.ts.
 2. Add a dedicated SessionTaskGraph runtime service.
-3. Add a graph submission tool and graph management tools.
-4. Add graph delivery using the existing parent-idle behavior.
-5. Add lightweight prompt and TUI integration.
-6. Add focused tests and package-local validation.
+3. Migrate background_task and background_task_* management tools to the graph service using single-node graphs.
+4. Add an explicit graph submission tool and graph management tools.
+5. Add graph delivery using the existing parent-idle behavior.
+6. Add lightweight prompt and TUI integration.
+7. Add focused tests and package-local validation.
 
-This order keeps the first refactor behavior-preserving, then layers DAG scheduling on top of the same subagent-launch path the system already uses.
+This order keeps the first refactor behavior-preserving, then replaces the flat background-task state with graph-backed state before layering multi-node submission on top of the same subagent-launch path the system already uses.
 
 ## Invariants To Lock Before Coding
 
 These are the rules the implementation should treat as fixed for v1:
 
+- Every background task belongs to exactly one graph.
+- background_task submits a graph with one node and zero dependencies.
 - A node may declare zero or more dependencies.
 - Graph submission is all-or-nothing. If validation fails, no child session is created.
 - A node launches only when every dependency is completed.
 - A failed or cancelled prerequisite blocks downstream pending nodes.
-- Every completed node becomes reportable to the parent session.
+- Every completed or failed node becomes reportable to the parent session.
 - Delivery still waits for the parent session to become idle, matching the existing runtime.
 - DAG state remains in memory only for v1.
 - Explicit graph cancellation suppresses future automatic reporting for that graph.
@@ -120,7 +128,7 @@ These are the rules the implementation should treat as fixed for v1:
 
 ### Goal
 
-Move the child-session creation and subagent execution logic out of packages/opencode/src/tool/task.ts so a graph node can launch long after the original tool call returned.
+Move the child-session creation and subagent execution logic out of packages/opencode/src/tool/task.ts so a graph node can launch long after the original tool call returned and so both blocking tasks and graph-backed background tasks share one execution path.
 
 ### Files
 
@@ -147,14 +155,14 @@ The new TaskExecution service should own the logic that currently lives inside t
 ### Concrete Refactor Steps
 
 1. Move the existing subagent execution path in task.ts into TaskExecution.
-2. Keep task.ts responsible only for tool schemas, tool metadata, and choosing between blocking and background execution.
-3. Keep the existing one-off SessionBackgroundTask.register call in task.ts for the background_task tool.
-4. Preserve the current task_id resume behavior and the current background-task output wording.
-5. Preserve the current cancellation hook for blocking tasks.
+2. Keep task.ts responsible only for tool schemas, tool metadata, and choosing between blocking execution and later background graph submission.
+3. Preserve the current task_id resume behavior and the current background-task output wording.
+4. Preserve the current cancellation hook for blocking tasks.
 
 ### Acceptance Criteria
 
-- task and background_task behavior is unchanged.
+- task behavior is unchanged.
+- background_task behavior is unchanged at the user surface.
 - Existing task tool coverage still passes.
 - No DAG logic is added in this step.
 
@@ -162,27 +170,31 @@ The new TaskExecution service should own the logic that currently lives inside t
 
 ### Goal
 
-Introduce a dedicated service that owns graph validation, state transitions, readiness checks, node launching, cancellation, and delivery bookkeeping.
+Introduce a dedicated service that owns all background subagent state, including legacy one-off tasks and multi-node graphs.
 
 ### Files
 
 - packages/opencode/src/session/task-graph.ts
   - new graph scheduler service
+- packages/opencode/src/session/background-task.ts
+  - remove it or reduce it to a compatibility adapter over SessionTaskGraph
 - packages/opencode/src/effect/app-runtime.ts
   - provide the new layer
 - packages/opencode/src/tool/registry.ts
-  - add the service dependency because graph tools will need it
+  - add the service dependency because both background_task and graph tools will need it
 
 ### Responsibilities
 
 The graph service should be responsible for:
 
 - registering a whole graph at once
+- registering single-node graphs for background_task
 - validating node IDs and dependency edges before any work starts
 - tracking pending, running, completed, failed, blocked, and cancelled node states
 - launching runnable nodes
 - blocking downstream pending nodes when a dependency fails or is cancelled
 - tracking which completed nodes still need to be reported to the parent session
+- indexing single-node graphs for legacy task lookups if compatibility needs it
 - removing finished graphs from memory after all reporting is done
 
 Runtime-only values such as prompt operations, permission callbacks, and delivery callbacks should stay outside the public graph record. They are needed for launching and delivering work, but they should not be part of the graph data returned by list and get operations.
@@ -195,9 +207,12 @@ Graph submission should do the following in order:
 2. Validate duplicate node IDs, unknown dependencies, self-dependencies, and cycles.
 3. Build the reverse dependency map once during registration.
 4. Create all nodes in pending state.
-5. Store graph state and runtime context.
-6. Trigger scheduling once after registration.
-7. Return a summary that includes graph status and node summaries.
+5. Store graph metadata, including whether the graph came from background_task or explicit graph submission.
+6. Store graph state and runtime context.
+7. Trigger scheduling once after registration.
+8. Return a summary that includes graph status and node summaries.
+
+Legacy one-off background_task submissions should go through this same path with one generated node and an empty dependency list.
 
 ### Validation Rules
 
@@ -260,6 +275,8 @@ When a node launches:
 5. On failure, mark the node as failed, store the error, and propagate downstream blocking.
 6. After either result, graph state is recomputed and scheduling runs again.
 
+For background_task compatibility, the single node should become runnable immediately and launch during submission because it has no dependencies.
+
 There is no dependency-output injection step in this design. Ordered tasks are expected to coordinate through repository state rather than through scheduler-generated prompt content.
 
 ### Failure And Blocking
@@ -289,6 +306,8 @@ Graph cancellation should:
 5. mark the graph as cancelled
 
 Do not auto-deliver a synthetic reminder after explicit cancellation. The cancel tool response itself is the user-visible confirmation.
+
+background_task_cancel should call this same graph-cancellation path for single-node graphs.
 
 ## Workstream 4: Delivery Back To The Parent Session
 
@@ -336,9 +355,28 @@ This mirrors the existing one-off behavior where finished tasks disappear after 
 
 ## Workstream 5: Tool Surface
 
-### Keep Existing One-Off Background Tasks
+### Keep background_task As A Compatibility Wrapper
 
-Do not change background_task, background_task_list, background_task_get, or background_task_cancel semantics in v1.
+Do not keep a separate one-off runtime in v1.
+
+Instead:
+
+- background_task stays the user-visible tool for standalone work
+- background_task submits a graph with one generated node and no dependencies
+- that single node launches immediately because it is runnable at registration time
+- the tool keeps the same user-facing wording, but the backing state lives in the graph service
+
+If compatibility needs a task-shaped identifier, the wrapper can return the launched child session reference in addition to the graph ID, but the graph service should remain the source of truth.
+
+### Migrate Existing background_task Management Tools
+
+Update packages/opencode/src/tool/background_task_manage.ts so that:
+
+- background_task_list lists single-node graphs created through background_task
+- background_task_get resolves a single-node graph and renders the existing task-centric shape
+- background_task_cancel cancels the underlying graph
+
+These tools should read from the graph service rather than a separate flat task store.
 
 ### Add background_task_graph
 
@@ -376,7 +414,7 @@ The output format should be graph-specific instead of overloading the existing o
 
 Update packages/opencode/src/tool/registry.ts to:
 
-- initialize the new DAG submit and manage tools
+- initialize the graph service, the background_task compatibility wrappers, and the graph tools
 - add them to the builtin tool list
 - include the graph service in layer requirements
 
@@ -388,55 +426,23 @@ Also update packages/opencode/src/cli/cmd/agent.ts so the tool names can be sele
 
 Update packages/opencode/src/session/prompt files to teach models when to prefer:
 
-- background_task for one-off independent work
+- background_task for one-off independent work that should launch immediately as a single-node graph
 - background_task_graph for dependent work with explicit prerequisites
 
-The prompt guidance should specifically discourage chaining multiple independent background tasks when the work actually requires ordering.
+The prompt guidance should specifically discourage chaining multiple independent background tasks when the work actually requires ordering, because the scheduler cannot enforce dependencies unless the work is submitted as one graph.
 
 The prompt guidance should also make the limitation explicit: downstream graph tasks are expected to inspect repository state instead of receiving injected summaries from upstream tasks.
 
 ### TUI Integration
 
-Update packages/opencode/src/cli/cmd/tui/routes/session/index.tsx to render the new graph tools with a dedicated summary component or a graph-specific block view that shows:
+Update packages/opencode/src/cli/cmd/tui/routes/session/index.tsx to render background work from graph state, with a dedicated graph-specific screen view that shows:
 
 - graph status
 - runnable, running, completed, failed, and blocked counts
 - per-node status summaries
 - optional child session links when a node has launched
 
-Update packages/opencode/src/cli/cmd/tui/feature-plugins/sidebar/subagent.tsx only enough for v1 to avoid misleading labeling. A full sidebar model of DAG node sessions can be deferred if it adds too much complexity.
-
-## Detailed File-Level Change List
-
-### New Files
-
-- packages/opencode/src/session/task-execution.ts
-  - reusable service for child subagent execution
-- packages/opencode/src/session/task-graph.ts
-  - graph scheduler, validation, state transitions, and delivery bookkeeping
-- packages/opencode/src/tool/background_task_graph.ts
-  - graph submission tool
-- packages/opencode/src/tool/background_task_graph_manage.ts
-  - list, get, and cancel tools for DAG graphs
-- packages/opencode/src/tool/background_task_graph.txt
-  - tool description text if the tool descriptions follow the current pattern
-
-### Existing Files To Edit
-
-- packages/opencode/src/tool/task.ts
-  - delegate execution to TaskExecution
-- packages/opencode/src/tool/registry.ts
-  - register graph tools and add service dependency
-- packages/opencode/src/effect/app-runtime.ts
-  - provide TaskExecution and SessionTaskGraph
-- packages/opencode/src/cli/cmd/agent.ts
-  - allow DAG tool names in AVAILABLE_TOOLS
-- packages/opencode/src/cli/cmd/tui/routes/session/index.tsx
-  - render graph tool output
-- packages/opencode/src/cli/cmd/tui/feature-plugins/sidebar/subagent.tsx
-  - avoid incorrect mode labeling for graph-driven subagent sessions
-- packages/opencode/src/session/prompt files
-  - document when to choose the graph tool
+Single-node background_task submissions can keep the existing compact presentation, but they should still drill into the same graph-backed detail view.
 
 ## State Transition Table
 
@@ -461,11 +467,13 @@ Completed, failed, blocked, and cancelled are terminal in v1.
 ### New Or Expanded Test Files
 
 - packages/opencode/test/session/task-graph.test.ts
-  - graph validation and scheduler behavior
+  - graph validation and scheduler behavior, including single-node wrapper submissions
+- packages/opencode/test/tool/background_task_manage.test.ts
+  - compatibility views over graph-backed one-off tasks
 - packages/opencode/test/tool/background_task_graph.test.ts
   - submit, list, get, and cancel tool behavior
 - packages/opencode/test/tool/task.test.ts
-  - confirm the TaskExecution extraction does not change existing tool behavior
+  - confirm the TaskExecution extraction and background_task wrapper do not change existing tool behavior
 - packages/opencode/test/tool/registry.test.ts
   - confirm new tools are registered
 - packages/opencode/test/session/prompt.test.ts
@@ -474,6 +482,8 @@ Completed, failed, blocked, and cancelled are terminal in v1.
 ### Minimum Test Cases
 
 - empty graphs are rejected
+- background_task submits a single-node graph and launches immediately
+- background_task_list, background_task_get, and background_task_cancel operate against graph-backed one-off tasks
 - duplicate node IDs are rejected
 - self-dependencies are rejected
 - missing dependencies are rejected
@@ -496,17 +506,18 @@ Run focused tests for task execution extraction, graph scheduling, graph tool be
 ### Milestone 1
 
 - land TaskExecution
-- keep all existing background-task behavior unchanged
+- keep all existing task behavior unchanged
 - verify current task tests still pass
 
 ### Milestone 2
 
 - land SessionTaskGraph
-- land background_task_graph
+- migrate background_task onto single-node graphs
 - support validation, runnable-node launch, success, failure, blocking, and per-node delivery
 
 ### Milestone 3
 
+- land background_task_graph
 - land graph management tools
 - add lightweight TUI integration
 - improve graph summaries for failures and blocked nodes
@@ -523,7 +534,8 @@ Run focused tests for task execution extraction, graph scheduling, graph tool be
 
 The implementation is complete for v1 when all of the following are true:
 
-- one-off background_task behavior is unchanged
+- one-off background_task is graph-backed and its user-facing behavior is unchanged
+- background_task_list, background_task_get, and background_task_cancel operate on graph-backed one-off tasks
 - DAG submission validates the whole graph before any node launches
 - nodes launch only after all dependencies complete
 - downstream nodes rely on repository state instead of injected upstream outputs
@@ -535,4 +547,4 @@ The implementation is complete for v1 when all of the following are true:
 
 ## Recommendation
 
-The simplest viable implementation for OpenCode is a dedicated graph service plus a reusable subagent execution service, with dependencies used only for ordering and with every node reported back to the parent session. That keeps the current fast path intact while adding a DAG path that matches the repo's runtime model without adding a second prompt-level dependency transport system.
+The simplest viable implementation for OpenCode is a dedicated graph service plus a reusable subagent execution service, with every background task represented as a graph and with dependencies used only for ordering. background_task should remain as the lightweight one-off entry point, but it should create a single-node graph instead of writing to a separate flat task runtime. That keeps the current UX intact while collapsing execution onto one scheduling model and avoids adding a second prompt-level dependency transport system.

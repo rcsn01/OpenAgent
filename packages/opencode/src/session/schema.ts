@@ -14,6 +14,16 @@ export const SessionID = Schema.String.annotate({ [ZodOverride]: Identifier.sche
 
 export type SessionID = Schema.Schema.Type<typeof SessionID>
 
+export const TaskGraphID = Schema.String.annotate({ [ZodOverride]: Identifier.schema("task_graph") }).pipe(
+  Schema.brand("TaskGraphID"),
+  withStatics((s) => ({
+    ascending: (id?: string) => s.make(Identifier.ascending("task_graph", id)),
+    zod: zod(s),
+  })),
+)
+
+export type TaskGraphID = Schema.Schema.Type<typeof TaskGraphID>
+
 export const MessageID = Schema.String.annotate({ [ZodOverride]: Identifier.schema("message") }).pipe(
   Schema.brand("MessageID"),
   withStatics((s) => ({

@@ -2,7 +2,9 @@ import { PlanExitTool } from "./plan"
 import { Session } from "../session"
 import { QuestionTool } from "./question"
 import { BashTool } from "./bash"
+import { BackgroundTaskGraphCancelTool, BackgroundTaskGraphGetTool, BackgroundTaskGraphListTool } from "./background_task_graph_manage"
 import { BackgroundTaskCancelTool, BackgroundTaskGetTool, BackgroundTaskListTool } from "./background_task_manage"
+import { BackgroundTaskGraphTool } from "./background_task_graph"
 import { EditTool } from "./edit"
 import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
@@ -42,6 +44,8 @@ import { InstanceState } from "@/effect"
 import { Question } from "../question"
 import { Todo } from "../session/todo"
 import { SessionBackgroundTask } from "../session/background-task"
+import { TaskExecution } from "../session/task-execution"
+import { SessionTaskGraph } from "../session/task-graph"
 import { LSP } from "../lsp"
 import { Instruction } from "../session/instruction"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
@@ -81,6 +85,8 @@ export const layer: Layer.Layer<
   | Agent.Service
   | Skill.Service
   | Session.Service
+  | TaskExecution.Service
+  | SessionTaskGraph.Service
   | SessionBackgroundTask.Service
   | Provider.Service
   | LSP.Service
@@ -104,9 +110,13 @@ export const layer: Layer.Layer<
     const invalid = yield* InvalidTool
     const task = yield* TaskTool
     const backgroundTask = yield* BackgroundTaskTool
+    const backgroundTaskGraph = yield* BackgroundTaskGraphTool
     const backgroundTaskList = yield* BackgroundTaskListTool
     const backgroundTaskGet = yield* BackgroundTaskGetTool
     const backgroundTaskCancel = yield* BackgroundTaskCancelTool
+    const backgroundTaskGraphList = yield* BackgroundTaskGraphListTool
+    const backgroundTaskGraphGet = yield* BackgroundTaskGraphGetTool
+    const backgroundTaskGraphCancel = yield* BackgroundTaskGraphCancelTool
     const read = yield* ReadTool
     const question = yield* QuestionTool
     const todo = yield* TodoWriteTool
@@ -203,9 +213,13 @@ export const layer: Layer.Layer<
           write: Tool.init(writetool),
           task: Tool.init(task),
           backgroundTask: Tool.init(backgroundTask),
+          backgroundTaskGraph: Tool.init(backgroundTaskGraph),
           backgroundTaskList: Tool.init(backgroundTaskList),
           backgroundTaskGet: Tool.init(backgroundTaskGet),
           backgroundTaskCancel: Tool.init(backgroundTaskCancel),
+          backgroundTaskGraphList: Tool.init(backgroundTaskGraphList),
+          backgroundTaskGraphGet: Tool.init(backgroundTaskGraphGet),
+          backgroundTaskGraphCancel: Tool.init(backgroundTaskGraphCancel),
           fetch: Tool.init(webfetch),
           todo: Tool.init(todo),
           search: Tool.init(websearch),
@@ -230,9 +244,13 @@ export const layer: Layer.Layer<
             tool.write,
             tool.task,
             tool.backgroundTask,
+            tool.backgroundTaskGraph,
             tool.backgroundTaskList,
             tool.backgroundTaskGet,
             tool.backgroundTaskCancel,
+            tool.backgroundTaskGraphList,
+            tool.backgroundTaskGraphGet,
+            tool.backgroundTaskGraphCancel,
             tool.fetch,
             tool.todo,
             tool.search,
@@ -318,7 +336,7 @@ export const layer: Layer.Layer<
             id: tool.id,
             description: [
               output.description,
-              tool.id === TaskTool.id || tool.id === BackgroundTaskTool.id
+              tool.id === TaskTool.id || tool.id === BackgroundTaskTool.id || tool.id === BackgroundTaskGraphTool.id
                 ? yield* describeTask(input.agent)
                 : undefined,
               tool.id === SkillTool.id ? yield* describeSkill(input.agent) : undefined,
@@ -352,6 +370,8 @@ export const defaultLayer = Layer.suspend(() =>
     Layer.provide(Skill.defaultLayer),
     Layer.provide(Agent.defaultLayer),
     Layer.provide(Session.defaultLayer),
+    Layer.provide(TaskExecution.defaultLayer),
+    Layer.provide(SessionTaskGraph.defaultLayer),
     Layer.provide(SessionBackgroundTask.defaultLayer),
     Layer.provide(Provider.defaultLayer),
     Layer.provide(LSP.defaultLayer),

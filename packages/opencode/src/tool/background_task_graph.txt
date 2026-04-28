@@ -1,0 +1,20 @@
+Submit dependent or multi-node background subagent work as one task graph.
+
+Use this tool when the delegated work has explicit ordering requirements or when you want several related background nodes tracked under one graph.
+Dependencies only control execution order. Downstream nodes are expected to inspect repository state, files, and other durable side effects written by earlier nodes instead of receiving injected summaries.
+
+When to use this tool:
+- When one background subagent must finish before another can start.
+- When you want one graph id that represents several related background nodes.
+- When the user explicitly asks for a dependency-aware background workflow.
+
+When NOT to use this tool:
+- For one-off independent work that should launch immediately. Use background_task instead.
+- When you must wait for the first result before deciding the next task. Use task instead.
+- When the work depends on unstored reasoning that only exists in a previous subagent response.
+
+Usage notes:
+1. Submit the full graph in one call so validation can reject malformed dependencies before any child session starts.
+2. Keep dependency edges minimal. Only include edges required for ordering.
+3. If several nodes are independent, omit dependencies so they can launch concurrently.
+4. Do not poll graph status in a loop. Use the graph management tools for concrete inspection or cancellation.

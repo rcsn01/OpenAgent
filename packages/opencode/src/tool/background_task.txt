@@ -10,6 +10,7 @@ If the user explicitly asks for background tasks, parallel subagents, or to keep
 Do not use MCP tools or provider-native tools for subagent delegation, even if their names mention spawning or subagents.
 
 If the user wants several independent deliverables, use one background_task call per deliverable and launch them in parallel.
+If the delegated work needs explicit ordering or dependencies between nodes, use `background_task_graph` instead of launching several separate background tasks.
 If you need to rediscover, inspect, or cancel delegated background work later, use the background_task_list, background_task_get, and background_task_cancel tools instead of guessing.
 
 When to use the BackgroundTask tool:

@@ -1,23 +1,12 @@
 import * as Tool from "./tool"
 import BACKGROUND_DESCRIPTION from "./background_task.txt"
 import DESCRIPTION from "./task.txt"
-import { Session } from "../session"
-import { SessionID, MessageID } from "../session/schema"
 import { SessionBackgroundTask } from "../session/background-task"
-import { MessageV2 } from "../session/message-v2"
-import { Agent } from "../agent/agent"
-import type { SessionPrompt } from "../session/prompt"
-import { Config } from "../config"
-import { ModelID, ProviderID } from "../provider/schema"
-import { Cause, Effect, Schema, Scope } from "effect"
+import { TaskExecution, type ExecutionMode, type TaskInput, type TaskMetadata, type TaskPromptOps } from "../session/task-execution"
+import { Effect, Schema } from "effect"
 
-export interface TaskPromptOps {
-  cancel(sessionID: SessionID): void
-  resolvePromptParts(template: string): Effect.Effect<SessionPrompt.PromptInput["parts"]>
-  prompt(input: SessionPrompt.PromptInput): Effect.Effect<MessageV2.WithParts>
-}
+export type { TaskMetadata, TaskPromptOps } from "../session/task-execution"
 
-const taskPermission = "task"
 const taskToolID = "task"
 const backgroundTaskToolID = "background_task"
 
@@ -25,16 +14,6 @@ const ExecutionModeSchema = Schema.Union([Schema.Literal("blocking"), Schema.Lit
   identifier: "TaskExecutionMode",
 })
 type ExecutionMode = Schema.Schema.Type<typeof ExecutionModeSchema>
-
-type TaskMetadata = {
-  sessionId: SessionID
-  model: {
-    modelID: ModelID
-    providerID: ProviderID
-  }
-  executionMode: ExecutionMode
-  status?: "running"
-}
 
 function renderBackgroundTaskPrompt(tasks: SessionBackgroundTask.Delivery[]) {
   return [
@@ -78,7 +57,6 @@ export const Parameters = Schema.Struct({
 })
 
 const BackgroundParameters = Schema.Struct(SharedParameters)
-type SharedTaskParams = Schema.Schema.Type<typeof BackgroundParameters>
 
 function defineTaskTool<ParametersSchema extends Schema.Decoder<unknown>, ID extends string>(
   toolID: ID,
@@ -89,175 +67,67 @@ function defineTaskTool<ParametersSchema extends Schema.Decoder<unknown>, ID ext
   return Tool.define(
     toolID,
     Effect.gen(function* () {
-      const agent = yield* Agent.Service
       const background = yield* SessionBackgroundTask.Service
-      const config = yield* Config.Service
-      const sessions = yield* Session.Service
-      const scope = yield* Scope.Scope
+      const execution = yield* TaskExecution.Service
 
       const run = Effect.fn(`${toolID}.execute`)(function* (
         params: Schema.Schema.Type<ParametersSchema>,
         ctx: Tool.Context<TaskMetadata>,
       ) {
-        const input = params as SharedTaskParams
-        const cfg = yield* config.get()
+        const ops = ctx.extra?.promptOps as TaskPromptOps | undefined
+        if (!ops) return yield* Effect.fail(new Error("TaskTool requires promptOps in ctx.extra"))
 
-        if (!ctx.extra?.bypassAgentCheck) {
-          yield* ctx.ask({
-            permission: taskPermission,
-            patterns: [input.subagent_type],
-            always: ["*"],
-            metadata: {
-              description: input.description,
-              subagent_type: input.subagent_type,
-            },
-          })
-        }
-
-        const next = yield* agent.get(input.subagent_type)
-        if (!next) {
-          return yield* Effect.fail(new Error(`Unknown agent type: ${input.subagent_type} is not a valid agent type`))
-        }
-
-        const canTask = next.permission.some((rule) => rule.permission === taskPermission)
-        const canTodo = next.permission.some((rule) => rule.permission === "todowrite")
-
-        const taskID = input.task_id
-        const session = taskID
-          ? yield* sessions.get(SessionID.make(taskID)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
-          : undefined
-        const nextSession =
-          session ??
-          (yield* sessions.create({
-            parentID: ctx.sessionID,
-            title: input.description + ` (@${next.name} subagent)`,
-            permission: [
-              ...(canTodo
-                ? []
-                : [
-                    {
-                      permission: "todowrite" as const,
-                      pattern: "*" as const,
-                      action: "deny" as const,
-                    },
-                  ]),
-              ...(canTask
-                ? []
-                : [
-                    {
-                      permission: taskPermission,
-                      pattern: "*" as const,
-                      action: "deny" as const,
-                    },
-                  ]),
-              ...(cfg.experimental?.primary_tools?.map((item) => ({
-                pattern: "*",
-                action: "allow" as const,
-                permission: item,
-              })) ?? []),
-            ],
-          }))
-
-        const msg = yield* Effect.sync(() => MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }))
-        if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
-        const assistant = msg.info
-
-        const executionMode = executionModeFor(params)
-
-        const model = next.model ?? {
-          modelID: assistant.modelID,
-          providerID: assistant.providerID,
-        }
-
-        const taskMetadata: TaskMetadata = {
-          sessionId: nextSession.id,
-          model,
-          executionMode,
-          status: executionMode === "background" ? "running" : undefined,
-        }
+        const input = params as TaskInput
+        const prepared = yield* execution.prepare({
+          task: input,
+          executionMode: executionModeFor(params),
+          parentSessionID: ctx.sessionID,
+          parentMessageID: ctx.messageID,
+          promptOps: ops,
+          ask: ctx.ask,
+          bypassAgentCheck: ctx.extra?.bypassAgentCheck === true,
+        })
 
         yield* ctx.metadata({
           title: input.description,
-          metadata: taskMetadata,
+          metadata: prepared.metadata,
         })
 
-        const ops = ctx.extra?.promptOps as TaskPromptOps
-        if (!ops) return yield* Effect.fail(new Error("TaskTool requires promptOps in ctx.extra"))
-
-        const runSubagent = Effect.fn(`${toolID}.runSubagent`)(function* () {
-          const result = yield* ops.prompt({
-            messageID: MessageID.ascending(),
-            sessionID: nextSession.id,
-            model: {
-              modelID: model.modelID,
-              providerID: model.providerID,
-            },
-            agent: next.name,
-            tools: {
-              ...(canTodo ? {} : { todowrite: false }),
-              ...(canTask ? {} : { [taskToolID]: false, [backgroundTaskToolID]: false }),
-              ...Object.fromEntries((cfg.experimental?.primary_tools ?? []).map((item) => [item, false])),
-            },
-            parts: yield* ops.resolvePromptParts(input.prompt),
-          })
-
-          return {
-            title: input.description,
-            metadata: taskMetadata,
-            output: [
-              `task_id: ${nextSession.id} (for resuming to continue this task if needed)`,
-              "",
-              "<task_result>",
-              result.parts.findLast((item) => item.type === "text")?.text ?? "",
-              "</task_result>",
-            ].join("\n"),
-          }
-        })
-
-        if (executionMode === "background") {
-          yield* background.register({
-            taskID: nextSession.id,
+        if (prepared.metadata.executionMode === "background") {
+          const task = yield* background.submit({
             parentSessionID: ctx.sessionID,
             description: input.description,
-            agent: next.name,
+            agent: prepared.subagent.name,
             deliver: (tasks) =>
               ops
                 .prompt({
                   sessionID: ctx.sessionID,
-                  agent: assistant.agent,
+                  agent: prepared.assistant.agent,
                   model: {
-                    modelID: assistant.modelID,
-                    providerID: assistant.providerID,
+                    modelID: prepared.assistant.modelID,
+                    providerID: prepared.assistant.providerID,
                   },
-                  variant: assistant.variant,
+                  variant: prepared.assistant.variant,
                   parts: [{ type: "text", text: renderBackgroundTaskPrompt(tasks), synthetic: true }],
                 })
                 .pipe(Effect.asVoid),
-          })
-
-          yield* runSubagent().pipe(
-            Effect.flatMap((result) =>
-              background.complete({
-                taskID: nextSession.id,
-                title: result.title,
-                output: result.output,
+            prepare: () =>
+              Effect.succeed({
+                sessionID: prepared.session.id,
+                run: prepared.run.pipe(
+                  Effect.map((result) => ({
+                    title: result.title,
+                    output: result.output,
+                  })),
+                ),
               }),
-            ),
-            Effect.catchCause((cause) => {
-              const error = Cause.squash(cause)
-              return background.fail({
-                taskID: nextSession.id,
-                error: error instanceof Error ? error.message : String(error),
-              })
-            }),
-            Effect.forkIn(scope),
-          )
+          })
 
           return {
             title: input.description,
-            metadata: taskMetadata,
+            metadata: prepared.metadata,
             output: [
-              `task_id: ${nextSession.id} (for resuming to continue this task if needed)`,
+              `task_id: ${task.taskID} (for resuming to continue this task if needed)`,
               "mode: background",
               "status: running",
               "",
@@ -269,14 +139,14 @@ function defineTaskTool<ParametersSchema extends Schema.Decoder<unknown>, ID ext
         }
 
         function cancel() {
-          ops.cancel(nextSession.id)
+          ops.cancel(prepared.session.id)
         }
 
         return yield* Effect.acquireUseRelease(
           Effect.sync(() => {
             ctx.abort.addEventListener("abort", cancel)
           }),
-          () => runSubagent(),
+          () => prepared.run,
           () =>
             Effect.sync(() => {
               ctx.abort.removeEventListener("abort", cancel)

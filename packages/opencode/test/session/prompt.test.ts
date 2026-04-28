@@ -24,12 +24,14 @@ import { MessageV2 } from "../../src/session/message-v2"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { SessionCompaction } from "../../src/session/compaction"
 import { SessionBackgroundTask } from "../../src/session/background-task"
+import { SessionTaskGraph } from "../../src/session/task-graph"
 import { SessionSummary } from "../../src/session/summary"
 import { Instruction } from "../../src/session/instruction"
 import { SessionProcessor } from "../../src/session/processor"
 import { SessionPrompt } from "../../src/session/prompt"
 import { SessionRevert } from "../../src/session/revert"
 import { SessionRunState } from "../../src/session/run-state"
+import { TaskExecution } from "../../src/session/task-execution"
 import { MessageID, PartID, SessionID } from "../../src/session/schema"
 import { SessionStatus } from "../../src/session/status"
 import { Skill } from "../../src/skill"
@@ -179,6 +181,8 @@ function makeHttp() {
     Layer.provide(CrossSpawnSpawner.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
+    Layer.provide(TaskExecution.defaultLayer),
+    Layer.provide(SessionTaskGraph.defaultLayer),
     Layer.provideMerge(background),
     Layer.provideMerge(todo),
     Layer.provideMerge(question),
