@@ -101,7 +101,7 @@ function renderNode(node: SessionTaskGraph.NodeInfo) {
   ].join("\n")
 }
 
-export const BackgroundTaskGraphTool = Tool.define<typeof Parameters, GraphMetadata>(
+export const BackgroundTaskGraphTool = Tool.define<typeof Parameters, GraphMetadata, SessionTaskGraph.Service | TaskExecution.Service>(
   "background_task_graph",
   Effect.gen(function* () {
     const graph = yield* SessionTaskGraph.Service
@@ -152,7 +152,7 @@ export const BackgroundTaskGraphTool = Tool.define<typeof Parameters, GraphMetad
               nodeID: node.node_id,
               description: node.description,
               agent: node.subagent_type,
-              dependencies: node.dependencies ?? [],
+              dependencies: [...(node.dependencies ?? [])],
               prepare: () =>
                 execution.prepare({
                   task: {

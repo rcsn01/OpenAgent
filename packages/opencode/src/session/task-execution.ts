@@ -65,7 +65,7 @@ export type PreparedTask = {
 }
 
 export interface Interface {
-  readonly prepare: (input: PrepareInput) => Effect.Effect<PreparedTask>
+  readonly prepare: (input: PrepareInput) => Effect.Effect<PreparedTask, Error>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/TaskExecution") {}

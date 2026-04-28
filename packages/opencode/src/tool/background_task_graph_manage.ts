@@ -100,7 +100,7 @@ const CancelParameters = Schema.Struct({
   graph_id: Schema.String.annotate({ description: "The graph_id of the background task graph to cancel." }),
 })
 
-export const BackgroundTaskGraphListTool = Tool.define<typeof EmptyParameters, ListMetadata>(
+export const BackgroundTaskGraphListTool = Tool.define<typeof EmptyParameters, ListMetadata, SessionTaskGraph.Service>(
   "background_task_graph_list",
   Effect.gen(function* () {
     const graph = yield* SessionTaskGraph.Service
@@ -127,7 +127,7 @@ export const BackgroundTaskGraphListTool = Tool.define<typeof EmptyParameters, L
   }),
 )
 
-export const BackgroundTaskGraphGetTool = Tool.define<typeof GetParameters, GetMetadata>(
+export const BackgroundTaskGraphGetTool = Tool.define<typeof GetParameters, GetMetadata, SessionTaskGraph.Service>(
   "background_task_graph_get",
   Effect.gen(function* () {
     const graph = yield* SessionTaskGraph.Service
@@ -165,7 +165,7 @@ export const BackgroundTaskGraphGetTool = Tool.define<typeof GetParameters, GetM
   }),
 )
 
-export const BackgroundTaskGraphCancelTool = Tool.define<typeof CancelParameters, CancelMetadata>(
+export const BackgroundTaskGraphCancelTool = Tool.define<typeof CancelParameters, CancelMetadata, SessionTaskGraph.Service>(
   "background_task_graph_cancel",
   Effect.gen(function* () {
     const graph = yield* SessionTaskGraph.Service

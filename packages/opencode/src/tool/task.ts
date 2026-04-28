@@ -13,7 +13,6 @@ const backgroundTaskToolID = "background_task"
 const ExecutionModeSchema = Schema.Union([Schema.Literal("blocking"), Schema.Literal("background")]).annotate({
   identifier: "TaskExecutionMode",
 })
-type ExecutionMode = Schema.Schema.Type<typeof ExecutionModeSchema>
 
 function renderBackgroundTaskPrompt(tasks: SessionBackgroundTask.Delivery[]) {
   return [
@@ -76,6 +75,7 @@ function defineTaskTool<ParametersSchema extends Schema.Decoder<unknown>, ID ext
       ) {
         const ops = ctx.extra?.promptOps as TaskPromptOps | undefined
         if (!ops) return yield* Effect.fail(new Error("TaskTool requires promptOps in ctx.extra"))
+        const promptOps = ops
 
         const input = params as TaskInput
         const prepared = yield* execution.prepare({
@@ -83,7 +83,7 @@ function defineTaskTool<ParametersSchema extends Schema.Decoder<unknown>, ID ext
           executionMode: executionModeFor(params),
           parentSessionID: ctx.sessionID,
           parentMessageID: ctx.messageID,
-          promptOps: ops,
+          promptOps,
           ask: ctx.ask,
           bypassAgentCheck: ctx.extra?.bypassAgentCheck === true,
         })
@@ -99,7 +99,7 @@ function defineTaskTool<ParametersSchema extends Schema.Decoder<unknown>, ID ext
             description: input.description,
             agent: prepared.subagent.name,
             deliver: (tasks) =>
-              ops
+              promptOps
                 .prompt({
                   sessionID: ctx.sessionID,
                   agent: prepared.assistant.agent,
@@ -139,7 +139,7 @@ function defineTaskTool<ParametersSchema extends Schema.Decoder<unknown>, ID ext
         }
 
         function cancel() {
-          ops.cancel(prepared.session.id)
+          promptOps.cancel(prepared.session.id)
         }
 
         return yield* Effect.acquireUseRelease(

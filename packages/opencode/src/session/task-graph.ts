@@ -312,13 +312,15 @@ export const layer = Layer.effect(
       if (!runtime) return yield* failNode(graphID, nodeID, `Missing runtime for task graph node: ${nodeID}`)
 
       const prepared = yield* runtime.prepare().pipe(
-        Effect.catchCause((cause) => {
-          const error = Cause.squash(cause)
-          return failNode(graphID, nodeID, error instanceof Error ? error.message : String(error)).pipe(
-            Effect.zipRight(Effect.fail(error)),
-          )
+        Effect.matchCauseEffect({
+          onFailure: (cause) => {
+            const error = Cause.squash(cause)
+            return failNode(graphID, nodeID, error instanceof Error ? error.message : String(error)).pipe(Effect.as(undefined))
+          },
+          onSuccess: Effect.succeed,
         }),
       )
+      if (!prepared) return
 
       const currentGraph = data.graphs.get(graphID)
       const currentNode = currentGraph?.nodes.get(nodeID)

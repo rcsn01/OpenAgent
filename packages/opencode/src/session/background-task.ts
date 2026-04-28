@@ -38,7 +38,7 @@ type SubmitInput = {
 }
 
 export interface Interface {
-  readonly submit: (input: SubmitInput) => Effect.Effect<Info>
+  readonly submit: (input: SubmitInput) => Effect.Effect<Info, Error>
   readonly list: (sessionID?: SessionID) => Effect.Effect<Info[]>
   readonly get: (taskID: SessionID) => Effect.Effect<Info | undefined>
   readonly cancel: (taskID: SessionID) => Effect.Effect<Info | undefined>
@@ -139,8 +139,8 @@ export const layer = Layer.effect(
 
     return Service.of({ submit, list, get, cancel })
   }),
-).pipe(Layer.provide(SessionTaskGraph.layer))
+)
 
-export const defaultLayer = layer
+export const defaultLayer = Layer.suspend(() => layer.pipe(Layer.provide(SessionTaskGraph.defaultLayer)))
 
 export * as SessionBackgroundTask from "./background-task"
