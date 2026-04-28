@@ -1,6 +1,7 @@
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { createMemo, For, Show } from "solid-js"
 import { tint } from "@tui/context/theme"
+import { DialogSubagentGraph } from "@tui/routes/session/dialog-subagent-graph"
 import { Locale } from "@/util"
 
 const id = "internal:sidebar-subagent"
@@ -88,14 +89,22 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
     return direct
   }
 
+  const openGraph = () => {
+    props.api.ui.dialog.setSize("xlarge")
+    props.api.ui.dialog.replace(() => <DialogSubagentGraph sessionID={props.session_id} />)
+  }
+
   return (
     <box>
-      <text fg={theme().text}>
-        <b>Subagent</b>
-        <Show when={list().length > 0}>
-          <span style={{ fg: theme().textMuted }}> ({list().length})</span>
-        </Show>
-      </text>
+      <box onMouseDown={openGraph}>
+        <text fg={theme().text}>
+          <b>Subagent</b>
+          <Show when={list().length > 0}>
+            <span style={{ fg: theme().textMuted }}> ({list().length})</span>
+          </Show>
+          <span style={{ fg: theme().primary }}> · inspect graphs</span>
+        </text>
+      </box>
 
       <Show when={list().length > 0} fallback={<text fg={theme().textMuted}>Subagent sessions will appear here</text>}>
         <For each={list()}>
