@@ -18,3 +18,32 @@ Usage notes:
 2. Keep dependency edges minimal. Only include edges required for ordering.
 3. If several nodes are independent, omit dependencies so they can launch concurrently.
 4. Do not poll graph status in a loop. Use the graph management tools for concrete inspection or cancellation.
+
+Canonical node shape:
+- Use `node_id` for the stable node id.
+- Use `subagent_type` for the agent selection.
+- Use `dependencies` for prerequisite node ids.
+
+Compatibility aliases:
+- `nodeID` or `id` are accepted as aliases for `node_id`.
+- `subagentType` is accepted as an alias for `subagent_type`.
+- `depends_on` or `dependsOn` are accepted as aliases for `dependencies`.
+
+Example:
+{
+	"nodes": [
+		{
+			"node_id": "collect-alpha",
+			"description": "collect alpha",
+			"prompt": "Collect alpha inputs and write them to the repo for downstream nodes.",
+			"subagent_type": "general"
+		},
+		{
+			"node_id": "process-ab",
+			"description": "process alpha beta",
+			"prompt": "Read the alpha and beta outputs from the repo and generate a merged summary.",
+			"subagent_type": "general",
+			"dependencies": ["collect-alpha", "collect-beta"]
+		}
+	]
+}

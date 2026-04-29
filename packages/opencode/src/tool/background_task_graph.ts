@@ -23,20 +23,87 @@ type GraphMetadata = {
   nodes: NodeSummary[]
 }
 
-const GraphNode = Schema.Struct({
-  node_id: Schema.String.annotate({ description: "Stable node id within this graph." }),
+const SharedGraphNodeParameters = {
   description: Schema.String.annotate({ description: "A short (3-5 words) description of the node task." }),
   prompt: Schema.String.annotate({ description: "The delegated task prompt for this node." }),
-  subagent_type: Schema.String.annotate({ description: "The specialized agent type to use for this node." }),
   dependencies: Schema.optional(Schema.Array(Schema.String)).annotate({
-    description: "Optional node ids that must complete successfully before this node may start.",
+    description: "Optional node ids that must complete successfully before this node may start. Prefer `dependencies`; aliases `depends_on` and `dependsOn` are also accepted.",
+  }),
+  depends_on: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "Compatibility alias for `dependencies`.",
+  }),
+  dependsOn: Schema.optional(Schema.Array(Schema.String)).annotate({
+    description: "Compatibility alias for `dependencies`.",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "Optional command that triggered this node." }),
+}
+
+const GraphNodeBySnakeCase = Schema.Struct({
+  node_id: Schema.String.annotate({ description: "Stable node id within this graph. Prefer `node_id`." }),
+  subagent_type: Schema.String.annotate({ description: "The specialized agent type to use for this node. Prefer `subagent_type`." }),
+  ...SharedGraphNodeParameters,
 })
 
-const Parameters = Schema.Struct({
+const GraphNodeByCamelNodeId = Schema.Struct({
+  nodeID: Schema.String.annotate({ description: "Compatibility alias for `node_id`." }),
+  subagent_type: Schema.String.annotate({ description: "The specialized agent type to use for this node. Prefer `subagent_type`." }),
+  ...SharedGraphNodeParameters,
+})
+
+const GraphNodeByShortId = Schema.Struct({
+  id: Schema.String.annotate({ description: "Compatibility alias for `node_id`." }),
+  subagent_type: Schema.String.annotate({ description: "The specialized agent type to use for this node. Prefer `subagent_type`." }),
+  ...SharedGraphNodeParameters,
+})
+
+const GraphNodeByCamelAgent = Schema.Struct({
+  node_id: Schema.String.annotate({ description: "Stable node id within this graph. Prefer `node_id`." }),
+  subagentType: Schema.String.annotate({ description: "Compatibility alias for `subagent_type`." }),
+  ...SharedGraphNodeParameters,
+})
+
+const GraphNodeByCamelIdAndAgent = Schema.Struct({
+  nodeID: Schema.String.annotate({ description: "Compatibility alias for `node_id`." }),
+  subagentType: Schema.String.annotate({ description: "Compatibility alias for `subagent_type`." }),
+  ...SharedGraphNodeParameters,
+})
+
+const GraphNodeByShortIdAndCamelAgent = Schema.Struct({
+  id: Schema.String.annotate({ description: "Compatibility alias for `node_id`." }),
+  subagentType: Schema.String.annotate({ description: "Compatibility alias for `subagent_type`." }),
+  ...SharedGraphNodeParameters,
+})
+
+const GraphNode = Schema.Union([
+  GraphNodeBySnakeCase,
+  GraphNodeByCamelNodeId,
+  GraphNodeByShortId,
+  GraphNodeByCamelAgent,
+  GraphNodeByCamelIdAndAgent,
+  GraphNodeByShortIdAndCamelAgent,
+]).annotate({
+  description:
+    "Graph node input. Canonical keys are `node_id`, `subagent_type`, and `dependencies`. Compatibility aliases `nodeID`, `id`, `subagentType`, `depends_on`, and `dependsOn` are also accepted.",
+})
+
+export const Parameters = Schema.Struct({
   nodes: Schema.Array(GraphNode).annotate({ description: "The nodes to submit in one background task graph." }),
 })
+
+function nodeIDOf(node: Schema.Schema.Type<typeof GraphNode>) {
+  if ("node_id" in node) return node.node_id
+  if ("nodeID" in node) return node.nodeID
+  return node.id
+}
+
+function nodeAgentOf(node: Schema.Schema.Type<typeof GraphNode>) {
+  if ("subagent_type" in node) return node.subagent_type
+  return node.subagentType
+}
+
+function nodeDependenciesOf(node: Schema.Schema.Type<typeof GraphNode>) {
+  return node.dependencies ?? node.depends_on ?? node.dependsOn ?? []
+}
 
 function renderBackgroundTaskGraphPrompt(deliveries: SessionTaskGraph.Delivery[]) {
   return [
@@ -121,7 +188,7 @@ export const BackgroundTaskGraphTool = Tool.define<typeof Parameters, GraphMetad
           if (assistantMessage.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
           const assistant = assistantMessage.info
 
-          const subagents = [...new Set(params.nodes.map((node) => node.subagent_type))]
+          const subagents = [...new Set(params.nodes.map((node) => nodeAgentOf(node)))]
           yield* ctx.ask({
             permission: "task",
             patterns: subagents,
@@ -149,16 +216,16 @@ export const BackgroundTaskGraphTool = Tool.define<typeof Parameters, GraphMetad
                 })
                 .pipe(Effect.asVoid),
             nodes: params.nodes.map((node) => ({
-              nodeID: node.node_id,
+              nodeID: nodeIDOf(node),
               description: node.description,
-              agent: node.subagent_type,
-              dependencies: [...(node.dependencies ?? [])],
+              agent: nodeAgentOf(node),
+              dependencies: [...nodeDependenciesOf(node)],
               prepare: () =>
                 execution.prepare({
                   task: {
                     description: node.description,
                     prompt: node.prompt,
-                    subagent_type: node.subagent_type,
+                    subagent_type: nodeAgentOf(node),
                     command: node.command,
                   },
                   executionMode: "background",
