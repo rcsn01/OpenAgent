@@ -394,80 +394,65 @@ exports[`tool parameters JSON Schema (wire shape) task 1`] = `
 exports[`tool parameters JSON Schema (wire shape) todo 1`] = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "anyOf": [
-    {
-      "properties": {
-        "todos": {
-          "description": "The updated todo list",
-          "items": {
-            "properties": {
-              "content": {
-                "description": "Brief description of the task",
-                "type": "string",
-              },
-              "priority": {
-                "description": "Priority level of the task: high, medium, low",
-                "type": "string",
-              },
-              "status": {
-                "description": "Current status of the task: pending, in_progress, completed, cancelled",
-                "type": "string",
-              },
-              "title": {
-                "description": "Alternate task title field accepted for compatibility",
-                "type": "string",
-              },
-            },
-            "required": [
-              "status",
-            ],
-            "type": "object",
+  "properties": {
+    "todoList": {
+      "description": "The updated todo list",
+      "items": {
+        "properties": {
+          "content": {
+            "description": "Brief description of the task",
+            "type": "string",
           },
-          "type": "array",
-        },
-      },
-      "required": [
-        "todos",
-      ],
-      "type": "object",
-    },
-    {
-      "properties": {
-        "todoList": {
-          "description": "The updated todo list",
-          "items": {
-            "properties": {
-              "content": {
-                "description": "Brief description of the task",
-                "type": "string",
-              },
-              "priority": {
-                "description": "Priority level of the task: high, medium, low",
-                "type": "string",
-              },
-              "status": {
-                "description": "Current status of the task: pending, in_progress, completed, cancelled",
-                "type": "string",
-              },
-              "title": {
-                "description": "Alternate task title field accepted for compatibility",
-                "type": "string",
-              },
-            },
-            "required": [
-              "status",
-            ],
-            "type": "object",
+          "priority": {
+            "description": "Priority level of the task: high, medium, low",
+            "type": "string",
           },
-          "type": "array",
+          "status": {
+            "description": "Current status of the task: pending, in_progress, completed, cancelled",
+            "type": "string",
+          },
+          "title": {
+            "description": "Alternate task title field accepted for compatibility",
+            "type": "string",
+          },
         },
+        "required": [
+          "status",
+        ],
+        "type": "object",
       },
-      "required": [
-        "todoList",
-      ],
-      "type": "object",
+      "type": "array",
     },
-  ],
+    "todos": {
+      "description": "The updated todo list",
+      "items": {
+        "properties": {
+          "content": {
+            "description": "Brief description of the task",
+            "type": "string",
+          },
+          "priority": {
+            "description": "Priority level of the task: high, medium, low",
+            "type": "string",
+          },
+          "status": {
+            "description": "Current status of the task: pending, in_progress, completed, cancelled",
+            "type": "string",
+          },
+          "title": {
+            "description": "Alternate task title field accepted for compatibility",
+            "type": "string",
+          },
+        },
+        "required": [
+          "status",
+        ],
+        "type": "object",
+      },
+      "type": "array",
+    },
+  },
+  "type": "object",
 }
 `;
 

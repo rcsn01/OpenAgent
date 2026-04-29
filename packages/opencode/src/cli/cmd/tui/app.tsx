@@ -1,4 +1,4 @@
-import { render, TimeToFirstDraw, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { render, TimeToFirstDraw, useKeyboard, useRenderer, useSelectionHandler, useTerminalDimensions } from "@opentui/solid"
 import * as Clipboard from "@tui/util/clipboard"
 import * as Selection from "@tui/util/selection"
 import { createCliRenderer, MouseButton, type CliRendererConfig } from "@opentui/core"
@@ -285,6 +285,10 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
     }
 
     renderer.clearSelection()
+  })
+  useSelectionHandler((selection) => {
+    if (Flag.OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT) return
+    Selection.copySelection(selection, renderer, toast)
   })
 
   // Wire up console copy-to-clipboard via opentui's onCopySelection callback
@@ -846,7 +850,6 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
         evt.preventDefault()
         evt.stopPropagation()
       }}
-      onMouseUp={Flag.OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT ? undefined : () => Selection.copy(renderer, toast)}
     >
       <Show when={Flag.OPENCODE_SHOW_TTFD}>
         <TimeToFirstDraw />

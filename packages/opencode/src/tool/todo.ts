@@ -27,14 +27,14 @@ const TodoItem = Schema.Struct({
 
 const TodoList = Schema.mutable(Schema.Array(TodoItem)).annotate({ description: "The updated todo list" })
 
-export const Parameters = Schema.Union([
-  Schema.Struct({
-    todos: TodoList,
-  }),
-  Schema.Struct({
-    todoList: TodoList,
-  }),
-])
+export const Parameters = Schema.Struct({
+  todos: Schema.optional(TodoList),
+  todoList: Schema.optional(TodoList),
+}).check(
+  Schema.makeFilter(
+    (input) => input.todos !== undefined || input.todoList !== undefined || "Expected either `todos` or `todoList`",
+  ),
+)
 
 type Metadata = {
   todos: Todo.Info[]
@@ -46,7 +46,8 @@ function normalizeStatus(status: string): string {
 }
 
 function normalizeTodos(params: Schema.Schema.Type<typeof Parameters>) {
-  const items = "todos" in params ? params.todos : params.todoList
+  const items = params.todos ?? params.todoList
+  if (!items) throw new Error("The todowrite tool requires either `todos` or `todoList`.")
 
   return items.map((item, index) => ({
     content: item.content?.trim() || item.title?.trim() || `Task ${index + 1}`,

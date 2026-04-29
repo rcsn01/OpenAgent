@@ -10,8 +10,12 @@ type Renderer = {
   clearSelection: () => void
 }
 
-export function copy(renderer: Renderer, toast: Toast): boolean {
-  const text = renderer.getSelection()?.getSelectedText()
+type Selection = {
+  getSelectedText: () => string
+}
+
+export function copySelection(selection: Selection | null, renderer: Pick<Renderer, "clearSelection">, toast: Toast): boolean {
+  const text = selection?.getSelectedText()
   if (!text) return false
 
   Clipboard.copy(text)
@@ -20,4 +24,8 @@ export function copy(renderer: Renderer, toast: Toast): boolean {
 
   renderer.clearSelection()
   return true
+}
+
+export function copy(renderer: Renderer, toast: Toast): boolean {
+  return copySelection(renderer.getSelection(), renderer, toast)
 }

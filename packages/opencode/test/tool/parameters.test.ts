@@ -243,13 +243,13 @@ describe("tool parameters", () => {
       const parsed = parse(Todo, {
         todos: [{ id: "t1", content: "do x", status: "pending", priority: "medium" }],
       })
-      expect("todos" in parsed && parsed.todos.length).toBe(1)
+      expect(parsed.todos?.length).toBe(1)
     })
     test("accepts compatibility todoList array", () => {
       const parsed = parse(Todo, {
         todoList: [{ id: 1, title: "do x", status: "not-started" }],
       })
-      expect("todoList" in parsed && parsed.todoList.length).toBe(1)
+      expect(parsed.todoList?.length).toBe(1)
     })
     test("rejects missing todos", () => {
       expect(accepts(Todo, {})).toBe(false)
