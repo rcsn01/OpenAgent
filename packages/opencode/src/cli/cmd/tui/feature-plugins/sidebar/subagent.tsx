@@ -1,10 +1,11 @@
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { createMemo, For, Show } from "solid-js"
 import { tint } from "@tui/context/theme"
-import { DialogSubagentGraph } from "@tui/routes/session/dialog-subagent-graph"
+import { SubagentGraphScreen } from "@tui/routes/session/subagent-graph"
 import { Locale } from "@/util"
 
 const id = "internal:sidebar-subagent"
+const graphRoute = `${id}:graph`
 type SidebarPart = ReturnType<TuiPluginApi["state"]["part"]>[number]
 
 function agentLabel(title: string) {
@@ -90,13 +91,12 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
   }
 
   const openGraph = () => {
-    props.api.ui.dialog.setSize("xlarge")
-    props.api.ui.dialog.replace(() => <DialogSubagentGraph sessionID={props.session_id} />)
+    props.api.route.navigate(graphRoute, { sessionID: props.session_id })
   }
 
   return (
     <box>
-      <box onMouseDown={openGraph}>
+      <box onMouseUp={openGraph}>
         <text fg={theme().text}>
           <b>Subagent</b>
           <Show when={list().length > 0}>
@@ -142,6 +142,21 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
 }
 
 const tui: TuiPlugin = async (api) => {
+  const unregisterRoute = api.route.register([
+    {
+      name: graphRoute,
+      render: ({ params }) =>
+        typeof params?.sessionID === "string" ? (
+          <SubagentGraphScreen sessionID={params.sessionID} />
+        ) : (
+          <box paddingLeft={2} paddingRight={2} paddingTop={1}>
+            <text fg={api.theme.current.error}>Missing session ID for subagent graph view</text>
+          </box>
+        ),
+    },
+  ])
+  api.lifecycle.onDispose(unregisterRoute)
+
   api.slots.register({
     order: 100,
     slots: {

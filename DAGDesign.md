@@ -10,6 +10,7 @@ The simplified design is:
 - Keep the current background_task tool for independent work, but implement it as a single-node graph with no dependencies.
 - Use background_task_graph only when the caller needs to submit multiple nodes or explicit dependency edges.
 - Treat dependencies as ordering only, not as a mechanism for passing outputs between subagents.
+- Treat graph display as a first-class requirement: the UI should render an actual node-and-edge diagram, not only textual summaries.
 - Let downstream subagents work from the shared codebase and files, not injected upstream results.
 - Report every completed graph node back to the main agent, using the existing parent-idle delivery behavior.
 - Keep DAG state in memory for v1.
@@ -60,6 +61,7 @@ For graph-backed background work, child sessions should be used in the same way,
 - Reject malformed graphs before any child session starts.
 - Keep the first version simple enough to implement without a second coordination channel between subagents.
 - Rely on the shared codebase and files as the handoff surface between ordered tasks.
+- Display graph state as a real diagram with positioned nodes and explicit dependency edges.
 
 ## Non-Goals
 
@@ -67,6 +69,7 @@ For graph-backed background work, child sessions should be used in the same way,
 - Passing upstream outputs into downstream prompts through a special dependency injection format.
 - Supporting workflows that depend on reasoning that is never written to files or other durable state.
 - Introducing a generic workflow engine unrelated to subagent execution.
+- Treating a textual node list, adjacency list, or wrapped status table as the primary graph diagram surface.
 
 ## Simplified DAG Model
 
@@ -420,7 +423,7 @@ Update packages/opencode/src/tool/registry.ts to:
 
 Also update packages/opencode/src/cli/cmd/agent.ts so the tool names can be selected when creating agents.
 
-## Workstream 6: Prompt And UI Integration
+## Workstream 6: Prompt And Diagram UI Integration
 
 ### Prompt Guidance
 
@@ -433,16 +436,110 @@ The prompt guidance should specifically discourage chaining multiple independent
 
 The prompt guidance should also make the limitation explicit: downstream graph tasks are expected to inspect repository state instead of receiving injected summaries from upstream tasks.
 
+### Diagram-First Requirement
+
+A graph screen is only complete when it renders a real diagram.
+
+That means:
+
+- nodes occupy explicit positions in a 2D layout
+- dependency edges are drawn explicitly between nodes
+- the current session node and focus graph are visually highlighted
+- textual summaries remain a secondary inspection surface, not the primary graph view
+
+A wrapped list of nodes, an adjacency list, or a status table is useful as supporting detail, but it is not the graph diagram.
+
+### Reuse The Existing Graph Endpoint
+
+The current `/session/:sessionID/graphs` response already contains the structural data required for a diagram:
+
+- graph identity and graph status
+- node identity and node status
+- dependency edges
+- focus graph identity
+- child session references for launched nodes
+
+For v1, the display system should consume this existing payload directly instead of introducing a second diagram-specific API surface.
+
+### Shared Diagram Pipeline
+
+The diagram system should be split into four layers:
+
+1. Graph response: the raw session graph payload from the API.
+2. Diagram model: normalized nodes, edges, focus state, and interaction metadata.
+3. Layout engine: deterministic node positions and routed edge paths.
+4. Renderer adapter: client-specific drawing implementation.
+
+This prevents the TUI, app, desktop, and web clients from each re-implementing graph semantics differently.
+
+### Diagram Model
+
+Add a shared pure TypeScript transformation from `SessionGraphsResponse` into a diagram-oriented shape such as:
+
+- `DiagramGraph`
+- `DiagramNode`
+- `DiagramEdge`
+- derived flags such as `isCurrent`, `isFocus`, `isBlocked`, and `hasSession`
+
+Each node should carry only semantic data needed for layout and interaction, for example:
+
+- stable node ID
+- display label
+- status
+- agent label
+- child session reference
+- timestamps and error summary for the detail pane
+
+The diagram model should not contain renderer-specific concerns like SVG elements, TUI characters, or canvas drawing commands.
+
+### Layout Engine
+
+Use a layered DAG layout as the default algorithm.
+
+The layout pass should:
+
+1. compute topological depth and use it as the base column placement
+2. order siblings stably using dependency set, `createdAt`, and `nodeID`
+3. assign rows to reduce crossings while keeping the output deterministic
+4. route edges orthogonally and emit waypoints or polylines
+5. preserve coordinates across refreshes when the graph shape has not changed
+
+The output of the layout engine should be explicit node rectangles and edge paths, not pre-rendered text.
+
+### Renderer Adapters
+
+Use the same diagram model and layout output across all clients, with different renderers per surface:
+
+- app, desktop, and web should be the primary diagram renderers and should draw actual boxes, arrows, hover states, and focus states using SVG or canvas
+- the TUI should render a reduced-fidelity diagram from the same layout spec using box-drawing characters as a compatibility renderer
+- textual node summaries should remain available below or beside the diagram as an inspection pane
+
+This keeps diagram semantics shared while allowing clients with real 2D drawing support to present a substantially better graph view.
+
+### Interaction Model
+
+The diagram surface should support:
+
+- selecting a node
+- opening the child session for a launched node
+- highlighting upstream and downstream dependencies for the selected node
+- centering the current session node or focus graph when the view opens
+- zoom-to-fit and reset-layout actions in graphical clients
+- keeping the node detail pane synchronized with the current selection
+
 ### TUI Integration
 
 Update packages/opencode/src/cli/cmd/tui/routes/session/index.tsx to render background work from graph state, with a dedicated graph-specific screen view that shows:
 
 - graph status
 - runnable, running, completed, failed, and blocked counts
-- per-node status summaries
+- an actual box-and-edge diagram derived from the shared diagram model
+- per-node status summaries in a secondary detail pane
 - optional child session links when a node has launched
 
-Single-node background_task submissions can keep the existing compact presentation, but they should still drill into the same graph-backed detail view.
+Single-node background_task submissions can keep the existing compact presentation, but they should still drill into the same graph-backed diagram view.
+
+When the terminal is too narrow to show the whole layout cleanly, the TUI should degrade to a selected-node-focused miniature diagram plus the detail pane, not to a pure text-only graph screen.
 
 ## State Transition Table
 
@@ -519,14 +616,15 @@ Run focused tests for task execution extraction, graph scheduling, graph tool be
 
 - land background_task_graph
 - land graph management tools
-- add lightweight TUI integration
+- land the shared diagram model and layout engine
+- add diagram renderers for TUI and graphical clients
 - improve graph summaries for failures and blocked nodes
 
 ### Deferred After V1
 
 - durable restart recovery
 - retries and retry policies
-- richer DAG visualization
+- animated layout transitions and manual re-layout controls
 - cross-session or cross-project graphs
 - node-level retry or resume commands
 
@@ -543,6 +641,8 @@ The implementation is complete for v1 when all of the following are true:
 - every completed or failed node is eventually reported to the parent session
 - parent delivery still respects idle gating
 - graph tools are visible in the registry and usable from agents
+- the graph screen renders an explicit node-and-edge diagram rather than only textual summaries
+- the same graph payload can drive both the TUI diagram and richer graphical client renderers
 - package-local tests and typecheck pass
 
 ## Recommendation

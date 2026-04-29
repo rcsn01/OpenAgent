@@ -19,9 +19,14 @@ export function Dialog(
 
   let dismiss = false
   const width = () => {
-    if (props.size === "xlarge") return 116
+    if (props.size === "xlarge") return Math.min(156, dimensions().width - 4)
     if (props.size === "large") return 88
     return 60
+  }
+
+  const topPadding = () => {
+    if (props.size === "xlarge") return 1
+    return dimensions().height / 4
   }
 
   return (
@@ -41,7 +46,7 @@ export function Dialog(
       alignItems="center"
       position="absolute"
       zIndex={3000}
-      paddingTop={dimensions().height / 4}
+      paddingTop={topPadding()}
       left={0}
       top={0}
       backgroundColor={RGBA.fromInts(0, 0, 0, 150)}
