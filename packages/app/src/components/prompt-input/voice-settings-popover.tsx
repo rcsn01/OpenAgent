@@ -1,12 +1,15 @@
+import { makeEventListener } from "@solid-primitives/event-listener"
 import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Popover } from "@opencode-ai/ui/popover"
 import { RadioGroup } from "@opencode-ai/ui/radio-group"
 import { showToast } from "@opencode-ai/ui/toast"
-import { createMemo, createResource, Show } from "solid-js"
+import { createMemo, createResource, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Accessor } from "solid-js"
+import { formatKeybind } from "@/context/command"
+import { useLanguage } from "@/context/language"
 import { usePlatform, type SpeechModelID, type SpeechModelInfo } from "@/context/platform"
 
 const fallbackModels: SpeechModelInfo[] = [
@@ -26,19 +29,53 @@ const fallbackModels: SpeechModelInfo[] = [
     recommended: false,
     path: "",
   },
-] as const
+]
 
 interface VoiceSettingsPopoverProps {
   disabled: boolean
   model: Accessor<SpeechModelID>
   onModelChange: (value: SpeechModelID) => void
+  pressToTalkKeybind: Accessor<string>
+  onPressToTalkKeybindChange: (value: string) => void
+}
+
+const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
+
+function isModifier(key: string) {
+  return key === "Shift" || key === "Control" || key === "Alt" || key === "Meta"
+}
+
+function normalizeKey(key: string) {
+  if (key === ",") return "comma"
+  if (key === "+") return "plus"
+  if (key === " ") return "space"
+  return key.toLowerCase()
+}
+
+function recordKeybind(event: KeyboardEvent) {
+  if (isModifier(event.key)) return
+
+  const parts: string[] = []
+  const mod = IS_MAC ? event.metaKey : event.ctrlKey
+  if (mod) parts.push("mod")
+  if (IS_MAC && event.ctrlKey) parts.push("ctrl")
+  if (!IS_MAC && event.metaKey) parts.push("meta")
+  if (event.altKey) parts.push("alt")
+  if (event.shiftKey) parts.push("shift")
+
+  const key = normalizeKey(event.key)
+  if (!key) return
+  parts.push(key)
+  return parts.join("+")
 }
 
 export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
+  const language = useLanguage()
   const platform = usePlatform()
   const [state, setState] = createStore({
     open: false,
     installing: undefined as SpeechModelID | undefined,
+    capturing: false,
   })
   const [models, actions] = createResource(
     async () => {
@@ -51,6 +88,10 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
   const selected = createMemo(
     () => models.latest.find((item) => item.id === props.model()) ?? fallbackModels.find((item) => item.id === props.model()),
   )
+  const pressToTalkDisplay = createMemo(() => {
+    if (state.capturing) return "Press keys"
+    return formatKeybind(props.pressToTalkKeybind(), language.t) || "Unassigned"
+  })
 
   const download = async () => {
     const info = selected()
@@ -78,11 +119,55 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
     }
   }
 
+  const stopCapture = () => {
+    setState("capturing", false)
+  }
+
+  if (typeof document !== "undefined") {
+    makeEventListener(
+      document,
+      "keydown",
+      (event) => {
+        if (!state.capturing) return
+
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+
+        if (event.key === "Escape") {
+          stopCapture()
+          return
+        }
+
+        const clear =
+          (event.key === "Backspace" || event.key === "Delete") &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !event.shiftKey
+        if (clear) {
+          props.onPressToTalkKeybindChange("none")
+          stopCapture()
+          return
+        }
+
+        const next = recordKeybind(event)
+        if (!next) return
+        props.onPressToTalkKeybindChange(next)
+        stopCapture()
+      },
+      { capture: true },
+    )
+  }
+
+  onCleanup(stopCapture)
+
   return (
     <Popover
       open={state.open}
       onOpenChange={(value) => {
         setState("open", value)
+        if (!value) stopCapture()
         if (value) void actions.refetch()
       }}
       triggerAs={IconButton}
@@ -95,11 +180,33 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
         disabled: props.disabled,
       }}
       title="Voice settings"
-      description="Choose which local Parakeet model the microphone uses."
+      description="Choose your local Parakeet model and press-to-talk shortcut."
       class="w-[320px] max-w-[calc(100vw-32px)]"
       placement="top-end"
     >
       <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <div class="text-12-medium text-text-strong">Press-to-talk</div>
+              <div class="text-11-regular text-text-weak">Hold this shortcut while the mic is off to transcribe.</div>
+            </div>
+            <button
+              type="button"
+              data-voice-ptt-capture="true"
+              classList={{
+                "h-8 min-w-[88px] rounded-md px-3 text-12-regular": true,
+                "border border-border-weak-base bg-surface-inset-base text-text-weak": state.capturing,
+                "bg-surface-base text-text-subtle hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active":
+                  !state.capturing,
+              }}
+              onClick={() => setState("capturing", !state.capturing)}
+            >
+              {pressToTalkDisplay()}
+            </button>
+          </div>
+          <div class="text-[11px] leading-4 text-text-dim">Press `Esc` to cancel or `Backspace` to clear.</div>
+        </div>
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between gap-2">
             <span class="text-12-medium text-text-strong">Model</span>
@@ -140,7 +247,7 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
                 </div>
               </div>
               <Show when={info().downloaded && info().path}>
-                <div class="rounded-md bg-surface-inset-base px-2 py-1 text-[11px] leading-4 text-text-dim break-all">
+                <div class="rounded-md bg-surface-inset-base px-2 py-1 text-[11px] leading-4 break-all text-text-dim">
                   {info().path}
                 </div>
               </Show>

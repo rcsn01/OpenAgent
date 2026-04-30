@@ -1092,7 +1092,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onQueue: props.onQueue,
     onAbort: props.onAbort,
     onSubmit: () => {
-      voice.turnOffMicrophone()
       props.onSubmit?.()
     },
   })
@@ -1100,16 +1099,12 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const voice = createPromptVoice({
     prompt,
     mode: () => store.mode,
-    working,
-    autoSubmit: settings.voice.autoSubmit,
-    setAutoSubmit: settings.voice.setAutoSubmit,
     speechModel: settings.voice.model,
+    pressToTalkKeybind: settings.voice.pressToTalkKeybind,
     baseSilenceMs: settings.voice.baseSilenceMs,
-    maxSilenceMs: settings.voice.maxSilenceMs,
     vadSensitivity: settings.voice.vadSensitivity,
     prepareSpeechTranscription: platform.prepareSpeechTranscription,
     transcribeSpeech: platform.transcribeSpeech,
-    submit: () => void handleSubmit(new Event("submit", { cancelable: true })),
   })
 
   const placeholder = createMemo(() => {
@@ -1631,19 +1626,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       </div>
                     </Show>
                     <div class="ml-auto flex items-center gap-1.5">
-                      <Tooltip placement="top" value={<span>{voice.autoSubmit() ? "Auto-send on pause" : "Manual send"}</span>}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          class="h-7 px-2 text-12-medium"
-                          data-selected={voice.autoSubmit()}
-                          aria-pressed={voice.autoSubmit()}
-                          onClick={() => voice.setAutoSubmit(!voice.autoSubmit())}
-                          disabled={store.mode !== "normal" || !voice.supported()}
-                        >
-                          Auto
-                        </Button>
-                      </Tooltip>
                       <Tooltip placement="top" value={<span>{voice.status()}</span>}>
                         <button
                           type="button"
@@ -1662,9 +1644,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         </button>
                       </Tooltip>
                       <VoiceSettingsPopover
-                        disabled={store.mode !== "normal" || !voice.supported() || voice.busy()}
+                        disabled={store.mode !== "normal" || !voice.supported()}
                         model={settings.voice.model}
                         onModelChange={settings.voice.setModel}
+                        pressToTalkKeybind={settings.voice.pressToTalkKeybind}
+                        onPressToTalkKeybindChange={settings.voice.setPressToTalkKeybind}
                       />
                     </div>
                   </Show>

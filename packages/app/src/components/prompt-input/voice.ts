@@ -1,8 +1,9 @@
+import { makeEventListener } from "@solid-primitives/event-listener"
 import { createEffect, createMemo, onCleanup, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
+import { matchKeybind, parseKeybind, type Keybind } from "@/context/command"
 import type { SpeechModelID, SpeechTranscription, SpeechTranscriptionInput } from "@/context/platform"
 import type { Prompt } from "@/context/prompt"
-import { shouldAutoSubmitVoiceTurn } from "./voice-endpoint"
 import { applyVoiceTranscript } from "./voice-prompt"
 
 type PromptVoiceInput = {
@@ -11,20 +12,18 @@ type PromptVoiceInput = {
     set: (prompt: Prompt, cursorPosition?: number) => void
   }
   mode: Accessor<"normal" | "shell">
-  working: Accessor<boolean>
-  autoSubmit: Accessor<boolean>
-  setAutoSubmit: (value: boolean) => void
   speechModel: Accessor<SpeechModelID>
+  pressToTalkKeybind: Accessor<string>
   baseSilenceMs: Accessor<number>
-  maxSilenceMs: Accessor<number>
   vadSensitivity: Accessor<"low" | "normal" | "high">
   prepareSpeechTranscription?: (model: SpeechModelID) => Promise<void>
   transcribeSpeech?: (input: SpeechTranscriptionInput) => Promise<SpeechTranscription>
-  submit: () => void
 }
 
 const TRANSCRIPTION_MIME = "audio/wav"
 const MIN_TRANSCRIBE_MS = 200
+const SPEECH_FRAME_COUNT = 3
+const SILENCE_FRAME_COUNT = 8
 
 const speechFactor = (value: "low" | "normal" | "high") => {
   if (value === "high") return 2.4
@@ -39,6 +38,24 @@ const writeAscii = (view: DataView, offset: number, value: string) => {
   for (let index = 0; index < value.length; index += 1) {
     view.setUint8(offset + index, value.charCodeAt(index))
   }
+}
+
+const normalizeKey = (key: string) => {
+  if (key === ",") return "comma"
+  if (key === "+") return "plus"
+  if (key === " ") return "space"
+  return key.toLowerCase()
+}
+
+const matchesPressToTalkRelease = (binding: Keybind | undefined, event: KeyboardEvent) => {
+  if (!binding) return false
+  const key = normalizeKey(event.key)
+  if (key === binding.key) return true
+  if (key === "control" && binding.ctrl) return true
+  if (key === "meta" && binding.meta) return true
+  if (key === "shift" && binding.shift) return true
+  if (key === "alt" && binding.alt) return true
+  return false
 }
 
 const encodeWave = (buffers: Float32Array[], sampleRate: number) => {
@@ -74,7 +91,8 @@ const encodeWave = (buffers: Float32Array[], sampleRate: number) => {
 
 export function createPromptVoice(input: PromptVoiceInput) {
   const [state, setState] = createStore<{
-    micEnabled: boolean
+    manualMicEnabled: boolean
+    pressToTalkActive: boolean
     preparing: boolean
     starting: boolean
     listening: boolean
@@ -82,7 +100,8 @@ export function createPromptVoice(input: PromptVoiceInput) {
     transcribing: boolean
     error?: string
   }>({
-    micEnabled: false,
+    manualMicEnabled: false,
+    pressToTalkActive: false,
     preparing: false,
     starting: false,
     listening: false,
@@ -99,11 +118,13 @@ export function createPromptVoice(input: PromptVoiceInput) {
     if (!supported()) return "Voice unavailable"
     if (state.error) return state.error
     if (state.preparing) return "Preparing Parakeet model..."
-    if (state.transcribing) return input.autoSubmit() ? "Transcribing and sending..." : "Transcribing locally..."
     if (state.starting) return "Starting microphone..."
-    if (!state.micEnabled) return "Microphone off"
-    if (state.speaking) return input.autoSubmit() ? "Listening for a pause to send..." : "Recording..."
-    if (state.listening) return input.autoSubmit() ? "Waiting for you to finish..." : "Recording..."
+    if (state.pressToTalkActive && state.speaking) return "Release key to stop talking..."
+    if (state.pressToTalkActive && state.listening) return "Hold key to keep talking..."
+    if (state.manualMicEnabled && state.speaking) return "Listening..."
+    if (state.manualMicEnabled && state.listening) return "Mic on"
+    if (state.transcribing) return state.manualMicEnabled ? "Mic on and transcribing..." : "Finishing voice note..."
+    if (state.manualMicEnabled) return "Mic on"
     return "Microphone off"
   })
 
@@ -114,7 +135,6 @@ export function createPromptVoice(input: PromptVoiceInput) {
   let sink: GainNode | undefined
   let audioBuffer: Uint8Array<ArrayBuffer> | undefined
   let animationFrame = 0
-  let endpointTimer: number | undefined
   let speechFrames = 0
   let silenceFrames = 0
   let noiseFloor = 0.006
@@ -123,22 +143,27 @@ export function createPromptVoice(input: PromptVoiceInput) {
   let recordedFrames = 0
   let recordedChunks: Float32Array[] = []
   let sawSpeech = false
-  let stoppedByUser = false
-  let activeModel: SpeechModelID | undefined
+  let sessionModel: SpeechModelID | undefined
+  let sessionRun = 0
+  let pendingTranscriptions = 0
+  let transcriptionQueue = Promise.resolve()
+  let flushPending = false
 
-  const resetRecording = () => {
+  const shouldRunSession = () =>
+    supported() && input.mode() === "normal" && (state.manualMicEnabled || state.pressToTalkActive)
+
+  const resetRecording = (options?: { clearModel?: boolean }) => {
     recordedSampleRate = 0
     recordedFrames = 0
     recordedChunks = []
     sawSpeech = false
-    activeModel = undefined
+    flushPending = false
+    if (options?.clearModel) sessionModel = undefined
   }
 
   const stopAudio = () => {
     if (animationFrame) cancelAnimationFrame(animationFrame)
-    if (endpointTimer !== undefined) clearInterval(endpointTimer)
     animationFrame = 0
-    endpointTimer = undefined
 
     if (processor) {
       processor.onaudioprocess = null
@@ -174,48 +199,75 @@ export function createPromptVoice(input: PromptVoiceInput) {
     setState("starting", false)
   }
 
-  const takeRecording = () => {
+  const takeRecording = (options?: { clearModel?: boolean }) => {
     const durationMs = recordedSampleRate > 0 ? (recordedFrames / recordedSampleRate) * 1000 : 0
     const chunks = recordedChunks
     const sampleRate = recordedSampleRate
-    resetRecording()
+    resetRecording(options)
     if (!sampleRate || chunks.length === 0 || durationMs < MIN_TRANSCRIBE_MS) return
     return encodeWave(chunks, sampleRate)
   }
 
-  const finishMicrophone = async (options: { transcribe: boolean; submit: boolean; discard?: boolean }) => {
-    stopAudio()
-    const model = activeModel ?? input.speechModel()
-    const audio = options.discard ? undefined : takeRecording()
+  const queueTranscription = (audio: ArrayBuffer, model: SpeechModelID) => {
+    if (!input.transcribeSpeech) return transcriptionQueue
 
-    if (!options.transcribe || !audio || !input.transcribeSpeech) return
-
+    pendingTranscriptions += 1
     setState("transcribing", true)
-    try {
-      const result = await input.transcribeSpeech({
-        audio,
-        mimeType: TRANSCRIPTION_MIME,
-        model,
+
+    const next = transcriptionQueue
+      .catch(() => undefined)
+      .then(async () => {
+        const result = await input.transcribeSpeech?.({
+          audio,
+          mimeType: TRANSCRIPTION_MIME,
+          model,
+        })
+        const transcript = result?.text.trim()
+        if (!transcript) return
+        const nextPrompt = applyVoiceTranscript(input.prompt.current(), transcript)
+        input.prompt.set(nextPrompt, promptLength(nextPrompt))
       })
-      const transcript = result.text.trim()
-      if (!transcript) return
-      const next = applyVoiceTranscript(input.prompt.current(), transcript)
-      input.prompt.set(next, promptLength(next))
-      if (options.submit) input.submit()
-    } catch (error) {
-      setState("error", error instanceof Error ? error.message : "Voice transcription failed")
-    } finally {
-      setState("transcribing", false)
-    }
+      .catch((error) => {
+        setState("error", error instanceof Error ? error.message : "Voice transcription failed")
+      })
+      .finally(() => {
+        pendingTranscriptions = Math.max(0, pendingTranscriptions - 1)
+        setState("transcribing", pendingTranscriptions > 0)
+      })
+
+    transcriptionQueue = next
+    return next
   }
 
-  const turnOffMicrophone = (options?: { transcribe?: boolean; submit?: boolean; discard?: boolean }) => {
-    stoppedByUser = true
-    setState("micEnabled", false)
-    void finishMicrophone({
-      transcribe: options?.transcribe ?? false,
-      submit: options?.submit ?? false,
-      discard: options?.discard ?? false,
+  const flushRecording = () => {
+    flushPending = false
+    const model = sessionModel ?? input.speechModel()
+    const audio = takeRecording()
+    if (!audio) return
+    void queueTranscription(audio, model)
+  }
+
+  const stopSession = (options?: { transcribe?: boolean; discard?: boolean }) => {
+    sessionRun += 1
+    stopAudio()
+
+    const model = sessionModel ?? input.speechModel()
+    if (options?.discard) {
+      resetRecording({ clearModel: true })
+      return
+    }
+
+    const audio = takeRecording({ clearModel: true })
+    if (!options?.transcribe || !audio) return
+    void queueTranscription(audio, model)
+  }
+
+  const turnOffMicrophone = (options?: { discard?: boolean }) => {
+    setState("manualMicEnabled", false)
+    setState("pressToTalkActive", false)
+    stopSession({
+      transcribe: !options?.discard,
+      discard: options?.discard,
     })
   }
 
@@ -247,8 +299,13 @@ export function createPromptVoice(input: PromptVoiceInput) {
         speechFrames = 0
       }
 
-      if (!state.speaking && speechFrames >= 3) setState("speaking", true)
-      if (state.speaking && silenceFrames >= 8) setState("speaking", false)
+      if (!state.speaking && speechFrames >= SPEECH_FRAME_COUNT) setState("speaking", true)
+      if (state.speaking && silenceFrames >= SILENCE_FRAME_COUNT) setState("speaking", false)
+
+      if (!active && sawSpeech && !flushPending && now - lastSpeechAt >= input.baseSilenceMs()) {
+        flushPending = true
+        flushRecording()
+      }
 
       animationFrame = requestAnimationFrame(step)
     }
@@ -257,40 +314,45 @@ export function createPromptVoice(input: PromptVoiceInput) {
   }
 
   const startMicrophone = async () => {
-    if (!supported() || state.preparing || state.starting || state.listening || state.transcribing || input.mode() !== "normal") return
+    if (!shouldRunSession() || state.preparing || state.starting || state.listening) return
 
-    stoppedByUser = false
+    const run = ++sessionRun
     resetRecording()
     noiseFloor = 0.006
     lastSpeechAt = performance.now()
-    activeModel = input.speechModel()
+    sessionModel = input.speechModel()
     setState("error", undefined)
     setState("preparing", true)
 
     try {
-      await input.prepareSpeechTranscription?.(activeModel)
-      if (stoppedByUser || !state.micEnabled || input.mode() !== "normal") return
+      await input.prepareSpeechTranscription?.(sessionModel)
+      if (run !== sessionRun || !shouldRunSession()) return
 
       setState("preparing", false)
       setState("starting", true)
 
-      stream = await navigator.mediaDevices.getUserMedia({
+      const nextStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           autoGainControl: true,
           echoCancellation: true,
           noiseSuppression: true,
         },
       })
+      if (run !== sessionRun || !shouldRunSession()) {
+        nextStream.getTracks().forEach((track) => track.stop())
+        return
+      }
+      stream = nextStream
 
       audioContext = new AudioContext()
       analyser = audioContext.createAnalyser()
       analyser.fftSize = 2048
       audioBuffer = new Uint8Array<ArrayBuffer>(new ArrayBuffer(analyser.fftSize))
-      recordedSampleRate = audioContext.sampleRate
 
       const source = audioContext.createMediaStreamSource(stream)
       processor = audioContext.createScriptProcessor(4096, 1, 1)
       processor.onaudioprocess = (event) => {
+        if (!recordedSampleRate) recordedSampleRate = audioContext?.sampleRate ?? event.inputBuffer.sampleRate
         const channel = event.inputBuffer.getChannelData(0)
         recordedChunks.push(new Float32Array(channel))
         recordedFrames += channel.length
@@ -305,74 +367,95 @@ export function createPromptVoice(input: PromptVoiceInput) {
       sink.connect(audioContext.destination)
 
       startVadLoop()
-      endpointTimer = window.setInterval(() => {
-        if (!input.autoSubmit() || !state.listening || state.speaking || !sawSpeech) return
-        const silenceMs = performance.now() - lastSpeechAt
-        if (
-          shouldAutoSubmitVoiceTurn({
-            transcript: "voice",
-            silenceMs,
-            transcriptStableMs: silenceMs,
-            baseSilenceMs: input.baseSilenceMs(),
-            maxSilenceMs: input.maxSilenceMs(),
-          })
-        ) {
-          setState("micEnabled", false)
-          void finishMicrophone({ transcribe: true, submit: true })
-        }
-      }, 100)
-
       setState("listening", true)
       setState("starting", false)
     } catch (error) {
       setState("error", error instanceof Error ? error.message : "Microphone access failed")
-      setState("micEnabled", false)
+      setState("manualMicEnabled", false)
+      setState("pressToTalkActive", false)
       stopAudio()
-      resetRecording()
+      resetRecording({ clearModel: true })
     } finally {
-      setState("preparing", false)
-      setState("starting", false)
+      if (run === sessionRun) {
+        setState("preparing", false)
+        setState("starting", false)
+      }
     }
   }
 
   const toggleMic = () => {
-    if (state.micEnabled) {
-      if (state.transcribing) return
-      turnOffMicrophone(state.listening ? { transcribe: true } : { discard: true })
+    if (state.pressToTalkActive || state.preparing || state.starting) return
+    if (state.manualMicEnabled) {
+      setState("manualMicEnabled", false)
       return
     }
-    if (state.preparing || state.starting || state.transcribing) return
     if (!supported() || input.mode() !== "normal") return
-    setState("micEnabled", true)
-    void startMicrophone()
+    setState("error", undefined)
+    setState("manualMicEnabled", true)
   }
 
   createEffect(() => {
     if (input.mode() === "normal") return
-    if (!state.micEnabled && !state.listening) return
-    turnOffMicrophone({ discard: true })
+    if (!state.pressToTalkActive) return
+    setState("pressToTalkActive", false)
   })
 
   createEffect(() => {
-    if (!input.working()) return
-    if (!state.micEnabled && !state.listening) return
-    turnOffMicrophone({ discard: true })
+    if (shouldRunSession()) {
+      if (!state.listening && !state.preparing && !state.starting) void startMicrophone()
+      return
+    }
+    if (!state.listening && !state.preparing && !state.starting) return
+    stopSession({ transcribe: true })
   })
+
+  if (typeof document !== "undefined") {
+    makeEventListener(
+      document,
+      "keydown",
+      (event) => {
+        if (!supported() || state.manualMicEnabled || state.pressToTalkActive || input.mode() !== "normal") return
+        const active = document.activeElement
+        if (active instanceof HTMLElement && active.dataset.voicePttCapture === "true") return
+        const binding = parseKeybind(input.pressToTalkKeybind())[0]
+        if (!binding || !matchKeybind([binding], event)) return
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        setState("error", undefined)
+        setState("pressToTalkActive", true)
+      },
+      { capture: true },
+    )
+
+    makeEventListener(
+      document,
+      "keyup",
+      (event) => {
+        if (!state.pressToTalkActive || state.manualMicEnabled) return
+        const binding = parseKeybind(input.pressToTalkKeybind())[0]
+        if (!matchesPressToTalkRelease(binding, event)) return
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        setState("pressToTalkActive", false)
+      },
+      { capture: true },
+    )
+  }
 
   onCleanup(() => {
     stopAudio()
-    resetRecording()
+    resetRecording({ clearModel: true })
   })
 
   return {
     supported,
-    micEnabled: () => state.micEnabled,
+    micEnabled: () => state.manualMicEnabled,
     listening: () => state.listening,
     speaking: () => state.speaking,
-    autoSubmit: input.autoSubmit,
-    setAutoSubmit: input.setAutoSubmit,
     status,
-    busy: () => state.preparing || state.starting || state.listening || state.transcribing,
+    busy: () => state.preparing || state.starting,
     toggleMic,
     turnOffMicrophone,
   }

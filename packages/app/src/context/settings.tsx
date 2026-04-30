@@ -25,6 +25,7 @@ export interface VoiceSettings {
   maxSilenceMs: number
   vadSensitivity: "low" | "normal" | "high"
   model: SpeechModelID
+  pressToTalkKeybind: string
 }
 
 export interface Settings {
@@ -147,6 +148,7 @@ const defaultSettings: Settings = {
     maxSilenceMs: 1800,
     vadSensitivity: "normal",
     model: "parakeet-tdt-v3",
+    pressToTalkKeybind: "f6",
   },
   notifications: {
     agent: true,
@@ -309,6 +311,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         model: withFallback(() => store.voice?.model, defaultSettings.voice.model),
         setModel(value: SpeechModelID) {
           setStore("voice", "model", value)
+        },
+        pressToTalkKeybind: withFallback(
+          () => store.voice?.pressToTalkKeybind,
+          defaultSettings.voice.pressToTalkKeybind,
+        ),
+        setPressToTalkKeybind(value: string) {
+          setStore("voice", "pressToTalkKeybind", value)
         },
         baseSilenceMs: withFallback(() => store.voice?.baseSilenceMs, defaultSettings.voice.baseSilenceMs),
         setBaseSilenceMs(value: number) {
