@@ -538,6 +538,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   const [composing, setComposing] = createSignal(false)
+  const [microphoneEnabled, setMicrophoneEnabled] = createSignal(false)
   const isImeComposing = (event: KeyboardEvent) => event.isComposing || composing() || event.keyCode === 229
 
   const handleBlur = () => {
@@ -1603,6 +1604,26 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         </TooltipKeybind>
                       </div>
                     </Show>
+                    <div class="ml-auto">
+                      <Tooltip
+                        placement="top"
+                        value={<span>{microphoneEnabled() ? "Microphone on" : "Microphone off"}</span>}
+                      >
+                        <button
+                          type="button"
+                          data-component="prompt-microphone-toggle"
+                          data-enabled={microphoneEnabled()}
+                          role="switch"
+                          aria-checked={microphoneEnabled()}
+                          aria-label={microphoneEnabled() ? "Disable microphone" : "Enable microphone"}
+                          onClick={() => setMicrophoneEnabled((value) => !value)}
+                        >
+                          <span data-slot="prompt-microphone-thumb">
+                            <Icon name="microphone" size="small" />
+                          </span>
+                        </button>
+                      </Tooltip>
+                    </div>
                   </Show>
                 </Show>
               </div>
