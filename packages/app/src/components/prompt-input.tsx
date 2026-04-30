@@ -33,6 +33,7 @@ import { Persist, persisted } from "@/utils/persist"
 import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
+import { useSettings } from "@/context/settings"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { createTextFragment, getCursorPosition, setCursorPosition, setRangeEdge } from "./prompt-input/editor-dom"
@@ -49,6 +50,8 @@ import {
 } from "./prompt-input/history"
 import { createPromptSubmit, type FollowupDraft } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
+import { createPromptVoice } from "./prompt-input/voice"
+import { VoiceSettingsPopover } from "./prompt-input/voice-settings-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
@@ -115,6 +118,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const permission = usePermission()
   const language = useLanguage()
   const platform = usePlatform()
+  const settings = useSettings()
   const { params, tabs, view } = useSessionLayout()
   let editorRef!: HTMLDivElement
   let fileInputRef: HTMLInputElement | undefined
@@ -341,7 +345,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
 
   const suggest = createMemo(() => !hasUserPrompt())
 
-  const placeholder = createMemo(() =>
+  const defaultPlaceholder = createMemo(() =>
     promptPlaceholder({
       mode: store.mode,
       commentCount: commentCount(),
@@ -538,7 +542,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   const [composing, setComposing] = createSignal(false)
-  const [microphoneEnabled, setMicrophoneEnabled] = createSignal(false)
   const isImeComposing = (event: KeyboardEvent) => event.isComposing || composing() || event.keyCode === 229
 
   const handleBlur = () => {
@@ -1088,7 +1091,30 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     shouldQueue: props.shouldQueue,
     onQueue: props.onQueue,
     onAbort: props.onAbort,
-    onSubmit: props.onSubmit,
+    onSubmit: () => {
+      voice.turnOffMicrophone()
+      props.onSubmit?.()
+    },
+  })
+
+  const voice = createPromptVoice({
+    prompt,
+    mode: () => store.mode,
+    working,
+    autoSubmit: settings.voice.autoSubmit,
+    setAutoSubmit: settings.voice.setAutoSubmit,
+    speechModel: settings.voice.model,
+    baseSilenceMs: settings.voice.baseSilenceMs,
+    maxSilenceMs: settings.voice.maxSilenceMs,
+    vadSensitivity: settings.voice.vadSensitivity,
+    prepareSpeechTranscription: platform.prepareSpeechTranscription,
+    transcribeSpeech: platform.transcribeSpeech,
+    submit: () => void handleSubmit(new Event("submit", { cancelable: true })),
+  })
+
+  const placeholder = createMemo(() => {
+    if (voice.micEnabled()) return voice.status()
+    return defaultPlaceholder()
   })
 
   const handleKeyDown = (event: KeyboardEvent) => {
@@ -1604,25 +1630,42 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         </TooltipKeybind>
                       </div>
                     </Show>
-                    <div class="ml-auto">
-                      <Tooltip
-                        placement="top"
-                        value={<span>{microphoneEnabled() ? "Microphone on" : "Microphone off"}</span>}
-                      >
+                    <div class="ml-auto flex items-center gap-1.5">
+                      <Tooltip placement="top" value={<span>{voice.autoSubmit() ? "Auto-send on pause" : "Manual send"}</span>}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          class="h-7 px-2 text-12-medium"
+                          data-selected={voice.autoSubmit()}
+                          aria-pressed={voice.autoSubmit()}
+                          onClick={() => voice.setAutoSubmit(!voice.autoSubmit())}
+                          disabled={store.mode !== "normal" || !voice.supported()}
+                        >
+                          Auto
+                        </Button>
+                      </Tooltip>
+                      <Tooltip placement="top" value={<span>{voice.status()}</span>}>
                         <button
                           type="button"
                           data-component="prompt-microphone-toggle"
-                          data-enabled={microphoneEnabled()}
+                          data-enabled={voice.micEnabled()}
+                          data-speaking={voice.speaking()}
                           role="switch"
-                          aria-checked={microphoneEnabled()}
-                          aria-label={microphoneEnabled() ? "Disable microphone" : "Enable microphone"}
-                          onClick={() => setMicrophoneEnabled((value) => !value)}
+                          aria-checked={voice.micEnabled()}
+                          aria-label={voice.micEnabled() ? "Disable microphone" : "Enable microphone"}
+                          onClick={voice.toggleMic}
+                          disabled={store.mode !== "normal" || !voice.supported()}
                         >
                           <span data-slot="prompt-microphone-thumb">
                             <Icon name="microphone" size="small" />
                           </span>
                         </button>
                       </Tooltip>
+                      <VoiceSettingsPopover
+                        disabled={store.mode !== "normal" || !voice.supported() || voice.busy()}
+                        model={settings.voice.model}
+                        onModelChange={settings.voice.setModel}
+                      />
                     </div>
                   </Show>
                 </Show>

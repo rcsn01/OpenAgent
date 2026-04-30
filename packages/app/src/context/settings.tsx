@@ -2,6 +2,7 @@ import { createStore, reconcile } from "solid-js/store"
 import { createEffect, createMemo } from "solid-js"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
+import type { SpeechModelID } from "./platform"
 
 export interface NotificationSettings {
   agent: boolean
@@ -16,6 +17,14 @@ export interface SoundSettings {
   permissions: string
   errorsEnabled: boolean
   errors: string
+}
+
+export interface VoiceSettings {
+  autoSubmit: boolean
+  baseSilenceMs: number
+  maxSilenceMs: number
+  vadSensitivity: "low" | "normal" | "high"
+  model: SpeechModelID
 }
 
 export interface Settings {
@@ -46,6 +55,7 @@ export interface Settings {
   permissions: {
     autoApprove: boolean
   }
+  voice: VoiceSettings
   notifications: NotificationSettings
   sounds: SoundSettings
 }
@@ -130,6 +140,13 @@ const defaultSettings: Settings = {
   keybinds: {},
   permissions: {
     autoApprove: false,
+  },
+  voice: {
+    autoSubmit: false,
+    baseSilenceMs: 650,
+    maxSilenceMs: 1800,
+    vadSensitivity: "normal",
+    model: "parakeet-tdt-v3",
   },
   notifications: {
     agent: true,
@@ -282,6 +299,28 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         autoApprove: withFallback(() => store.permissions?.autoApprove, defaultSettings.permissions.autoApprove),
         setAutoApprove(value: boolean) {
           setStore("permissions", "autoApprove", value)
+        },
+      },
+      voice: {
+        autoSubmit: withFallback(() => store.voice?.autoSubmit, defaultSettings.voice.autoSubmit),
+        setAutoSubmit(value: boolean) {
+          setStore("voice", "autoSubmit", value)
+        },
+        model: withFallback(() => store.voice?.model, defaultSettings.voice.model),
+        setModel(value: SpeechModelID) {
+          setStore("voice", "model", value)
+        },
+        baseSilenceMs: withFallback(() => store.voice?.baseSilenceMs, defaultSettings.voice.baseSilenceMs),
+        setBaseSilenceMs(value: number) {
+          setStore("voice", "baseSilenceMs", value)
+        },
+        maxSilenceMs: withFallback(() => store.voice?.maxSilenceMs, defaultSettings.voice.maxSilenceMs),
+        setMaxSilenceMs(value: number) {
+          setStore("voice", "maxSilenceMs", value)
+        },
+        vadSensitivity: withFallback(() => store.voice?.vadSensitivity, defaultSettings.voice.vadSensitivity),
+        setVadSensitivity(value: VoiceSettings["vadSensitivity"]) {
+          setStore("voice", "vadSensitivity", value)
         },
       },
       notifications: {

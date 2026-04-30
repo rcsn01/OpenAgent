@@ -66,6 +66,10 @@ const api: ElectronAPI = {
   checkUpdate: () => ipcRenderer.invoke("check-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
+  listSpeechModels: () => ipcRenderer.invoke("list-speech-models"),
+  installSpeechModel: (model) => ipcRenderer.invoke("install-speech-model", model),
+  prepareSpeechTranscription: (model) => ipcRenderer.invoke("prepare-speech-transcription", model),
+  transcribeSpeech: (input) => ipcRenderer.invoke("transcribe-speech", input),
 }
 
 contextBridge.exposeInMainWorld("api", api)

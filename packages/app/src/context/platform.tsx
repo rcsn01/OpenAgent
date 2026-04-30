@@ -8,6 +8,32 @@ type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
 type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: string[]; extensions?: string[] }
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
+export type SpeechModelID = "parakeet-tdt-v2" | "parakeet-tdt-v3"
+export type SpeechModelInfo = {
+  id: SpeechModelID
+  label: string
+  description: string
+  downloaded: boolean
+  recommended: boolean
+  path: string
+}
+export type SpeechTranscriptionInput = {
+  audio: ArrayBuffer
+  mimeType: string
+  model: SpeechModelID
+}
+
+export type SpeechTranscriptionSegment = {
+  text: string
+  startMs?: number
+  endMs?: number
+}
+
+export type SpeechTranscription = {
+  text: string
+  language?: string
+  segments?: SpeechTranscriptionSegment[]
+}
 
 export type Platform = {
   /** Platform discriminator */
@@ -87,6 +113,18 @@ export type Platform = {
 
   /** Read image from clipboard (desktop only) */
   readClipboardImage?(): Promise<File | null>
+
+  /** List locally available speech models (desktop only) */
+  listSpeechModels?(): Promise<SpeechModelInfo[]>
+
+  /** Download a local speech model (desktop only) */
+  installSpeechModel?(model: SpeechModelID): Promise<SpeechModelInfo>
+
+  /** Prepare a local speech recognition runtime (desktop only) */
+  prepareSpeechTranscription?(model: SpeechModelID): Promise<void>
+
+  /** Transcribe audio with a local speech recognition runtime (desktop only) */
+  transcribeSpeech?(input: SpeechTranscriptionInput): Promise<SpeechTranscription>
 }
 
 export type DisplayBackend = "auto" | "wayland"

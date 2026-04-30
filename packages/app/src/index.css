@@ -127,6 +127,15 @@
     transform: translateX(20px);
   }
 
+  [data-component="prompt-microphone-toggle"][data-speaking="true"] [data-slot="prompt-microphone-thumb"] {
+    background: var(--surface-success-weak);
+  }
+
+  [data-component="prompt-microphone-toggle"]:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   @container getting-started (min-width: 17rem) {
     [data-component="getting-started-actions"] {
       flex-direction: row;

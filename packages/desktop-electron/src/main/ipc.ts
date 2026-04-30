@@ -5,11 +5,16 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type {
   InitStep,
   ServerReadyData,
+  SpeechModelID,
+  SpeechModelInfo,
+  SpeechTranscription,
+  SpeechTranscriptionInput,
   SqliteMigrationProgress,
   TitlebarTheme,
   WindowConfig,
   WslConfig,
 } from "../preload/types"
+import { installSpeechModel, listSpeechModels, prepareSpeechTranscription, transcribeSpeech } from "./speech"
 import { getStore } from "./store"
 import { setTitlebar } from "./windows"
 
@@ -69,6 +74,16 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("check-update", () => deps.checkUpdate())
   ipcMain.handle("install-update", () => deps.installUpdate())
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
+  ipcMain.handle("list-speech-models", () => listSpeechModels() as Promise<SpeechModelInfo[]>)
+  ipcMain.handle("install-speech-model", (_event: IpcMainInvokeEvent, model: SpeechModelID) =>
+    installSpeechModel(model) as Promise<SpeechModelInfo>,
+  )
+  ipcMain.handle("prepare-speech-transcription", (_event: IpcMainInvokeEvent, model: SpeechModelID) =>
+    prepareSpeechTranscription(model),
+  )
+  ipcMain.handle("transcribe-speech", (_event: IpcMainInvokeEvent, input: SpeechTranscriptionInput) =>
+    transcribeSpeech(input) as Promise<SpeechTranscription>,
+  )
   ipcMain.handle("store-get", (_event: IpcMainInvokeEvent, name: string, key: string) => {
     const store = getStore(name)
     const value = store.get(key)

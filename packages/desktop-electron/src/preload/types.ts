@@ -19,6 +19,34 @@ export type WindowConfig = {
   updaterEnabled: boolean
 }
 
+export type SpeechModelID = "parakeet-tdt-v2" | "parakeet-tdt-v3"
+export type SpeechModelInfo = {
+  id: SpeechModelID
+  label: string
+  description: string
+  downloaded: boolean
+  recommended: boolean
+  path: string
+}
+
+export type SpeechTranscriptionInput = {
+  audio: ArrayBuffer
+  mimeType: string
+  model: SpeechModelID
+}
+
+export type SpeechTranscriptionSegment = {
+  text: string
+  startMs?: number
+  endMs?: number
+}
+
+export type SpeechTranscription = {
+  text: string
+  language?: string
+  segments?: SpeechTranscriptionSegment[]
+}
+
 export type ElectronAPI = {
   killSidecar: () => Promise<void>
   installCli: () => Promise<string>
@@ -76,4 +104,8 @@ export type ElectronAPI = {
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
   installUpdate: () => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
+  listSpeechModels: () => Promise<SpeechModelInfo[]>
+  installSpeechModel: (model: SpeechModelID) => Promise<SpeechModelInfo>
+  prepareSpeechTranscription: (model: SpeechModelID) => Promise<void>
+  transcribeSpeech: (input: SpeechTranscriptionInput) => Promise<SpeechTranscription>
 }

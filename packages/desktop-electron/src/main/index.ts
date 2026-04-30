@@ -41,6 +41,7 @@ import { registerIpcHandlers, sendDeepLinks, sendMenuCommand, sendSqliteMigratio
 import { initLogging } from "./logging"
 import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
+import { disposeSpeechTranscription } from "./speech"
 import { getDefaultServerUrl, getWslConfig, setDefaultServerUrl, setWslConfig, spawnLocalServer } from "./server"
 import {
   createLoadingWindow,
@@ -97,15 +98,18 @@ function setupApp() {
 
   app.on("before-quit", () => {
     killSidecar()
+    void disposeSpeechTranscription()
   })
 
   app.on("will-quit", () => {
     killSidecar()
+    void disposeSpeechTranscription()
   })
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {
       killSidecar()
+      void disposeSpeechTranscription()
       app.exit(0)
     })
   }

@@ -242,6 +242,14 @@ const createPlatform = (): Platform => {
         type: "image/png",
       })
     },
+
+    listSpeechModels: () => window.api.listSpeechModels(),
+
+    installSpeechModel: (model) => window.api.installSpeechModel(model),
+
+    prepareSpeechTranscription: (model) => window.api.prepareSpeechTranscription(model),
+
+    transcribeSpeech: (input) => window.api.transcribeSpeech(input),
   }
 }
 
