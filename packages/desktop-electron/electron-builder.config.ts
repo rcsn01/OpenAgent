@@ -79,6 +79,7 @@ const getBase = (): Configuration => ({
       sign: signWindows,
     },
     target: ["nsis"],
+    verifyUpdateCodeSignature: false,
   },
   nsis: {
     oneClick: false,

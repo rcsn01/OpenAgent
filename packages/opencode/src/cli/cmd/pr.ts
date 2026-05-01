@@ -3,7 +3,7 @@ import { cmd } from "./cmd"
 import { AppRuntime } from "@/effect/app-runtime"
 import { Git } from "@/git"
 import { Instance } from "@/project/instance"
-import { Process } from "@/util"
+import { Process } from "@/util/process"
 import path from "path"
 
 function currentCliCommand() {

@@ -29,3 +29,4 @@ export function copySelection(selection: Selection | null, renderer: Pick<Render
 export function copy(renderer: Renderer, toast: Toast): boolean {
   return copySelection(renderer.getSelection(), renderer, toast)
 }
+export * as Selection from "./selection"

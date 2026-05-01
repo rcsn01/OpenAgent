@@ -1,10 +1,10 @@
 import { afterEach, describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
 import { Agent } from "../../src/agent/agent"
-import { Config } from "../../src/config"
+import { Config } from "@/config/config"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Instance } from "../../src/project/instance"
-import { Session } from "../../src/session"
+import { Session } from "@/session/session"
 import { SessionBackgroundTask } from "../../src/session/background-task"
 import { MessageV2 } from "../../src/session/message-v2"
 import type { SessionPrompt } from "../../src/session/prompt"
@@ -17,8 +17,8 @@ import {
   BackgroundTaskListTool,
 } from "../../src/tool/background_task_manage"
 import { BackgroundTaskTool, TaskTool, type TaskPromptOps } from "../../src/tool/task"
-import { Truncate } from "../../src/tool"
-import { ToolRegistry } from "../../src/tool"
+import { Truncate } from "@/tool/truncate"
+import { ToolRegistry } from "@/tool/registry"
 import { provideTmpdirInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
