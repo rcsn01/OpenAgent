@@ -5,6 +5,8 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type {
   InitStep,
   ServerReadyData,
+  SpeechCaptureChunkInput,
+  SpeechCaptureSamplesInput,
   SpeechModelID,
   SpeechModelInfo,
   SpeechRuntimeConfig,
@@ -16,7 +18,17 @@ import type {
   WindowConfig,
   WslConfig,
 } from "../preload/types"
-import { installSpeechModel, listSpeechModels, prepareSpeechTranscription, transcribeSpeech } from "./speech"
+import {
+  appendSpeechCaptureSamples,
+  beginSpeechCaptureChunk,
+  installSpeechModel,
+  listSpeechModels,
+  prepareSpeechTranscription,
+  startSpeechCaptureSession,
+  stopSpeechCaptureSession,
+  transcribeSpeech,
+  transcribeSpeechCaptureChunk,
+} from "./speech"
 import { getStore } from "./store"
 import { setTitlebar } from "./windows"
 
@@ -84,6 +96,19 @@ export function registerIpcHandlers(deps: Deps) {
   )
   ipcMain.handle("prepare-speech-transcription", (_event: IpcMainInvokeEvent, config: SpeechRuntimeConfig) =>
     prepareSpeechTranscription(config),
+  )
+  ipcMain.handle("start-speech-capture-session", () => startSpeechCaptureSession())
+  ipcMain.on("append-speech-capture-samples", (_event: IpcMainEvent, input: SpeechCaptureSamplesInput) =>
+    appendSpeechCaptureSamples(input),
+  )
+  ipcMain.handle("begin-speech-capture-chunk", (_event: IpcMainInvokeEvent, sessionId: string) =>
+    beginSpeechCaptureChunk(sessionId),
+  )
+  ipcMain.handle("transcribe-speech-capture-chunk", (_event: IpcMainInvokeEvent, input: SpeechCaptureChunkInput) =>
+    transcribeSpeechCaptureChunk(input) as Promise<SpeechTranscription>,
+  )
+  ipcMain.handle("stop-speech-capture-session", (_event: IpcMainInvokeEvent, sessionId: string) =>
+    stopSpeechCaptureSession(sessionId),
   )
   ipcMain.handle("transcribe-speech", (_event: IpcMainInvokeEvent, input: SpeechTranscriptionInput) =>
     transcribeSpeech(input) as Promise<SpeechTranscription>,

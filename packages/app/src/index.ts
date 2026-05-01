@@ -6,6 +6,8 @@ export {
   type DisplayBackend,
   type Platform,
   PlatformProvider,
+  type SpeechCaptureChunkInput,
+  type SpeechCaptureSamplesInput,
   type SpeechModelID,
   type SpeechModelInfo,
   type SpeechRuntimeConfig,

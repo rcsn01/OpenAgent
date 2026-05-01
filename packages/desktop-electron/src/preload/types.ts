@@ -33,6 +33,15 @@ export type SpeechRuntimeConfig = {
   model: SpeechModelID
   quality: SpeechTranscriptionQuality
 }
+export type SpeechCaptureSamplesInput = {
+  sessionId: string
+  samples: ArrayBuffer
+  sampleRate: number
+}
+export type SpeechCaptureChunkInput = {
+  sessionId: string
+  promptTerms?: string[]
+} & SpeechRuntimeConfig
 
 export type SpeechTranscriptionInput = {
   audio: ArrayBuffer
@@ -124,5 +133,10 @@ export type ElectronAPI = {
   listSpeechModels: (quality?: SpeechTranscriptionQuality) => Promise<SpeechModelInfo[]>
   installSpeechModel: (model: SpeechModelID, quality?: SpeechTranscriptionQuality) => Promise<SpeechModelInfo>
   prepareSpeechTranscription: (config: SpeechRuntimeConfig) => Promise<void>
+  startSpeechCaptureSession: () => Promise<string>
+  appendSpeechCaptureSamples: (input: SpeechCaptureSamplesInput) => void
+  beginSpeechCaptureChunk: (sessionId: string) => Promise<void>
+  transcribeSpeechCaptureChunk: (input: SpeechCaptureChunkInput) => Promise<SpeechTranscription>
+  stopSpeechCaptureSession: (sessionId: string) => Promise<void>
   transcribeSpeech: (input: SpeechTranscriptionInput) => Promise<SpeechTranscription>
 }

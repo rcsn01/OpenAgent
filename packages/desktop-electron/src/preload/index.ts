@@ -69,6 +69,11 @@ const api: ElectronAPI = {
   listSpeechModels: (quality) => ipcRenderer.invoke("list-speech-models", quality),
   installSpeechModel: (model, quality) => ipcRenderer.invoke("install-speech-model", model, quality),
   prepareSpeechTranscription: (config) => ipcRenderer.invoke("prepare-speech-transcription", config),
+  startSpeechCaptureSession: () => ipcRenderer.invoke("start-speech-capture-session"),
+  appendSpeechCaptureSamples: (input) => ipcRenderer.send("append-speech-capture-samples", input),
+  beginSpeechCaptureChunk: (sessionId) => ipcRenderer.invoke("begin-speech-capture-chunk", sessionId),
+  transcribeSpeechCaptureChunk: (input) => ipcRenderer.invoke("transcribe-speech-capture-chunk", input),
+  stopSpeechCaptureSession: (sessionId) => ipcRenderer.invoke("stop-speech-capture-session", sessionId),
   transcribeSpeech: (input) => ipcRenderer.invoke("transcribe-speech", input),
 }
 

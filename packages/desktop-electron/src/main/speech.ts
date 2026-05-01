@@ -4,6 +4,8 @@ import { access, mkdir, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { app } from "electron"
 import type {
+  SpeechCaptureChunkInput,
+  SpeechCaptureSamplesInput,
   SpeechModelID,
   SpeechModelInfo,
   SpeechRuntimeConfig,
@@ -11,6 +13,13 @@ import type {
   SpeechTranscriptionInput,
   SpeechTranscriptionQuality,
 } from "../preload/types"
+import {
+  appendSpeechCaptureSamples as appendCaptureSamples,
+  beginSpeechCaptureChunk as beginCaptureChunk,
+  createSpeechCaptureSessionState,
+  takeSpeechCaptureChunk,
+  type SpeechCaptureSessionState,
+} from "./speech-capture"
 
 const ONNX_ASR_VERSION = "0.11.0"
 const PREFERRED_QUANTIZATION = "int8"
@@ -83,6 +92,7 @@ type WorkerState = {
 
 let preparePromise: Promise<void> | undefined
 let workerState: WorkerState | undefined
+const speechCaptureSessions = new Map<string, SpeechCaptureSessionState>()
 
 const speechQualities = {
   fast: {
@@ -457,6 +467,43 @@ export async function prepareSpeechTranscription(config: SpeechRuntimeConfig) {
   await ensureWorkerReady(config)
 }
 
+export function startSpeechCaptureSession() {
+  const id = randomUUID()
+  speechCaptureSessions.set(id, createSpeechCaptureSessionState())
+  return id
+}
+
+export function appendSpeechCaptureSamples(input: SpeechCaptureSamplesInput) {
+  const session = speechCaptureSessions.get(input.sessionId)
+  if (!session) return
+  appendCaptureSamples(session, new Float32Array(input.samples), input.sampleRate)
+}
+
+export function beginSpeechCaptureChunk(sessionId: string) {
+  const session = speechCaptureSessions.get(sessionId)
+  if (!session) return
+  beginCaptureChunk(session)
+}
+
+export async function transcribeSpeechCaptureChunk(input: SpeechCaptureChunkInput) {
+  const session = speechCaptureSessions.get(input.sessionId)
+  if (!session) return { text: "" }
+  const clip = takeSpeechCaptureChunk(session)
+  if (!clip) return { text: "" }
+  return transcribeSpeech({
+    audio: clip.audio,
+    mimeType: "audio/wav",
+    model: input.model,
+    quality: input.quality,
+    originalDurationMs: clip.originalDurationMs,
+    promptTerms: input.promptTerms,
+  })
+}
+
+export function stopSpeechCaptureSession(sessionId: string) {
+  speechCaptureSessions.delete(sessionId)
+}
+
 export async function transcribeSpeech(input: SpeechTranscriptionInput) {
   await ensureWorkerReady({ model: input.model, quality: input.quality })
   if (!workerState) throw new Error("The local Parakeet worker is unavailable")
@@ -495,6 +542,7 @@ export async function transcribeSpeech(input: SpeechTranscriptionInput) {
 }
 
 export async function disposeSpeechTranscription() {
+  speechCaptureSessions.clear()
   if (!workerState) return
   await stopWorker(new Error("The local Parakeet worker was stopped"))
 }

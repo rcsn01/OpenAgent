@@ -1110,6 +1110,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     maxSilenceMs: settings.voice.maxSilenceMs,
     vadSensitivity: settings.voice.vadSensitivity,
     prepareSpeechTranscription: platform.prepareSpeechTranscription,
+    startSpeechCaptureSession: platform.startSpeechCaptureSession,
+    appendSpeechCaptureSamples: platform.appendSpeechCaptureSamples,
+    beginSpeechCaptureChunk: platform.beginSpeechCaptureChunk,
+    transcribeSpeechCaptureChunk: platform.transcribeSpeechCaptureChunk,
+    stopSpeechCaptureSession: platform.stopSpeechCaptureSession,
     transcribeSpeech: platform.transcribeSpeech,
     onAutoSubmit: () => void handleSubmit(new Event("submit")),
   })

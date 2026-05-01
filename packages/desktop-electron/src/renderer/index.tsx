@@ -249,6 +249,16 @@ const createPlatform = (): Platform => {
 
     prepareSpeechTranscription: (config) => window.api.prepareSpeechTranscription(config),
 
+    startSpeechCaptureSession: () => window.api.startSpeechCaptureSession(),
+
+    appendSpeechCaptureSamples: (input) => window.api.appendSpeechCaptureSamples(input),
+
+    beginSpeechCaptureChunk: (sessionId) => window.api.beginSpeechCaptureChunk(sessionId),
+
+    transcribeSpeechCaptureChunk: (input) => window.api.transcribeSpeechCaptureChunk(input),
+
+    stopSpeechCaptureSession: (sessionId) => window.api.stopSpeechCaptureSession(sessionId),
+
     transcribeSpeech: (input) => window.api.transcribeSpeech(input),
   }
 }

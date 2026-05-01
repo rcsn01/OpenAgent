@@ -22,6 +22,15 @@ export type SpeechRuntimeConfig = {
   model: SpeechModelID
   quality: SpeechTranscriptionQuality
 }
+export type SpeechCaptureSamplesInput = {
+  sessionId: string
+  samples: ArrayBuffer
+  sampleRate: number
+}
+export type SpeechCaptureChunkInput = {
+  sessionId: string
+  promptTerms?: string[]
+} & SpeechRuntimeConfig
 export type SpeechTranscriptionInput = {
   audio: ArrayBuffer
   mimeType: string
@@ -139,6 +148,21 @@ export type Platform = {
 
   /** Prepare a local speech recognition runtime (desktop only) */
   prepareSpeechTranscription?(config: SpeechRuntimeConfig): Promise<void>
+
+  /** Start a desktop-owned speech capture session (desktop only) */
+  startSpeechCaptureSession?(): Promise<string>
+
+  /** Append raw mono PCM samples into the desktop speech capture session (desktop only) */
+  appendSpeechCaptureSamples?(input: SpeechCaptureSamplesInput): Promise<void> | void
+
+  /** Start a chunk inside the desktop speech capture session (desktop only) */
+  beginSpeechCaptureChunk?(sessionId: string): Promise<void> | void
+
+  /** Transcribe the current desktop-owned chunk (desktop only) */
+  transcribeSpeechCaptureChunk?(input: SpeechCaptureChunkInput): Promise<SpeechTranscription>
+
+  /** Stop a desktop-owned speech capture session (desktop only) */
+  stopSpeechCaptureSession?(sessionId: string): Promise<void> | void
 
   /** Transcribe audio with a local speech recognition runtime (desktop only) */
   transcribeSpeech?(input: SpeechTranscriptionInput): Promise<SpeechTranscription>
