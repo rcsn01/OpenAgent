@@ -353,8 +353,8 @@
       },
     },
     "packages/opencode": {
-      "version": "1.14.31",
       "name": "openagent",
+      "version": "1.14.31",
       "bin": {
         "openagent": "./bin/openagent",
       },

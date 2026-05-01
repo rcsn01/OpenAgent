@@ -2,7 +2,7 @@ import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plug
 import { createMemo, For, Show } from "solid-js"
 import { tint } from "@tui/context/theme"
 import { SubagentGraphScreen } from "@tui/routes/session/subagent-graph"
-import { Locale } from "@/util"
+import * as Locale from "@/util/locale"
 
 const id = "internal:sidebar-subagent"
 const graphRoute = `${id}:graph`

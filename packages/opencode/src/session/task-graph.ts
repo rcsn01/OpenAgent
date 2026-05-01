@@ -1,6 +1,6 @@
 import { Bus } from "@/bus"
-import { InstanceState } from "@/effect"
-import { Log } from "@/util"
+import { InstanceState } from "@/effect/instance-state"
+import * as Log from "@opencode-ai/core/util/log"
 import { SessionRunState } from "./run-state"
 import { SessionID, TaskGraphID } from "./schema"
 import { SessionStatus } from "./status"
