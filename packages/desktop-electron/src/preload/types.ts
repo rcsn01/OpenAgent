@@ -34,6 +34,9 @@ export type SpeechRuntimeConfig = {
   quality: SpeechTranscriptionQuality
 }
 export type SpeechCaptureSessionSource = "native" | "renderer"
+export type SpeechCaptureSessionConfig = {
+  gain?: number
+}
 export type SpeechCaptureSessionInfo = {
   id: string
   source: SpeechCaptureSessionSource
@@ -143,7 +146,7 @@ export type ElectronAPI = {
   listSpeechModels: (quality?: SpeechTranscriptionQuality) => Promise<SpeechModelInfo[]>
   installSpeechModel: (model: SpeechModelID, quality?: SpeechTranscriptionQuality) => Promise<SpeechModelInfo>
   prepareSpeechTranscription: (config: SpeechRuntimeConfig) => Promise<void>
-  startSpeechCaptureSession: () => Promise<SpeechCaptureSessionInfo>
+  startSpeechCaptureSession: (config?: SpeechCaptureSessionConfig) => Promise<SpeechCaptureSessionInfo>
   appendSpeechCaptureSamples: (input: SpeechCaptureSamplesInput) => void
   onSpeechCaptureLevel: (cb: (event: SpeechCaptureLevelEvent) => void) => () => void
   beginSpeechCaptureChunk: (sessionId: string) => Promise<void>

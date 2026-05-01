@@ -4,13 +4,9 @@ import { join } from "node:path"
 import type { Readable } from "node:stream"
 import { promisify } from "node:util"
 import { app, BrowserWindow } from "electron"
+import { emitSpeechCaptureSamples, type NativeSpeechCaptureLevel } from "./speech-capture-native"
 
 const execFileAsync = promisify(execFile)
-
-export type NativeSpeechCaptureLevel = {
-  rms: number
-  sampleRate: number
-}
 
 export type NativeSpeechCapture = {
   process: ChildProcess
@@ -84,6 +80,7 @@ export function emitSpeechCaptureLevel(sessionId: string, level: NativeSpeechCap
 }
 
 export async function startMacOSSpeechCapture(input: {
+  gain?: number
   onLevel: (level: NativeSpeechCaptureLevel) => void
   onSamples: (samples: Float32Array, sampleRate: number) => void
 }) {
@@ -120,11 +117,7 @@ export async function startMacOSSpeechCapture(input: {
 
       remainder = Buffer.from(combined.subarray(size))
       const samples = toFloat32Samples(combined.subarray(0, size))
-      if (!samples.length) return
-      let total = 0
-      for (const sample of samples) total += sample * sample
-      input.onLevel({ rms: Math.sqrt(total / samples.length), sampleRate })
-      input.onSamples(samples, sampleRate)
+      emitSpeechCaptureSamples(input, samples, sampleRate)
     }
 
     processRef.once("error", (error) => {
@@ -169,12 +162,26 @@ export async function startMacOSSpeechCapture(input: {
 }
 
 export async function transcribeWithAppleSpeech(audioPath: string) {
-  const { stdout, stderr } = await execFileAsync(await ensureHelperBinary("apple-speech-transcribe.swift"), [audioPath])
-  const payload = stdout.trim()
-  if (!payload) {
-    const detail = stderr.trim()
-    throw new Error(detail || "Apple Speech returned an empty response")
-  }
+  try {
+    const { stdout, stderr } = await execFileAsync(await ensureHelperBinary("apple-speech-transcribe.swift"), [audioPath])
+    const payload = stdout.trim()
+    if (!payload) {
+      const detail = stderr.trim()
+      throw new Error(detail || "Apple Speech returned an empty response")
+    }
 
-  return JSON.parse(payload) as AppleSpeechTranscription
+    return JSON.parse(payload) as AppleSpeechTranscription
+  } catch (error) {
+    const detail =
+      error instanceof Error && "stderr" in error && typeof error.stderr === "string" ? error.stderr.trim() : undefined
+    const signal =
+      error instanceof Error && "signal" in error && typeof error.signal === "string" ? error.signal : undefined
+    if (signal === "SIGABRT") {
+      throw new Error(
+        detail || "Apple Speech aborted before producing a transcript. macOS rejected the standalone speech helper.",
+      )
+    }
+    if (detail) throw new Error(detail)
+    throw error instanceof Error ? error : new Error("Apple Speech transcription failed")
+  }
 }

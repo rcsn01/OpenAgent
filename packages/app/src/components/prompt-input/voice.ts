@@ -6,6 +6,7 @@ import type { VoiceInputGain } from "@/context/settings"
 import type {
   SpeechCaptureChunkInput,
   SpeechCaptureLevelEvent,
+  SpeechCaptureSessionConfig,
   SpeechCaptureSamplesInput,
   SpeechCaptureSessionInfo,
   SpeechModelID,
@@ -15,6 +16,7 @@ import type {
   SpeechTranscriptionQuality,
 } from "@/context/platform"
 import type { Prompt } from "@/context/prompt"
+import { adoptSpeechCaptureSession } from "./voice-capture-session"
 import { shouldAutoSubmitVoiceTurn } from "./voice-endpoint"
 import { getVoicePromptTerms, postprocessVoiceTranscript } from "./voice-postprocess"
 import { applyVoiceTranscript } from "./voice-prompt"
@@ -36,7 +38,7 @@ type PromptVoiceInput = {
   maxSilenceMs: Accessor<number>
   vadSensitivity: Accessor<"low" | "normal" | "high">
   prepareSpeechTranscription?: (config: SpeechRuntimeConfig) => Promise<void>
-  startSpeechCaptureSession?: () => Promise<SpeechCaptureSessionInfo>
+  startSpeechCaptureSession?: (config?: SpeechCaptureSessionConfig) => Promise<SpeechCaptureSessionInfo>
   appendSpeechCaptureSamples?: (input: SpeechCaptureSamplesInput) => Promise<void> | void
   onSpeechCaptureLevel?: (cb: (event: SpeechCaptureLevelEvent) => void) => () => void
   beginSpeechCaptureChunk?: (sessionId: string) => Promise<void> | void
@@ -66,8 +68,8 @@ const minSpeechThreshold = (value: "low" | "normal" | "high") => {
 }
 
 const inputGainValue = (value: VoiceInputGain) => {
-  if (value === "max") return 2.8
-  if (value === "boost") return 1.9
+  if (value === "max") return 6
+  if (value === "boost") return 3.5
   return 1
 }
 
@@ -207,14 +209,19 @@ export function createPromptVoice(input: PromptVoiceInput) {
   const shouldRunSession = () =>
     supported() && input.mode() === "normal" && (state.manualMicEnabled || state.pressToTalkActive)
 
-  const supportsDesktopCapture = () =>
-    !!input.startSpeechCaptureSession &&
-    !!input.appendSpeechCaptureSamples &&
-    !!input.beginSpeechCaptureChunk &&
-    !!input.transcribeSpeechCaptureChunk &&
-    !!input.stopSpeechCaptureSession
+  function supportsDesktopCapture() {
+    return (
+      !!input.startSpeechCaptureSession &&
+      !!input.appendSpeechCaptureSamples &&
+      !!input.beginSpeechCaptureChunk &&
+      !!input.transcribeSpeechCaptureChunk &&
+      !!input.stopSpeechCaptureSession
+    )
+  }
 
-  const supportsNativeDesktopCapture = () => supportsDesktopCapture() && !!input.onSpeechCaptureLevel
+  function supportsNativeDesktopCapture() {
+    return supportsDesktopCapture() && !!input.onSpeechCaptureLevel
+  }
 
   const currentRuntime = (): SpeechRuntimeConfig => ({
     model: sessionRuntime?.model ?? input.speechModel(),
@@ -576,13 +583,16 @@ export function createPromptVoice(input: PromptVoiceInput) {
       setState("starting", true)
 
       if (supportsNativeDesktopCapture() && input.startSpeechCaptureSession && input.onSpeechCaptureLevel) {
-        const nextSpeechCaptureSession = await input.startSpeechCaptureSession().catch(() => undefined)
+        const nextSpeechCaptureSession = await input
+          .startSpeechCaptureSession({ gain: inputGainValue(input.inputGain()) })
+          .catch(() => undefined)
         if (run !== sessionRun || !shouldRunSession()) {
           if (nextSpeechCaptureSession) void Promise.resolve(input.stopSpeechCaptureSession?.(nextSpeechCaptureSession.id))
           return
         }
-        if (nextSpeechCaptureSession?.source === "native") {
-          speechCaptureSession = nextSpeechCaptureSession
+        const activeSpeechCaptureSession = adoptSpeechCaptureSession(nextSpeechCaptureSession)
+        if (activeSpeechCaptureSession) {
+          speechCaptureSession = activeSpeechCaptureSession
           disposeSpeechCaptureLevel = input.onSpeechCaptureLevel((event) => {
             if (!speechCaptureSession || event.sessionId !== speechCaptureSession.id) return
             handleVoiceLevel(event.rms)
@@ -591,7 +601,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
           setState("starting", false)
           return
         }
-        speechCaptureSession = nextSpeechCaptureSession
+        if (nextSpeechCaptureSession) void Promise.resolve(input.stopSpeechCaptureSession?.(nextSpeechCaptureSession.id))
       }
 
       const nextStream = await navigator.mediaDevices.getUserMedia({

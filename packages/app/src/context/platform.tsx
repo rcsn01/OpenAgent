@@ -23,6 +23,9 @@ export type SpeechRuntimeConfig = {
   quality: SpeechTranscriptionQuality
 }
 export type SpeechCaptureSessionSource = "native" | "renderer"
+export type SpeechCaptureSessionConfig = {
+  gain?: number
+}
 export type SpeechCaptureSessionInfo = {
   id: string
   source: SpeechCaptureSessionSource
@@ -160,7 +163,7 @@ export type Platform = {
   prepareSpeechTranscription?(config: SpeechRuntimeConfig): Promise<void>
 
   /** Start a desktop-owned speech capture session (desktop only) */
-  startSpeechCaptureSession?(): Promise<SpeechCaptureSessionInfo>
+  startSpeechCaptureSession?(config?: SpeechCaptureSessionConfig): Promise<SpeechCaptureSessionInfo>
 
   /** Append raw mono PCM samples into the desktop speech capture session (desktop only) */
   appendSpeechCaptureSamples?(input: SpeechCaptureSamplesInput): Promise<void> | void

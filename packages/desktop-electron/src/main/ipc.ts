@@ -5,6 +5,7 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import type {
   InitStep,
   ServerReadyData,
+  SpeechCaptureSessionConfig,
   SpeechCaptureChunkInput,
   SpeechCaptureSamplesInput,
   SpeechModelID,
@@ -97,7 +98,9 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("prepare-speech-transcription", (_event: IpcMainInvokeEvent, config: SpeechRuntimeConfig) =>
     prepareSpeechTranscription(config),
   )
-  ipcMain.handle("start-speech-capture-session", () => startSpeechCaptureSession())
+  ipcMain.handle("start-speech-capture-session", (_event: IpcMainInvokeEvent, config?: SpeechCaptureSessionConfig) =>
+    startSpeechCaptureSession(config),
+  )
   ipcMain.on("append-speech-capture-samples", (_event: IpcMainEvent, input: SpeechCaptureSamplesInput) =>
     appendSpeechCaptureSamples(input),
   )

@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { app } from "electron"
 import type {
   SpeechCaptureChunkInput,
+  SpeechCaptureSessionConfig,
   SpeechCaptureSessionInfo,
   SpeechCaptureSessionSource,
   SpeechCaptureSamplesInput,
@@ -34,9 +35,9 @@ const speechModels = {
   "apple-speech": {
     id: "apple-speech",
     label: "Apple Speech",
-    description: "Uses macOS native speech recognition when it is available.",
+    description: "Experimental. Uses macOS native speech recognition when it is available.",
     model_name: undefined,
-    recommended: process.platform === "darwin",
+    recommended: false,
     runtime: "apple",
   },
   "parakeet-tdt-v3": {
@@ -44,7 +45,7 @@ const speechModels = {
     label: "Parakeet TDT v3",
     description: "Recommended. Multilingual and the strongest local model.",
     model_name: "nemo-parakeet-tdt-0.6b-v3",
-    recommended: process.platform !== "darwin",
+    recommended: true,
     runtime: "parakeet",
   },
   "parakeet-tdt-v2": {
@@ -113,6 +114,8 @@ type SpeechCaptureSession = {
 let preparePromise: Promise<void> | undefined
 let workerState: WorkerState | undefined
 const speechCaptureSessions = new Map<string, SpeechCaptureSession>()
+const fallbackParakeetModels = ["parakeet-tdt-v3", "parakeet-tdt-v2"] as const
+let appleSpeechUnavailable = false
 
 const speechQualities = {
   fast: {
@@ -146,6 +149,20 @@ function normalizeQuality(quality?: SpeechTranscriptionQuality) {
 
 function getSpeechQuality(quality?: SpeechTranscriptionQuality) {
   return speechQualities[normalizeQuality(quality)]
+}
+
+function nativeSpeechCaptureEnabled() {
+  return process.env.OPENCODE_ENABLE_NATIVE_SPEECH_CAPTURE === "1"
+}
+
+function fallbackParakeetCandidates(quality?: SpeechTranscriptionQuality) {
+  const normalizedQuality = normalizeQuality(quality)
+  return [
+    ...fallbackParakeetModels.map((model) => ({ model, quality: normalizedQuality })),
+    ...(normalizedQuality === DEFAULT_QUALITY
+      ? []
+      : fallbackParakeetModels.map((model) => ({ model, quality: DEFAULT_QUALITY }))),
+  ]
 }
 
 function speechRoot() {
@@ -252,6 +269,23 @@ async function isSpeechModelInstalled(model: SpeechModelID, quality?: SpeechTran
   if (await pathExists(speechModelManifestPath(model, normalizedQuality))) return true
   await writeSpeechModelManifest(model, normalizedQuality)
   return true
+}
+
+async function fallbackParakeetConfig(quality?: SpeechTranscriptionQuality) {
+  return (
+    await Promise.all(
+      fallbackParakeetCandidates(quality).map(async (candidate) =>
+        (await isSpeechModelInstalled(candidate.model, candidate.quality)) ? candidate : undefined,
+      ),
+    )
+  ).find(
+    (
+      candidate,
+    ): candidate is {
+      model: (typeof fallbackParakeetModels)[number]
+      quality: SpeechTranscriptionQuality
+    } => !!candidate,
+  )
 }
 
 async function ensureSpeechDirectories() {
@@ -497,7 +531,7 @@ export async function prepareSpeechTranscription(config: SpeechRuntimeConfig) {
   await ensureWorkerReady(config)
 }
 
-export async function startSpeechCaptureSession(): Promise<SpeechCaptureSessionInfo> {
+export async function startSpeechCaptureSession(config?: SpeechCaptureSessionConfig): Promise<SpeechCaptureSessionInfo> {
   const id = randomUUID()
   const session: SpeechCaptureSession = {
     state: createSpeechCaptureSessionState(),
@@ -505,11 +539,12 @@ export async function startSpeechCaptureSession(): Promise<SpeechCaptureSessionI
   }
   speechCaptureSessions.set(id, session)
 
-  if (process.platform !== "darwin") return { id, source: session.source }
+  if (process.platform !== "darwin" || !nativeSpeechCaptureEnabled()) return { id, source: session.source }
 
   try {
     session.process = (
       await startMacOSSpeechCapture({
+        gain: config?.gain,
         onLevel(level) {
           emitSpeechCaptureLevel(id, level)
         },
@@ -561,12 +596,34 @@ export function stopSpeechCaptureSession(sessionId: string) {
 export async function transcribeSpeech(input: SpeechTranscriptionInput) {
   const modelInfo = getSpeechModel(input.model)
   if (modelInfo.runtime === "apple") {
+    if (appleSpeechUnavailable) {
+      const fallback = await fallbackParakeetConfig(input.quality)
+      if (!fallback) throw new Error("Apple Speech is unavailable. Switch the voice model to Parakeet and download it in Voice settings.")
+      return transcribeSpeech({
+        ...input,
+        model: fallback.model,
+        quality: fallback.quality,
+      })
+    }
     await ensureSpeechDirectories()
     const id = randomUUID()
     const audioPath = join(speechRequestsRoot(), `${id}.wav`)
     await writeFile(audioPath, Buffer.from(input.audio))
     try {
       return await transcribeWithAppleSpeech(audioPath)
+    } catch (error) {
+      appleSpeechUnavailable = true
+      const fallback = await fallbackParakeetConfig(input.quality)
+      if (!fallback) {
+        const reason = error instanceof Error ? error.message : "Apple Speech transcription failed"
+        throw new Error(`${reason} Switch the voice model to Parakeet and download it in Voice settings.`)
+      }
+      console.warn(`[speech] Apple Speech failed, falling back to ${fallback.model} (${fallback.quality})`, error)
+      return transcribeSpeech({
+        ...input,
+        model: fallback.model,
+        quality: fallback.quality,
+      })
     } finally {
       await rm(audioPath, { force: true }).catch(() => undefined)
     }

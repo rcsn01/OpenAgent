@@ -83,6 +83,10 @@ const terminalBase = terminalFallback
 const defaultVoiceBaseSilenceMs = 1200
 const defaultVoiceMaxSilenceMs = 3200
 
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 function input(font: string | undefined) {
   return font ?? ""
 }
@@ -157,7 +161,7 @@ const defaultSettings: Settings = {
     inputGain: "boost",
     dictionary: "",
     corrections: "",
-    model: typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform) ? "apple-speech" : "parakeet-tdt-v3",
+    model: "parakeet-tdt-v3",
     quality: "fast",
     audioProcessing: true,
     pressToTalkKeybind: "f6",
@@ -177,6 +181,24 @@ const defaultSettings: Settings = {
   },
 }
 
+function migrateSettings(value: unknown) {
+  if (!record(value)) return value
+  if (!record(value.voice)) return value
+  if (value.voice.model !== "apple-speech") return value
+  return {
+    ...value,
+    voice: {
+      ...value.voice,
+      model: "parakeet-tdt-v3",
+    },
+  }
+}
+
+export const SettingsTesting = {
+  defaults: defaultSettings,
+  migrate: migrateSettings,
+}
+
 function withFallback<T>(read: () => T | undefined, fallback: T) {
   return createMemo(() => read() ?? fallback)
 }
@@ -184,7 +206,7 @@ function withFallback<T>(read: () => T | undefined, fallback: T) {
 export const { use: useSettings, provider: SettingsProvider } = createSimpleContext({
   name: "Settings",
   init: () => {
-    const [store, setStore, _, ready] = persisted("settings.v3", createStore<Settings>(defaultSettings))
+    const [store, setStore, _, ready] = persisted({ key: "settings.v3", migrate: migrateSettings }, createStore<Settings>(defaultSettings))
 
     createEffect(() => {
       if (typeof document === "undefined") return
