@@ -12,7 +12,7 @@ import type {
 } from "@/context/platform"
 import type { Prompt } from "@/context/prompt"
 import { shouldAutoSubmitVoiceTurn } from "./voice-endpoint"
-import { postprocessVoiceTranscript } from "./voice-postprocess"
+import { getVoicePromptTerms, postprocessVoiceTranscript } from "./voice-postprocess"
 import { applyVoiceTranscript } from "./voice-prompt"
 
 type PromptVoiceInput = {
@@ -38,7 +38,7 @@ type PromptVoiceInput = {
 
 const TRANSCRIPTION_MIME = "audio/wav"
 const MIN_TRANSCRIBE_MS = 200
-const MIN_PADDED_TRANSCRIBE_MS = 700
+const MIN_PADDED_TRANSCRIBE_MS = 1000
 const PRE_ROLL_MS = 250
 const SPEECH_FRAME_COUNT = 3
 const SILENCE_FRAME_COUNT = 8
@@ -269,7 +269,10 @@ export function createPromptVoice(input: PromptVoiceInput) {
     const frames = activeChunkFrames
     resetChunkCapture()
     if (!sampleRate || chunks.length === 0 || durationMs < MIN_TRANSCRIBE_MS) return
-    return encodeWave(ensureMinimumChunkDuration(chunks, sampleRate, frames), sampleRate)
+    return {
+      audio: encodeWave(ensureMinimumChunkDuration(chunks, sampleRate, frames), sampleRate),
+      originalDurationMs: Math.round(durationMs),
+    }
   }
 
   const stopAudio = () => {
@@ -336,7 +339,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
     return finalizeTurn()
   }
 
-  const queueTranscription = (audio: ArrayBuffer, runtime: SpeechRuntimeConfig, run: number) => {
+  const queueTranscription = (clip: { audio: ArrayBuffer; originalDurationMs: number }, runtime: SpeechRuntimeConfig, run: number) => {
     if (!input.transcribeSpeech) return transcriptionQueue
 
     pendingTranscriptions += 1
@@ -346,10 +349,15 @@ export function createPromptVoice(input: PromptVoiceInput) {
       .catch(() => undefined)
       .then(async () => {
         const result = await input.transcribeSpeech?.({
-          audio,
+          audio: clip.audio,
           mimeType: TRANSCRIPTION_MIME,
           model: runtime.model,
           quality: runtime.quality,
+          originalDurationMs: clip.originalDurationMs,
+          promptTerms: getVoicePromptTerms({
+            dictionary: input.dictionary(),
+            corrections: input.corrections(),
+          }),
         })
         const transcript = postprocessVoiceTranscript(result?.text ?? "", {
           dictionary: input.dictionary(),
@@ -376,9 +384,9 @@ export function createPromptVoice(input: PromptVoiceInput) {
   }
 
   const flushRecording = (run = sessionRun) => {
-    const audio = takeActiveChunk()
-    if (!audio) return
-    void queueTranscription(audio, currentRuntime(), run)
+    const clip = takeActiveChunk()
+    if (!clip) return
+    void queueTranscription(clip, currentRuntime(), run)
   }
 
   const stopSession = (options?: { transcribe?: boolean; discard?: boolean }) => {
@@ -391,13 +399,13 @@ export function createPromptVoice(input: PromptVoiceInput) {
       return
     }
 
-    const audio = takeActiveChunk()
+    const clip = takeActiveChunk()
     preRollFrames = 0
     preRollChunks = []
     resetTurn()
     sessionRuntime = undefined
-    if (!options?.transcribe || !audio) return
-    void queueTranscription(audio, runtime, run)
+    if (!options?.transcribe || !clip) return
+    void queueTranscription(clip, runtime, run)
   }
 
   const turnOffMicrophone = (options?: { discard?: boolean }) => {

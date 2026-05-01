@@ -55,7 +55,9 @@ type WorkerResponseMessage = {
   id: string
   text: string
   language?: string
+  confidence?: number
   segments?: SpeechTranscription["segments"]
+  tokens?: SpeechTranscription["tokens"]
 }
 
 type WorkerErrorMessage = {
@@ -351,7 +353,9 @@ function startWorker(model: SpeechModelID, quality?: SpeechTranscriptionQuality)
           pending.resolve({
             text: message.text,
             language: message.language,
+            confidence: message.confidence,
             segments: message.segments,
+            tokens: message.tokens,
           })
           continue
         }
@@ -475,7 +479,15 @@ export async function transcribeSpeech(input: SpeechTranscriptionInput) {
       }, 2 * 60 * 1000)
 
       workerState.pending.set(id, { resolve, reject, timer })
-      workerState.process.stdin.write(`${JSON.stringify({ type: "transcribe", id, audio_path: audioPath })}\n`)
+      workerState.process.stdin.write(
+        `${JSON.stringify({
+          type: "transcribe",
+          id,
+          audio_path: audioPath,
+          original_duration_ms: input.originalDurationMs,
+          prompt_terms: input.promptTerms,
+        })}\n`,
+      )
     })
   } finally {
     await rm(audioPath, { force: true }).catch(() => undefined)

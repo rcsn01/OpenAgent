@@ -13,6 +13,7 @@ export {
   type SpeechTranscriptionInput,
   type SpeechTranscriptionQuality,
   type SpeechTranscriptionSegment,
+  type SpeechTranscriptionToken,
 } from "./context/platform"
 export { ServerConnection } from "./context/server"
 export { handleNotificationClick } from "./utils/notification-click"

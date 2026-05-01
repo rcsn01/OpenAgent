@@ -45,6 +45,18 @@ export const parseVoiceCorrections = (value: string) =>
       return [{ from, to }]
     })
 
+export const getVoicePromptTerms = (input: { dictionary: string; corrections: string }) => {
+  const seen = new Set<string>()
+  return [...parseVoiceDictionary(input.dictionary), ...parseVoiceCorrections(input.corrections).map((item) => item.to)].filter(
+    (item) => {
+      const key = item.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    },
+  )
+}
+
 const replacePhrase = (value: string, from: string, to: string) => {
   const pattern = phrasePattern(from)
   if (!pattern) return value

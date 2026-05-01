@@ -37,18 +37,31 @@ export type SpeechRuntimeConfig = {
 export type SpeechTranscriptionInput = {
   audio: ArrayBuffer
   mimeType: string
+  originalDurationMs?: number
+  promptTerms?: string[]
 } & SpeechRuntimeConfig
 
 export type SpeechTranscriptionSegment = {
   text: string
   startMs?: number
   endMs?: number
+  confidence?: number
+}
+
+export type SpeechTranscriptionToken = {
+  text: string
+  startMs?: number
+  endMs?: number
+  logprob?: number
+  confidence?: number
 }
 
 export type SpeechTranscription = {
   text: string
   language?: string
+  confidence?: number
   segments?: SpeechTranscriptionSegment[]
+  tokens?: SpeechTranscriptionToken[]
 }
 
 export type ElectronAPI = {

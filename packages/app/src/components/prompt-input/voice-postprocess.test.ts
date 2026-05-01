@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { parseVoiceCorrections, parseVoiceDictionary, postprocessVoiceTranscript } from "./voice-postprocess"
+import {
+  getVoicePromptTerms,
+  parseVoiceCorrections,
+  parseVoiceDictionary,
+  postprocessVoiceTranscript,
+} from "./voice-postprocess"
 
 describe("voice postprocess", () => {
   test("normalizes dictionary terms with preferred casing", () => {
@@ -26,5 +31,14 @@ describe("voice postprocess", () => {
       { from: "codax", to: "Codex" },
       { from: "sonnet", to: "Sonnet" },
     ])
+  })
+
+  test("builds prompt terms from dictionary and correction targets", () => {
+    expect(
+      getVoicePromptTerms({
+        dictionary: "OpenAI\nWhisperKit",
+        corrections: "codax => Codex\nopen ai => OpenAI",
+      }),
+    ).toEqual(["OpenAI", "WhisperKit", "Codex"])
   })
 })
