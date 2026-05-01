@@ -7,13 +7,13 @@ describe("voice endpoint", () => {
       transcript: "please open the file",
       transcriptStableMs: 500,
       baseSilenceMs: 650,
-      maxSilenceMs: 1800,
+      maxSilenceMs: 3200,
     })
     const filler = computeVoiceEndpointHoldMs({
       transcript: "please open the file ummm",
       transcriptStableMs: 500,
       baseSilenceMs: 650,
-      maxSilenceMs: 1800,
+      maxSilenceMs: 3200,
     })
     expect(filler).toBeGreaterThan(normal)
   })
@@ -21,15 +21,15 @@ describe("voice endpoint", () => {
   test("submits faster for clearly complete utterances", () => {
     const complete = computeVoiceEndpointHoldMs({
       transcript: "please open the file.",
-      transcriptStableMs: 500,
+      transcriptStableMs: 900,
       baseSilenceMs: 650,
-      maxSilenceMs: 1800,
+      maxSilenceMs: 3200,
     })
     const connector = computeVoiceEndpointHoldMs({
       transcript: "please open the file and",
-      transcriptStableMs: 500,
+      transcriptStableMs: 900,
       baseSilenceMs: 650,
-      maxSilenceMs: 1800,
+      maxSilenceMs: 3200,
     })
     expect(complete).toBeLessThan(connector)
   })
@@ -41,19 +41,40 @@ describe("voice endpoint", () => {
         silenceMs: 800,
         transcriptStableMs: 100,
         baseSilenceMs: 650,
-        maxSilenceMs: 1800,
+        maxSilenceMs: 3200,
       }),
     ).toBe(false)
 
     expect(
       shouldAutoSubmitVoiceTurn({
         transcript: "open the docs",
-        silenceMs: 800,
-        transcriptStableMs: 400,
+        silenceMs: 1700,
+        transcriptStableMs: 500,
         baseSilenceMs: 650,
-        maxSilenceMs: 1800,
+        maxSilenceMs: 3200,
+      }),
+    ).toBe(false)
+
+    expect(
+      shouldAutoSubmitVoiceTurn({
+        transcript: "open the docs",
+        silenceMs: 1800,
+        transcriptStableMs: 900,
+        baseSilenceMs: 650,
+        maxSilenceMs: 3200,
       }),
     ).toBe(true)
   })
-})
 
+  test("waits through a short mid-sentence pause", () => {
+    expect(
+      shouldAutoSubmitVoiceTurn({
+        transcript: "open the docs and",
+        silenceMs: 1000,
+        transcriptStableMs: 650,
+        baseSilenceMs: 650,
+        maxSilenceMs: 3200,
+      }),
+    ).toBe(false)
+  })
+})

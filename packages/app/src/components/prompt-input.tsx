@@ -1102,6 +1102,8 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     speechModel: settings.voice.model,
     speechQuality: settings.voice.quality,
     inputGain: settings.voice.inputGain,
+    dictionary: settings.voice.dictionary,
+    corrections: settings.voice.corrections,
     audioProcessing: settings.voice.audioProcessing,
     pressToTalkKeybind: settings.voice.pressToTalkKeybind,
     baseSilenceMs: settings.voice.baseSilenceMs,
@@ -1654,8 +1656,16 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         onModelChange={settings.voice.setModel}
                         quality={settings.voice.quality}
                         onQualityChange={settings.voice.setQuality}
+                        baseSilenceMs={settings.voice.baseSilenceMs}
+                        onBaseSilenceMsChange={settings.voice.setBaseSilenceMs}
+                        maxSilenceMs={settings.voice.maxSilenceMs}
+                        onMaxSilenceMsChange={settings.voice.setMaxSilenceMs}
                         inputGain={settings.voice.inputGain}
                         onInputGainChange={settings.voice.setInputGain}
+                        dictionary={settings.voice.dictionary}
+                        onDictionaryChange={settings.voice.setDictionary}
+                        corrections={settings.voice.corrections}
+                        onCorrectionsChange={settings.voice.setCorrections}
                         vadSensitivity={settings.voice.vadSensitivity}
                         onVadSensitivityChange={settings.voice.setVadSensitivity}
                         audioProcessing={settings.voice.audioProcessing}

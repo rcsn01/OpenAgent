@@ -55,6 +55,7 @@ type WorkerResponseMessage = {
   id: string
   text: string
   language?: string
+  segments?: SpeechTranscription["segments"]
 }
 
 type WorkerErrorMessage = {
@@ -350,6 +351,7 @@ function startWorker(model: SpeechModelID, quality?: SpeechTranscriptionQuality)
           pending.resolve({
             text: message.text,
             language: message.language,
+            segments: message.segments,
           })
           continue
         }

@@ -12,6 +12,7 @@ import type {
 } from "@/context/platform"
 import type { Prompt } from "@/context/prompt"
 import { shouldAutoSubmitVoiceTurn } from "./voice-endpoint"
+import { postprocessVoiceTranscript } from "./voice-postprocess"
 import { applyVoiceTranscript } from "./voice-prompt"
 
 type PromptVoiceInput = {
@@ -23,6 +24,8 @@ type PromptVoiceInput = {
   speechModel: Accessor<SpeechModelID>
   speechQuality: Accessor<SpeechTranscriptionQuality>
   inputGain: Accessor<VoiceInputGain>
+  dictionary: Accessor<string>
+  corrections: Accessor<string>
   audioProcessing: Accessor<boolean>
   pressToTalkKeybind: Accessor<string>
   baseSilenceMs: Accessor<number>
@@ -35,6 +38,7 @@ type PromptVoiceInput = {
 
 const TRANSCRIPTION_MIME = "audio/wav"
 const MIN_TRANSCRIBE_MS = 200
+const MIN_PADDED_TRANSCRIBE_MS = 700
 const PRE_ROLL_MS = 250
 const SPEECH_FRAME_COUNT = 3
 const SILENCE_FRAME_COUNT = 8
@@ -113,6 +117,12 @@ const encodeWave = (buffers: Float32Array[], sampleRate: number) => {
   }
 
   return output
+}
+
+const ensureMinimumChunkDuration = (buffers: Float32Array[], sampleRate: number, frames: number) => {
+  const targetFrames = Math.round((sampleRate * MIN_PADDED_TRANSCRIBE_MS) / 1000)
+  if (frames >= targetFrames) return buffers
+  return [...buffers, new Float32Array(targetFrames - frames)]
 }
 
 export function createPromptVoice(input: PromptVoiceInput) {
@@ -256,9 +266,10 @@ export function createPromptVoice(input: PromptVoiceInput) {
     const durationMs = recordedSampleRate > 0 ? (activeChunkFrames / recordedSampleRate) * 1000 : 0
     const chunks = activeChunkBuffers
     const sampleRate = recordedSampleRate
+    const frames = activeChunkFrames
     resetChunkCapture()
     if (!sampleRate || chunks.length === 0 || durationMs < MIN_TRANSCRIBE_MS) return
-    return encodeWave(chunks, sampleRate)
+    return encodeWave(ensureMinimumChunkDuration(chunks, sampleRate, frames), sampleRate)
   }
 
   const stopAudio = () => {
@@ -340,7 +351,10 @@ export function createPromptVoice(input: PromptVoiceInput) {
           model: runtime.model,
           quality: runtime.quality,
         })
-        const transcript = result?.text.trim()
+        const transcript = postprocessVoiceTranscript(result?.text ?? "", {
+          dictionary: input.dictionary(),
+          corrections: input.corrections(),
+        })
         if (!transcript) return
         const nextPrompt = applyVoiceTranscript(input.prompt.current(), transcript)
         input.prompt.set(nextPrompt, promptLength(nextPrompt))

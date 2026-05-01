@@ -26,6 +26,8 @@ export interface VoiceSettings {
   maxSilenceMs: number
   vadSensitivity: "low" | "normal" | "high"
   inputGain: VoiceInputGain
+  dictionary: string
+  corrections: string
   model: SpeechModelID
   quality: SpeechTranscriptionQuality
   audioProcessing: boolean
@@ -78,6 +80,8 @@ const terminalFallback =
 const monoBase = monoFallback
 const sansBase = sansFallback
 const terminalBase = terminalFallback
+const defaultVoiceBaseSilenceMs = 1200
+const defaultVoiceMaxSilenceMs = 3200
 
 function input(font: string | undefined) {
   return font ?? ""
@@ -147,10 +151,12 @@ const defaultSettings: Settings = {
     autoApprove: false,
   },
   voice: {
-    baseSilenceMs: 650,
-    maxSilenceMs: 1800,
+    baseSilenceMs: defaultVoiceBaseSilenceMs,
+    maxSilenceMs: defaultVoiceMaxSilenceMs,
     vadSensitivity: "normal",
     inputGain: "boost",
+    dictionary: "",
+    corrections: "",
     model: "parakeet-tdt-v3",
     quality: "fast",
     audioProcessing: true,
@@ -190,6 +196,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
     createEffect(() => {
       if (store.general?.followup !== "queue") return
       setStore("general", "followup", "steer")
+    })
+
+    createEffect(() => {
+      if ((store.voice?.baseSilenceMs ?? defaultVoiceBaseSilenceMs) > 650) return
+      if ((store.voice?.maxSilenceMs ?? defaultVoiceMaxSilenceMs) > 1800) return
+      setStore("voice", "baseSilenceMs", defaultVoiceBaseSilenceMs)
+      setStore("voice", "maxSilenceMs", defaultVoiceMaxSilenceMs)
     })
 
     return {
@@ -321,6 +334,14 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         inputGain: withFallback(() => store.voice?.inputGain, defaultSettings.voice.inputGain),
         setInputGain(value: VoiceInputGain) {
           setStore("voice", "inputGain", value)
+        },
+        dictionary: withFallback(() => store.voice?.dictionary, defaultSettings.voice.dictionary),
+        setDictionary(value: string) {
+          setStore("voice", "dictionary", value)
+        },
+        corrections: withFallback(() => store.voice?.corrections, defaultSettings.voice.corrections),
+        setCorrections(value: string) {
+          setStore("voice", "corrections", value)
         },
         audioProcessing: withFallback(
           () => store.voice?.audioProcessing,

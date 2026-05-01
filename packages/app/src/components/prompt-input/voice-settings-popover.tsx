@@ -38,8 +38,16 @@ interface VoiceSettingsPopoverProps {
   onModelChange: (value: SpeechModelID) => void
   quality: Accessor<SpeechTranscriptionQuality>
   onQualityChange: (value: SpeechTranscriptionQuality) => void
+  baseSilenceMs: Accessor<number>
+  onBaseSilenceMsChange: (value: number) => void
+  maxSilenceMs: Accessor<number>
+  onMaxSilenceMsChange: (value: number) => void
   inputGain: Accessor<VoiceInputGain>
   onInputGainChange: (value: VoiceInputGain) => void
+  dictionary: Accessor<string>
+  onDictionaryChange: (value: string) => void
+  corrections: Accessor<string>
+  onCorrectionsChange: (value: string) => void
   vadSensitivity: Accessor<VoiceSettings["vadSensitivity"]>
   onVadSensitivityChange: (value: VoiceSettings["vadSensitivity"]) => void
   audioProcessing: Accessor<boolean>
@@ -109,6 +117,36 @@ const vadSensitivityOptions = [
   description: string
 }>
 
+const autoSendDelayOptions = [
+  {
+    id: "short",
+    label: "Short",
+    description: "Sends sooner after a pause for quicker back-and-forth.",
+    baseSilenceMs: 800,
+    maxSilenceMs: 2200,
+  },
+  {
+    id: "normal",
+    label: "Normal",
+    description: "More forgiving for natural pauses in the middle of a sentence.",
+    baseSilenceMs: 1200,
+    maxSilenceMs: 3200,
+  },
+  {
+    id: "long",
+    label: "Long",
+    description: "Waits the longest before sending. Best if you think out loud.",
+    baseSilenceMs: 1600,
+    maxSilenceMs: 4200,
+  },
+] satisfies Array<{
+  id: "short" | "normal" | "long"
+  label: string
+  description: string
+  baseSilenceMs: number
+  maxSilenceMs: number
+}>
+
 const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
 
 function isModifier(key: string) {
@@ -159,6 +197,11 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
   const selected = createMemo(
     () => models.latest.find((item) => item.id === props.model()) ?? fallbackModels.find((item) => item.id === props.model()),
   )
+  const autoSendDelay = createMemo(() => {
+    if (props.maxSilenceMs() >= 4200 || props.baseSilenceMs() >= 1600) return autoSendDelayOptions[2]
+    if (props.maxSilenceMs() >= 3200 || props.baseSilenceMs() >= 1200) return autoSendDelayOptions[1]
+    return autoSendDelayOptions[0]
+  })
   const pressToTalkDisplay = createMemo(() => {
     if (state.capturing) return "Press keys"
     return formatKeybind(props.pressToTalkKeybind(), language.t) || "Unassigned"
@@ -251,7 +294,7 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
         disabled: props.disabled,
       }}
       title="Voice settings"
-      description="Choose model quality, mic sensitivity, boost, audio cleanup, and your press-to-talk shortcut."
+      description="Choose model quality, pause before send, mic sensitivity, boost, audio cleanup, and your press-to-talk shortcut."
       class="w-[340px] max-w-[calc(100vw-32px)]"
       placement="top-end"
     >
@@ -265,6 +308,24 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
             value={(item) => item.id}
             label={(item) => item.label}
             onSelect={(item) => item && props.onQualityChange(item.id)}
+            fill
+          />
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="text-12-medium text-text-strong">Pause before send</div>
+          <div class="text-11-regular text-text-weak">
+            Longer delay waits through more natural pauses before voice sends automatically.
+          </div>
+          <RadioGroup
+            options={autoSendDelayOptions}
+            current={autoSendDelay()}
+            value={(item) => item.id}
+            label={(item) => item.label}
+            onSelect={(item) => {
+              if (!item) return
+              props.onBaseSilenceMsChange(item.baseSilenceMs)
+              props.onMaxSilenceMsChange(item.maxSilenceMs)
+            }}
             fill
           />
         </div>
@@ -294,6 +355,38 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
             label={(item) => item.label}
             onSelect={(item) => item && props.onInputGainChange(item.id)}
             fill
+          />
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="text-12-medium text-text-strong">Custom terms</div>
+          <div class="text-11-regular text-text-weak">
+            Add names or technical words to preserve preferred casing. Separate entries with commas or new lines.
+          </div>
+          <textarea
+            rows={3}
+            value={props.dictionary()}
+            placeholder={"OpenAI\nWhisperKit\nTypeScript"}
+            spellcheck={false}
+            autocorrect="off"
+            autocapitalize="off"
+            class="w-full resize-y rounded-md border border-border-weak-base bg-surface-inset-base px-3 py-2 text-12-regular text-text-strong outline-none focus:outline-none placeholder:text-text-dim"
+            onInput={(event) => props.onDictionaryChange(event.currentTarget.value)}
+          />
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="text-12-medium text-text-strong">Corrections</div>
+          <div class="text-11-regular text-text-weak">
+            Fix recurring substitutions with one rule per line, like `codax =&gt; Codex`.
+          </div>
+          <textarea
+            rows={3}
+            value={props.corrections()}
+            placeholder={"codax => Codex\nopen code => OpenCode"}
+            spellcheck={false}
+            autocorrect="off"
+            autocapitalize="off"
+            class="w-full resize-y rounded-md border border-border-weak-base bg-surface-inset-base px-3 py-2 text-12-regular text-text-strong outline-none focus:outline-none placeholder:text-text-dim"
+            onInput={(event) => props.onCorrectionsChange(event.currentTarget.value)}
           />
         </div>
         <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">

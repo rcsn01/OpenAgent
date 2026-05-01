@@ -15,19 +15,55 @@ def emit(payload):
     sys.stdout.flush()
 
 
+def read_value(item, *names):
+    if isinstance(item, dict):
+        for name in names:
+            value = item.get(name)
+            if value is not None:
+                return value
+        return None
+
+    for name in names:
+        value = getattr(item, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def normalize_ms(value, explicit_ms):
+    if not isinstance(value, (int, float)):
+        return None
+    if explicit_ms:
+        return round(value)
+    if isinstance(value, float):
+        return round(value * 1000)
+    return round(value)
+
+
+def normalize_segment(item):
+    text = read_value(item, "text")
+    if not isinstance(text, str) or not text.strip():
+        return None
+
+    start_ms = normalize_ms(read_value(item, "start_ms", "startMs"), True)
+    end_ms = normalize_ms(read_value(item, "end_ms", "endMs"), True)
+    if start_ms is None and end_ms is None:
+        start_ms = normalize_ms(read_value(item, "start"), False)
+        end_ms = normalize_ms(read_value(item, "end"), False)
+
+    return {"text": text.strip(), "startMs": start_ms, "endMs": end_ms}
+
+
 def normalize_result(result):
     text = ""
     language = None
+    segments = None
 
     if isinstance(result, str):
         text = result
     elif isinstance(result, list):
-        parts = []
-        for item in result:
-            maybe_text = getattr(item, "text", None)
-            if isinstance(maybe_text, str) and maybe_text:
-                parts.append(maybe_text)
-        text = " ".join(parts)
+        segments = [segment for segment in (normalize_segment(item) for item in result) if segment]
+        text = " ".join(segment["text"] for segment in segments)
     else:
         maybe_text = getattr(result, "text", None)
         if isinstance(maybe_text, str):
@@ -39,7 +75,14 @@ def normalize_result(result):
         if isinstance(maybe_language, str):
             language = maybe_language
 
-    return {"text": text.strip(), "language": language}
+        maybe_segments = read_value(result, "segments")
+        if isinstance(maybe_segments, list):
+            segments = [segment for segment in (normalize_segment(item) for item in maybe_segments) if segment]
+
+    payload = {"text": text.strip(), "language": language}
+    if segments:
+        payload["segments"] = segments
+    return payload
 
 
 def load_model():
