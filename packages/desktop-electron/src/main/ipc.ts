@@ -7,8 +7,10 @@ import type {
   ServerReadyData,
   SpeechModelID,
   SpeechModelInfo,
+  SpeechRuntimeConfig,
   SpeechTranscription,
   SpeechTranscriptionInput,
+  SpeechTranscriptionQuality,
   SqliteMigrationProgress,
   TitlebarTheme,
   WindowConfig,
@@ -74,12 +76,14 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("check-update", () => deps.checkUpdate())
   ipcMain.handle("install-update", () => deps.installUpdate())
   ipcMain.handle("set-background-color", (_event: IpcMainInvokeEvent, color: string) => deps.setBackgroundColor(color))
-  ipcMain.handle("list-speech-models", () => listSpeechModels() as Promise<SpeechModelInfo[]>)
-  ipcMain.handle("install-speech-model", (_event: IpcMainInvokeEvent, model: SpeechModelID) =>
-    installSpeechModel(model) as Promise<SpeechModelInfo>,
+  ipcMain.handle("list-speech-models", (_event: IpcMainInvokeEvent, quality?: SpeechTranscriptionQuality) =>
+    listSpeechModels(quality) as Promise<SpeechModelInfo[]>,
   )
-  ipcMain.handle("prepare-speech-transcription", (_event: IpcMainInvokeEvent, model: SpeechModelID) =>
-    prepareSpeechTranscription(model),
+  ipcMain.handle("install-speech-model", (_event: IpcMainInvokeEvent, model: SpeechModelID, quality?: SpeechTranscriptionQuality) =>
+    installSpeechModel(model, quality) as Promise<SpeechModelInfo>,
+  )
+  ipcMain.handle("prepare-speech-transcription", (_event: IpcMainInvokeEvent, config: SpeechRuntimeConfig) =>
+    prepareSpeechTranscription(config),
   )
   ipcMain.handle("transcribe-speech", (_event: IpcMainInvokeEvent, input: SpeechTranscriptionInput) =>
     transcribeSpeech(input) as Promise<SpeechTranscription>,

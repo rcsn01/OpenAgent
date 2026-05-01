@@ -28,10 +28,11 @@ export function computeVoiceEndpointHoldMs(input: Omit<VoiceEndpointInput, "sile
   return clamp(holdMs, 450, input.maxSilenceMs)
 }
 
-export function shouldAutoSubmitVoiceTurn(input: VoiceEndpointInput) {
+export function shouldFinalizeVoiceTurn(input: VoiceEndpointInput) {
   const transcript = input.transcript.trim()
   if (!transcript) return false
   if (input.transcriptStableMs < 250) return false
   return input.silenceMs >= computeVoiceEndpointHoldMs(input)
 }
 
+export const shouldAutoSubmitVoiceTurn = shouldFinalizeVoiceTurn

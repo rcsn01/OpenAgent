@@ -243,11 +243,11 @@ const createPlatform = (): Platform => {
       })
     },
 
-    listSpeechModels: () => window.api.listSpeechModels(),
+    listSpeechModels: (quality) => window.api.listSpeechModels(quality),
 
-    installSpeechModel: (model) => window.api.installSpeechModel(model),
+    installSpeechModel: (model, quality) => window.api.installSpeechModel(model, quality),
 
-    prepareSpeechTranscription: (model) => window.api.prepareSpeechTranscription(model),
+    prepareSpeechTranscription: (config) => window.api.prepareSpeechTranscription(config),
 
     transcribeSpeech: (input) => window.api.transcribeSpeech(input),
   }

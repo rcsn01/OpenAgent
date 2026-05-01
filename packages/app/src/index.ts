@@ -8,8 +8,10 @@ export {
   PlatformProvider,
   type SpeechModelID,
   type SpeechModelInfo,
+  type SpeechRuntimeConfig,
   type SpeechTranscription,
   type SpeechTranscriptionInput,
+  type SpeechTranscriptionQuality,
   type SpeechTranscriptionSegment,
 } from "./context/platform"
 export { ServerConnection } from "./context/server"

@@ -1100,8 +1100,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     prompt,
     mode: () => store.mode,
     speechModel: settings.voice.model,
+    speechQuality: settings.voice.quality,
+    audioProcessing: settings.voice.audioProcessing,
     pressToTalkKeybind: settings.voice.pressToTalkKeybind,
     baseSilenceMs: settings.voice.baseSilenceMs,
+    maxSilenceMs: settings.voice.maxSilenceMs,
     vadSensitivity: settings.voice.vadSensitivity,
     prepareSpeechTranscription: platform.prepareSpeechTranscription,
     transcribeSpeech: platform.transcribeSpeech,
@@ -1647,6 +1650,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         disabled={store.mode !== "normal" || !voice.supported()}
                         model={settings.voice.model}
                         onModelChange={settings.voice.setModel}
+                        quality={settings.voice.quality}
+                        onQualityChange={settings.voice.setQuality}
+                        audioProcessing={settings.voice.audioProcessing}
+                        onAudioProcessingChange={settings.voice.setAudioProcessing}
                         pressToTalkKeybind={settings.voice.pressToTalkKeybind}
                         onPressToTalkKeybindChange={settings.voice.setPressToTalkKeybind}
                       />

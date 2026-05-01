@@ -10,7 +10,7 @@ import { createStore } from "solid-js/store"
 import type { Accessor } from "solid-js"
 import { formatKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
-import { usePlatform, type SpeechModelID, type SpeechModelInfo } from "@/context/platform"
+import { usePlatform, type SpeechModelID, type SpeechModelInfo, type SpeechTranscriptionQuality } from "@/context/platform"
 
 const fallbackModels: SpeechModelInfo[] = [
   {
@@ -35,9 +35,30 @@ interface VoiceSettingsPopoverProps {
   disabled: boolean
   model: Accessor<SpeechModelID>
   onModelChange: (value: SpeechModelID) => void
+  quality: Accessor<SpeechTranscriptionQuality>
+  onQualityChange: (value: SpeechTranscriptionQuality) => void
+  audioProcessing: Accessor<boolean>
+  onAudioProcessingChange: (value: boolean) => void
   pressToTalkKeybind: Accessor<string>
   onPressToTalkKeybindChange: (value: string) => void
 }
+
+const qualityOptions = [
+  {
+    id: "fast",
+    label: "Fast",
+    description: "Uses the lighter local runtime for lower latency.",
+  },
+  {
+    id: "accurate",
+    label: "Accurate",
+    description: "Uses a fuller local runtime for better recognition.",
+  },
+] satisfies Array<{
+  id: SpeechTranscriptionQuality
+  label: string
+  description: string
+}>
 
 const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
 
@@ -78,9 +99,10 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
     capturing: false,
   })
   const [models, actions] = createResource(
-    async () => {
+    () => props.quality(),
+    async (quality) => {
       if (!platform.listSpeechModels) return fallbackModels
-      return platform.listSpeechModels()
+      return platform.listSpeechModels(quality)
     },
     { initialValue: fallbackModels },
   )
@@ -99,10 +121,10 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
 
     setState("installing", info.id)
     try {
-      await platform.installSpeechModel(info.id)
+      await platform.installSpeechModel(info.id, props.quality())
       showToast({
         title: "Voice model downloaded",
-        description: `${info.label} is ready to use locally.`,
+        description: `${info.label} is ready in ${props.quality() === "accurate" ? "Accurate" : "Fast"} mode.`,
         variant: "success",
         icon: "circle-check",
       })
@@ -180,11 +202,49 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
         disabled: props.disabled,
       }}
       title="Voice settings"
-      description="Choose your local Parakeet model and press-to-talk shortcut."
+      description="Choose model quality, audio cleanup, and your press-to-talk shortcut."
       class="w-[320px] max-w-[calc(100vw-32px)]"
       placement="top-end"
     >
       <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="text-12-medium text-text-strong">Transcription mode</div>
+          <div class="text-11-regular text-text-weak">Fast is lower latency. Accurate is slower but can catch more words.</div>
+          <RadioGroup
+            options={qualityOptions}
+            current={qualityOptions.find((item) => item.id === props.quality())}
+            value={(item) => item.id}
+            label={(item) => item.label}
+            onSelect={(item) => item && props.onQualityChange(item.id)}
+            fill
+          />
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <div class="text-12-medium text-text-strong">Audio cleanup</div>
+              <div class="text-11-regular text-text-weak">
+                {props.audioProcessing()
+                  ? "Browser echo cancellation, noise suppression, and gain control are on."
+                  : "Raw microphone capture is on. This can help if cleanup is distorting speech."}
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={props.audioProcessing()}
+              classList={{
+                "h-8 min-w-[64px] rounded-md px-3 text-12-regular": true,
+                "bg-surface-base text-text-subtle hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active":
+                  !props.audioProcessing(),
+                "border border-border-weak-base bg-surface-inset-base text-text-strong": props.audioProcessing(),
+              }}
+              onClick={() => props.onAudioProcessingChange(!props.audioProcessing())}
+            >
+              {props.audioProcessing() ? "On" : "Off"}
+            </button>
+          </div>
+        </div>
         <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1">
@@ -267,7 +327,7 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
           )}
         </Show>
         <p class="text-11-regular leading-4 text-text-weak">
-          Download the selected model here before turning on the microphone.
+          Download the selected model for the current mode before turning on the microphone.
         </p>
       </div>
     </Popover>

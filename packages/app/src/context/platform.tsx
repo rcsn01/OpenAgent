@@ -9,6 +9,7 @@ type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: stri
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
 export type SpeechModelID = "parakeet-tdt-v2" | "parakeet-tdt-v3"
+export type SpeechTranscriptionQuality = "fast" | "accurate"
 export type SpeechModelInfo = {
   id: SpeechModelID
   label: string
@@ -17,11 +18,14 @@ export type SpeechModelInfo = {
   recommended: boolean
   path: string
 }
+export type SpeechRuntimeConfig = {
+  model: SpeechModelID
+  quality: SpeechTranscriptionQuality
+}
 export type SpeechTranscriptionInput = {
   audio: ArrayBuffer
   mimeType: string
-  model: SpeechModelID
-}
+} & SpeechRuntimeConfig
 
 export type SpeechTranscriptionSegment = {
   text: string
@@ -115,13 +119,13 @@ export type Platform = {
   readClipboardImage?(): Promise<File | null>
 
   /** List locally available speech models (desktop only) */
-  listSpeechModels?(): Promise<SpeechModelInfo[]>
+  listSpeechModels?(quality?: SpeechTranscriptionQuality): Promise<SpeechModelInfo[]>
 
   /** Download a local speech model (desktop only) */
-  installSpeechModel?(model: SpeechModelID): Promise<SpeechModelInfo>
+  installSpeechModel?(model: SpeechModelID, quality?: SpeechTranscriptionQuality): Promise<SpeechModelInfo>
 
   /** Prepare a local speech recognition runtime (desktop only) */
-  prepareSpeechTranscription?(model: SpeechModelID): Promise<void>
+  prepareSpeechTranscription?(config: SpeechRuntimeConfig): Promise<void>
 
   /** Transcribe audio with a local speech recognition runtime (desktop only) */
   transcribeSpeech?(input: SpeechTranscriptionInput): Promise<SpeechTranscription>

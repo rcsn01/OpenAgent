@@ -20,6 +20,7 @@ export type WindowConfig = {
 }
 
 export type SpeechModelID = "parakeet-tdt-v2" | "parakeet-tdt-v3"
+export type SpeechTranscriptionQuality = "fast" | "accurate"
 export type SpeechModelInfo = {
   id: SpeechModelID
   label: string
@@ -28,12 +29,15 @@ export type SpeechModelInfo = {
   recommended: boolean
   path: string
 }
+export type SpeechRuntimeConfig = {
+  model: SpeechModelID
+  quality: SpeechTranscriptionQuality
+}
 
 export type SpeechTranscriptionInput = {
   audio: ArrayBuffer
   mimeType: string
-  model: SpeechModelID
-}
+} & SpeechRuntimeConfig
 
 export type SpeechTranscriptionSegment = {
   text: string
@@ -104,8 +108,8 @@ export type ElectronAPI = {
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
   installUpdate: () => Promise<void>
   setBackgroundColor: (color: string) => Promise<void>
-  listSpeechModels: () => Promise<SpeechModelInfo[]>
-  installSpeechModel: (model: SpeechModelID) => Promise<SpeechModelInfo>
-  prepareSpeechTranscription: (model: SpeechModelID) => Promise<void>
+  listSpeechModels: (quality?: SpeechTranscriptionQuality) => Promise<SpeechModelInfo[]>
+  installSpeechModel: (model: SpeechModelID, quality?: SpeechTranscriptionQuality) => Promise<SpeechModelInfo>
+  prepareSpeechTranscription: (config: SpeechRuntimeConfig) => Promise<void>
   transcribeSpeech: (input: SpeechTranscriptionInput) => Promise<SpeechTranscription>
 }

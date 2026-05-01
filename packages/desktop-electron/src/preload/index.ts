@@ -66,9 +66,9 @@ const api: ElectronAPI = {
   checkUpdate: () => ipcRenderer.invoke("check-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   setBackgroundColor: (color: string) => ipcRenderer.invoke("set-background-color", color),
-  listSpeechModels: () => ipcRenderer.invoke("list-speech-models"),
-  installSpeechModel: (model) => ipcRenderer.invoke("install-speech-model", model),
-  prepareSpeechTranscription: (model) => ipcRenderer.invoke("prepare-speech-transcription", model),
+  listSpeechModels: (quality) => ipcRenderer.invoke("list-speech-models", quality),
+  installSpeechModel: (model, quality) => ipcRenderer.invoke("install-speech-model", model, quality),
+  prepareSpeechTranscription: (config) => ipcRenderer.invoke("prepare-speech-transcription", config),
   transcribeSpeech: (input) => ipcRenderer.invoke("transcribe-speech", input),
 }
 

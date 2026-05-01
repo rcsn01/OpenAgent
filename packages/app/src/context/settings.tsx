@@ -2,7 +2,7 @@ import { createStore, reconcile } from "solid-js/store"
 import { createEffect, createMemo } from "solid-js"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
-import type { SpeechModelID } from "./platform"
+import type { SpeechModelID, SpeechTranscriptionQuality } from "./platform"
 
 export interface NotificationSettings {
   agent: boolean
@@ -20,11 +20,12 @@ export interface SoundSettings {
 }
 
 export interface VoiceSettings {
-  autoSubmit: boolean
   baseSilenceMs: number
   maxSilenceMs: number
   vadSensitivity: "low" | "normal" | "high"
   model: SpeechModelID
+  quality: SpeechTranscriptionQuality
+  audioProcessing: boolean
   pressToTalkKeybind: string
 }
 
@@ -143,11 +144,12 @@ const defaultSettings: Settings = {
     autoApprove: false,
   },
   voice: {
-    autoSubmit: false,
     baseSilenceMs: 650,
     maxSilenceMs: 1800,
     vadSensitivity: "normal",
     model: "parakeet-tdt-v3",
+    quality: "fast",
+    audioProcessing: true,
     pressToTalkKeybind: "f6",
   },
   notifications: {
@@ -304,13 +306,20 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         },
       },
       voice: {
-        autoSubmit: withFallback(() => store.voice?.autoSubmit, defaultSettings.voice.autoSubmit),
-        setAutoSubmit(value: boolean) {
-          setStore("voice", "autoSubmit", value)
-        },
         model: withFallback(() => store.voice?.model, defaultSettings.voice.model),
         setModel(value: SpeechModelID) {
           setStore("voice", "model", value)
+        },
+        quality: withFallback(() => store.voice?.quality, defaultSettings.voice.quality),
+        setQuality(value: SpeechTranscriptionQuality) {
+          setStore("voice", "quality", value)
+        },
+        audioProcessing: withFallback(
+          () => store.voice?.audioProcessing,
+          defaultSettings.voice.audioProcessing,
+        ),
+        setAudioProcessing(value: boolean) {
+          setStore("voice", "audioProcessing", value)
         },
         pressToTalkKeybind: withFallback(
           () => store.voice?.pressToTalkKeybind,

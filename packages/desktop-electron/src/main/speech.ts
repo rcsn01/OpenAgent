@@ -1,14 +1,22 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { access, mkdir, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { app } from "electron"
-import type { SpeechModelID, SpeechModelInfo, SpeechTranscription, SpeechTranscriptionInput } from "../preload/types"
+import type {
+  SpeechModelID,
+  SpeechModelInfo,
+  SpeechRuntimeConfig,
+  SpeechTranscription,
+  SpeechTranscriptionInput,
+  SpeechTranscriptionQuality,
+} from "../preload/types"
 
 const ONNX_ASR_VERSION = "0.11.0"
 const PREFERRED_QUANTIZATION = "int8"
 const PYTHON_VERSION = "3.11"
 const INSTALL_MANIFEST = "install.json"
+const DEFAULT_QUALITY: SpeechTranscriptionQuality = "fast"
 
 const speechModels = {
   "parakeet-tdt-v3": {
@@ -67,15 +75,44 @@ type WorkerState = {
   process: ChildProcessWithoutNullStreams
   pending: Map<string, PendingRequest>
   model: SpeechModelID
+  quality: SpeechTranscriptionQuality
 }
 
 let preparePromise: Promise<void> | undefined
 let workerState: WorkerState | undefined
 
+const speechQualities = {
+  fast: {
+    id: "fast",
+    label: "Fast",
+    quantization: PREFERRED_QUANTIZATION,
+  },
+  accurate: {
+    id: "accurate",
+    label: "Accurate",
+    quantization: undefined,
+  },
+} satisfies Record<
+  SpeechTranscriptionQuality,
+  {
+    id: SpeechTranscriptionQuality
+    label: string
+    quantization?: string
+  }
+>
+
 function getSpeechModel(model: SpeechModelID) {
   const info = speechModels[model]
   if (!info) throw new Error(`Unsupported speech model: ${model}`)
   return info
+}
+
+function normalizeQuality(quality?: SpeechTranscriptionQuality) {
+  return quality ?? DEFAULT_QUALITY
+}
+
+function getSpeechQuality(quality?: SpeechTranscriptionQuality) {
+  return speechQualities[normalizeQuality(quality)]
 }
 
 function speechRoot() {
@@ -90,12 +127,16 @@ function speechModelsRoot() {
   return join(speechRoot(), "models")
 }
 
-function speechModelDirectory(model: SpeechModelID) {
+function speechModelDirectory(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  return join(speechModelsRoot(), normalizeQuality(quality), model)
+}
+
+function legacySpeechModelDirectory(model: SpeechModelID) {
   return join(speechModelsRoot(), model)
 }
 
-function speechModelManifestPath(model: SpeechModelID) {
-  return join(speechModelDirectory(model), INSTALL_MANIFEST)
+function speechModelManifestPath(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  return join(speechModelDirectory(model, quality), INSTALL_MANIFEST)
 }
 
 function speechWorkerPath() {
@@ -103,13 +144,14 @@ function speechWorkerPath() {
   return join(app.getAppPath(), "resources", "speech", "worker.py")
 }
 
-function workerEnvironment(model: SpeechModelID) {
+function workerEnvironment(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  const config = getSpeechQuality(quality)
   return {
     ...process.env,
     HF_HOME: join(speechRoot(), "huggingface"),
-    PARAKEET_MODEL_DIR: speechModelDirectory(model),
+    PARAKEET_MODEL_DIR: speechModelDirectory(model, quality),
     PARAKEET_MODEL_NAME: getSpeechModel(model).model_name,
-    PARAKEET_QUANTIZATION: PREFERRED_QUANTIZATION,
+    PARAKEET_QUANTIZATION: config.quantization ?? "",
     PYTHONIOENCODING: "utf-8",
     PYTHONUNBUFFERED: "1",
     UV_CACHE_DIR: join(speechRoot(), "uv-cache"),
@@ -127,10 +169,53 @@ async function pathExists(path: string) {
   }
 }
 
-async function isSpeechModelInstalled(model: SpeechModelID) {
-  const manifest = speechModelManifestPath(model)
-  const directory = speechModelDirectory(model)
-  return (await pathExists(manifest)) && (await pathExists(directory))
+function speechModelFiles(quality?: SpeechTranscriptionQuality) {
+  if (normalizeQuality(quality) === "accurate") {
+    return ["config.json", "vocab.txt", "encoder-model.onnx", "decoder_joint-model.onnx"]
+  }
+  return ["config.json", "vocab.txt", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx"]
+}
+
+async function hasSpeechModelFiles(directory: string, quality?: SpeechTranscriptionQuality) {
+  return (await Promise.all(speechModelFiles(quality).map((file) => pathExists(join(directory, file))))).every(Boolean)
+}
+
+async function writeSpeechModelManifest(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  const normalizedQuality = normalizeQuality(quality)
+  await writeFile(
+    speechModelManifestPath(model, normalizedQuality),
+    JSON.stringify(
+      {
+        id: model,
+        model_name: getSpeechModel(model).model_name,
+        quality: normalizedQuality,
+        quantization: getSpeechQuality(normalizedQuality).quantization ?? "default",
+        installed_at: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  )
+}
+
+async function migrateLegacySpeechModel(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  const normalizedQuality = normalizeQuality(quality)
+  if (normalizedQuality !== "fast") return
+  if (await hasSpeechModelFiles(speechModelDirectory(model, normalizedQuality), normalizedQuality)) return
+  if (!(await hasSpeechModelFiles(legacySpeechModelDirectory(model), normalizedQuality))) return
+
+  await mkdir(join(speechModelsRoot(), normalizedQuality), { recursive: true })
+  await rm(speechModelDirectory(model, normalizedQuality), { recursive: true, force: true }).catch(() => undefined)
+  await rename(legacySpeechModelDirectory(model), speechModelDirectory(model, normalizedQuality)).catch(() => undefined)
+}
+
+async function isSpeechModelInstalled(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  const normalizedQuality = normalizeQuality(quality)
+  await migrateLegacySpeechModel(model, normalizedQuality)
+  if (!(await hasSpeechModelFiles(speechModelDirectory(model, normalizedQuality), normalizedQuality))) return false
+  if (await pathExists(speechModelManifestPath(model, normalizedQuality))) return true
+  await writeSpeechModelManifest(model, normalizedQuality)
+  return true
 }
 
 async function ensureSpeechDirectories() {
@@ -173,7 +258,8 @@ async function stopWorker(reason: Error) {
   })
 }
 
-function startWorker(model: SpeechModelID) {
+function startWorker(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  const normalizedQuality = normalizeQuality(quality)
   const processRef = spawn(
     "uv",
     [
@@ -189,7 +275,7 @@ function startWorker(model: SpeechModelID) {
     ],
     {
       cwd: speechRoot(),
-      env: workerEnvironment(model),
+      env: workerEnvironment(model, normalizedQuality),
       stdio: ["pipe", "pipe", "pipe"],
     },
   )
@@ -198,6 +284,7 @@ function startWorker(model: SpeechModelID) {
     process: processRef,
     pending: new Map(),
     model,
+    quality: normalizedQuality,
   }
 
   const stderr: string[] = []
@@ -297,25 +384,27 @@ function startWorker(model: SpeechModelID) {
   })
 }
 
-async function ensureWorkerReady(model: SpeechModelID) {
-  if (workerState?.model === model) return
-  if (!(await isSpeechModelInstalled(model))) {
-    throw new Error(`${getSpeechModel(model).label} has not been downloaded yet. Open voice settings and download it first.`)
+async function ensureWorkerReady(config: SpeechRuntimeConfig) {
+  if (workerState?.model === config.model && workerState.quality === config.quality) return
+  if (!(await isSpeechModelInstalled(config.model, config.quality))) {
+    throw new Error(
+      `${getSpeechModel(config.model).label} (${getSpeechQuality(config.quality).label}) has not been downloaded yet. Open voice settings and download it first.`,
+    )
   }
   if (preparePromise) {
     await preparePromise
-    if (workerState?.model === model) return
+    if (workerState?.model === config.model && workerState.quality === config.quality) return
   }
   if (workerState?.pending.size) {
-    throw new Error("Voice transcription is still running. Wait for it to finish before switching models.")
+    throw new Error("Voice transcription is still running. Wait for it to finish before switching model quality.")
   }
   if (workerState) {
-    await stopWorker(new Error("Switching local speech models"))
+    await stopWorker(new Error("Switching local speech runtime"))
   }
 
   preparePromise = (async () => {
     await ensureSpeechDirectories()
-    await startWorker(model)
+    await startWorker(config.model, config.quality)
   })().finally(() => {
     preparePromise = undefined
   })
@@ -323,58 +412,47 @@ async function ensureWorkerReady(model: SpeechModelID) {
   await preparePromise
 }
 
-async function toSpeechModelInfo(model: SpeechModelID): Promise<SpeechModelInfo> {
+async function toSpeechModelInfo(model: SpeechModelID, quality?: SpeechTranscriptionQuality): Promise<SpeechModelInfo> {
   const info = getSpeechModel(model)
   return {
     id: info.id,
     label: info.label,
     description: info.description,
-    downloaded: await isSpeechModelInstalled(model),
+    downloaded: await isSpeechModelInstalled(model, quality),
     recommended: info.recommended,
-    path: speechModelDirectory(model),
+    path: speechModelDirectory(model, quality),
   }
 }
 
-export async function listSpeechModels() {
+export async function listSpeechModels(quality?: SpeechTranscriptionQuality) {
   await ensureSpeechDirectories()
-  return Promise.all((Object.keys(speechModels) as SpeechModelID[]).map((model) => toSpeechModelInfo(model)))
+  return Promise.all((Object.keys(speechModels) as SpeechModelID[]).map((model) => toSpeechModelInfo(model, quality)))
 }
 
-export async function installSpeechModel(model: SpeechModelID) {
-  if (await isSpeechModelInstalled(model)) return toSpeechModelInfo(model)
+export async function installSpeechModel(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  const normalizedQuality = normalizeQuality(quality)
+  if (await isSpeechModelInstalled(model, normalizedQuality)) return toSpeechModelInfo(model, normalizedQuality)
   if (workerState?.pending.size) {
     throw new Error("Voice transcription is still running. Wait for it to finish before downloading another model.")
   }
 
   await ensureSpeechDirectories()
   if (workerState) {
-    await stopWorker(new Error("Preparing a different local speech model"))
+    await stopWorker(new Error("Preparing a different local speech runtime"))
   }
 
-  await rm(speechModelDirectory(model), { recursive: true, force: true }).catch(() => undefined)
-  await startWorker(model)
-  await writeFile(
-    speechModelManifestPath(model),
-    JSON.stringify(
-      {
-        id: model,
-        model_name: getSpeechModel(model).model_name,
-        quantization: PREFERRED_QUANTIZATION,
-        installed_at: new Date().toISOString(),
-      },
-      null,
-      2,
-    ),
-  )
-  return toSpeechModelInfo(model)
+  await rm(speechModelDirectory(model, normalizedQuality), { recursive: true, force: true }).catch(() => undefined)
+  await startWorker(model, normalizedQuality)
+  await writeSpeechModelManifest(model, normalizedQuality)
+  return toSpeechModelInfo(model, normalizedQuality)
 }
 
-export async function prepareSpeechTranscription(model: SpeechModelID) {
-  await ensureWorkerReady(model)
+export async function prepareSpeechTranscription(config: SpeechRuntimeConfig) {
+  await ensureWorkerReady(config)
 }
 
 export async function transcribeSpeech(input: SpeechTranscriptionInput) {
-  await ensureWorkerReady(input.model)
+  await ensureWorkerReady({ model: input.model, quality: input.quality })
   if (!workerState) throw new Error("The local Parakeet worker is unavailable")
 
   await mkdir(speechRequestsRoot(), { recursive: true })
