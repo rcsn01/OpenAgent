@@ -37,7 +37,14 @@ const getBase = (): Configuration => ({
     {
       from: "native/",
       to: "native/",
-      filter: ["index.js", "index.d.ts", "build/Release/mac_window.node", "swift-build/**"],
+      filter: [
+        "index.js",
+        "index.d.ts",
+        "build/Release/mac_window.node",
+        "swift-build/**",
+        "voice-capture-macos.swift",
+        "apple-speech-transcribe.swift",
+      ],
     },
     {
       from: "resources/speech/",
@@ -52,6 +59,10 @@ const getBase = (): Configuration => ({
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
+    extendInfo: {
+      NSMicrophoneUsageDescription: "OpenCode uses microphone access for hands-free local voice input.",
+      NSSpeechRecognitionUsageDescription: "OpenCode uses speech recognition for native local voice transcription.",
+    },
     notarize: true,
     target: ["dmg", "zip"],
   },

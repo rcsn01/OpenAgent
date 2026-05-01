@@ -1112,6 +1112,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     prepareSpeechTranscription: platform.prepareSpeechTranscription,
     startSpeechCaptureSession: platform.startSpeechCaptureSession,
     appendSpeechCaptureSamples: platform.appendSpeechCaptureSamples,
+    onSpeechCaptureLevel: platform.onSpeechCaptureLevel,
     beginSpeechCaptureChunk: platform.beginSpeechCaptureChunk,
     transcribeSpeechCaptureChunk: platform.transcribeSpeechCaptureChunk,
     stopSpeechCaptureSession: platform.stopSpeechCaptureSession,

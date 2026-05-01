@@ -1,10 +1,12 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { access, mkdir, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { app } from "electron"
 import type {
   SpeechCaptureChunkInput,
+  SpeechCaptureSessionInfo,
+  SpeechCaptureSessionSource,
   SpeechCaptureSamplesInput,
   SpeechModelID,
   SpeechModelInfo,
@@ -20,6 +22,7 @@ import {
   takeSpeechCaptureChunk,
   type SpeechCaptureSessionState,
 } from "./speech-capture"
+import { emitSpeechCaptureLevel, startMacOSSpeechCapture, transcribeWithAppleSpeech } from "./speech-macos"
 
 const ONNX_ASR_VERSION = "0.11.0"
 const PREFERRED_QUANTIZATION = "int8"
@@ -28,12 +31,21 @@ const INSTALL_MANIFEST = "install.json"
 const DEFAULT_QUALITY: SpeechTranscriptionQuality = "fast"
 
 const speechModels = {
+  "apple-speech": {
+    id: "apple-speech",
+    label: "Apple Speech",
+    description: "Uses macOS native speech recognition when it is available.",
+    model_name: undefined,
+    recommended: process.platform === "darwin",
+    runtime: "apple",
+  },
   "parakeet-tdt-v3": {
     id: "parakeet-tdt-v3",
     label: "Parakeet TDT v3",
     description: "Recommended. Multilingual and the strongest local model.",
     model_name: "nemo-parakeet-tdt-0.6b-v3",
-    recommended: true,
+    recommended: process.platform !== "darwin",
+    runtime: "parakeet",
   },
   "parakeet-tdt-v2": {
     id: "parakeet-tdt-v2",
@@ -41,6 +53,7 @@ const speechModels = {
     description: "Earlier Parakeet release with an explicit download option.",
     model_name: "nemo-parakeet-tdt-0.6b-v2",
     recommended: false,
+    runtime: "parakeet",
   },
 } satisfies Record<
   SpeechModelID,
@@ -48,8 +61,9 @@ const speechModels = {
     id: SpeechModelID
     label: string
     description: string
-    model_name: string
     recommended: boolean
+    runtime: "apple" | "parakeet"
+    model_name?: string
   }
 >
 
@@ -90,9 +104,15 @@ type WorkerState = {
   quality: SpeechTranscriptionQuality
 }
 
+type SpeechCaptureSession = {
+  state: SpeechCaptureSessionState
+  source: SpeechCaptureSessionSource
+  process?: ChildProcess
+}
+
 let preparePromise: Promise<void> | undefined
 let workerState: WorkerState | undefined
-const speechCaptureSessions = new Map<string, SpeechCaptureSessionState>()
+const speechCaptureSessions = new Map<string, SpeechCaptureSession>()
 
 const speechQualities = {
   fast: {
@@ -159,11 +179,13 @@ function speechWorkerPath() {
 
 function workerEnvironment(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
   const config = getSpeechQuality(quality)
+  const modelInfo = getSpeechModel(model)
+  if (!modelInfo.model_name) throw new Error(`Unsupported worker model: ${model}`)
   return {
     ...process.env,
     HF_HOME: join(speechRoot(), "huggingface"),
     PARAKEET_MODEL_DIR: speechModelDirectory(model, quality),
-    PARAKEET_MODEL_NAME: getSpeechModel(model).model_name,
+    PARAKEET_MODEL_NAME: modelInfo.model_name,
     PARAKEET_QUANTIZATION: config.quantization ?? "",
     PYTHONIOENCODING: "utf-8",
     PYTHONUNBUFFERED: "1",
@@ -223,6 +245,7 @@ async function migrateLegacySpeechModel(model: SpeechModelID, quality?: SpeechTr
 }
 
 async function isSpeechModelInstalled(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  if (getSpeechModel(model).runtime === "apple") return process.platform === "darwin"
   const normalizedQuality = normalizeQuality(quality)
   await migrateLegacySpeechModel(model, normalizedQuality)
   if (!(await hasSpeechModelFiles(speechModelDirectory(model, normalizedQuality), normalizedQuality))) return false
@@ -401,6 +424,7 @@ function startWorker(model: SpeechModelID, quality?: SpeechTranscriptionQuality)
 }
 
 async function ensureWorkerReady(config: SpeechRuntimeConfig) {
+  if (getSpeechModel(config.model).runtime === "apple") return
   if (workerState?.model === config.model && workerState.quality === config.quality) return
   if (!(await isSpeechModelInstalled(config.model, config.quality))) {
     throw new Error(
@@ -442,10 +466,15 @@ async function toSpeechModelInfo(model: SpeechModelID, quality?: SpeechTranscrip
 
 export async function listSpeechModels(quality?: SpeechTranscriptionQuality) {
   await ensureSpeechDirectories()
-  return Promise.all((Object.keys(speechModels) as SpeechModelID[]).map((model) => toSpeechModelInfo(model, quality)))
+  return Promise.all(
+    (Object.keys(speechModels) as SpeechModelID[])
+      .filter((model) => process.platform === "darwin" || getSpeechModel(model).runtime !== "apple")
+      .map((model) => toSpeechModelInfo(model, quality)),
+  )
 }
 
 export async function installSpeechModel(model: SpeechModelID, quality?: SpeechTranscriptionQuality) {
+  if (getSpeechModel(model).runtime === "apple") return toSpeechModelInfo(model, quality)
   const normalizedQuality = normalizeQuality(quality)
   if (await isSpeechModelInstalled(model, normalizedQuality)) return toSpeechModelInfo(model, normalizedQuality)
   if (workerState?.pending.size) {
@@ -464,31 +493,54 @@ export async function installSpeechModel(model: SpeechModelID, quality?: SpeechT
 }
 
 export async function prepareSpeechTranscription(config: SpeechRuntimeConfig) {
+  if (getSpeechModel(config.model).runtime === "apple") return
   await ensureWorkerReady(config)
 }
 
-export function startSpeechCaptureSession() {
+export async function startSpeechCaptureSession(): Promise<SpeechCaptureSessionInfo> {
   const id = randomUUID()
-  speechCaptureSessions.set(id, createSpeechCaptureSessionState())
-  return id
+  const session: SpeechCaptureSession = {
+    state: createSpeechCaptureSessionState(),
+    source: "renderer",
+  }
+  speechCaptureSessions.set(id, session)
+
+  if (process.platform !== "darwin") return { id, source: session.source }
+
+  try {
+    session.process = (
+      await startMacOSSpeechCapture({
+        onLevel(level) {
+          emitSpeechCaptureLevel(id, level)
+        },
+        onSamples(samples, sampleRate) {
+          appendCaptureSamples(session.state, samples, sampleRate)
+        },
+      })
+    ).process
+    session.source = "native"
+  } catch {}
+
+  return { id, source: session.source }
 }
 
 export function appendSpeechCaptureSamples(input: SpeechCaptureSamplesInput) {
   const session = speechCaptureSessions.get(input.sessionId)
   if (!session) return
-  appendCaptureSamples(session, new Float32Array(input.samples), input.sampleRate)
+  if (session.source !== "renderer") return
+  appendCaptureSamples(session.state, new Float32Array(input.samples), input.sampleRate)
 }
 
 export function beginSpeechCaptureChunk(sessionId: string) {
   const session = speechCaptureSessions.get(sessionId)
   if (!session) return
-  beginCaptureChunk(session)
+  beginCaptureChunk(session.state)
 }
 
 export async function transcribeSpeechCaptureChunk(input: SpeechCaptureChunkInput) {
   const session = speechCaptureSessions.get(input.sessionId)
   if (!session) return { text: "" }
-  const clip = takeSpeechCaptureChunk(session)
+  const clip = takeSpeechCaptureChunk(session.state)
   if (!clip) return { text: "" }
   return transcribeSpeech({
     audio: clip.audio,
@@ -501,10 +553,24 @@ export async function transcribeSpeechCaptureChunk(input: SpeechCaptureChunkInpu
 }
 
 export function stopSpeechCaptureSession(sessionId: string) {
+  const session = speechCaptureSessions.get(sessionId)
+  if (session?.process) session.process.kill()
   speechCaptureSessions.delete(sessionId)
 }
 
 export async function transcribeSpeech(input: SpeechTranscriptionInput) {
+  const modelInfo = getSpeechModel(input.model)
+  if (modelInfo.runtime === "apple") {
+    await ensureSpeechDirectories()
+    const id = randomUUID()
+    const audioPath = join(speechRequestsRoot(), `${id}.wav`)
+    await writeFile(audioPath, Buffer.from(input.audio))
+    try {
+      return await transcribeWithAppleSpeech(audioPath)
+    } finally {
+      await rm(audioPath, { force: true }).catch(() => undefined)
+    }
+  }
   await ensureWorkerReady({ model: input.model, quality: input.quality })
   if (!workerState) throw new Error("The local Parakeet worker is unavailable")
 
@@ -542,6 +608,9 @@ export async function transcribeSpeech(input: SpeechTranscriptionInput) {
 }
 
 export async function disposeSpeechTranscription() {
+  for (const session of speechCaptureSessions.values()) {
+    if (session.process) session.process.kill()
+  }
   speechCaptureSessions.clear()
   if (!workerState) return
   await stopWorker(new Error("The local Parakeet worker was stopped"))

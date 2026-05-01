@@ -157,7 +157,7 @@ const defaultSettings: Settings = {
     inputGain: "boost",
     dictionary: "",
     corrections: "",
-    model: "parakeet-tdt-v3",
+    model: typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform) ? "apple-speech" : "parakeet-tdt-v3",
     quality: "fast",
     audioProcessing: true,
     pressToTalkKeybind: "f6",

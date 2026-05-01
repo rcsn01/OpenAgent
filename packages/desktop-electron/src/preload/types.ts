@@ -19,7 +19,7 @@ export type WindowConfig = {
   updaterEnabled: boolean
 }
 
-export type SpeechModelID = "parakeet-tdt-v2" | "parakeet-tdt-v3"
+export type SpeechModelID = "apple-speech" | "parakeet-tdt-v2" | "parakeet-tdt-v3"
 export type SpeechTranscriptionQuality = "fast" | "accurate"
 export type SpeechModelInfo = {
   id: SpeechModelID
@@ -33,9 +33,19 @@ export type SpeechRuntimeConfig = {
   model: SpeechModelID
   quality: SpeechTranscriptionQuality
 }
+export type SpeechCaptureSessionSource = "native" | "renderer"
+export type SpeechCaptureSessionInfo = {
+  id: string
+  source: SpeechCaptureSessionSource
+}
 export type SpeechCaptureSamplesInput = {
   sessionId: string
   samples: ArrayBuffer
+  sampleRate: number
+}
+export type SpeechCaptureLevelEvent = {
+  sessionId: string
+  rms: number
   sampleRate: number
 }
 export type SpeechCaptureChunkInput = {
@@ -133,8 +143,9 @@ export type ElectronAPI = {
   listSpeechModels: (quality?: SpeechTranscriptionQuality) => Promise<SpeechModelInfo[]>
   installSpeechModel: (model: SpeechModelID, quality?: SpeechTranscriptionQuality) => Promise<SpeechModelInfo>
   prepareSpeechTranscription: (config: SpeechRuntimeConfig) => Promise<void>
-  startSpeechCaptureSession: () => Promise<string>
+  startSpeechCaptureSession: () => Promise<SpeechCaptureSessionInfo>
   appendSpeechCaptureSamples: (input: SpeechCaptureSamplesInput) => void
+  onSpeechCaptureLevel: (cb: (event: SpeechCaptureLevelEvent) => void) => () => void
   beginSpeechCaptureChunk: (sessionId: string) => Promise<void>
   transcribeSpeechCaptureChunk: (input: SpeechCaptureChunkInput) => Promise<SpeechTranscription>
   stopSpeechCaptureSession: (sessionId: string) => Promise<void>

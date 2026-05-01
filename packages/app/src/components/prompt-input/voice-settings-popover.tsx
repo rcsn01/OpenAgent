@@ -13,13 +13,27 @@ import { useLanguage } from "@/context/language"
 import type { VoiceInputGain, VoiceSettings } from "@/context/settings"
 import { usePlatform, type SpeechModelID, type SpeechModelInfo, type SpeechTranscriptionQuality } from "@/context/platform"
 
+const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
+
 const fallbackModels: SpeechModelInfo[] = [
+  ...(IS_MAC
+    ? [
+        {
+          id: "apple-speech",
+          label: "Apple Speech",
+          description: "Uses macOS native speech recognition when it is available.",
+          downloaded: true,
+          recommended: true,
+          path: "",
+        } satisfies SpeechModelInfo,
+      ]
+    : []),
   {
     id: "parakeet-tdt-v3",
     label: "Parakeet TDT v3",
     description: "Recommended. Multilingual and the strongest local model.",
     downloaded: false,
-    recommended: true,
+    recommended: !IS_MAC,
     path: "",
   },
   {
@@ -146,8 +160,6 @@ const autoSendDelayOptions = [
   baseSilenceMs: number
   maxSilenceMs: number
 }>
-
-const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
 
 function isModifier(key: string) {
   return key === "Shift" || key === "Control" || key === "Alt" || key === "Meta"

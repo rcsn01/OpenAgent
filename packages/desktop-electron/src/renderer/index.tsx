@@ -253,6 +253,8 @@ const createPlatform = (): Platform => {
 
     appendSpeechCaptureSamples: (input) => window.api.appendSpeechCaptureSamples(input),
 
+    onSpeechCaptureLevel: (cb) => window.api.onSpeechCaptureLevel(cb),
+
     beginSpeechCaptureChunk: (sessionId) => window.api.beginSpeechCaptureChunk(sessionId),
 
     transcribeSpeechCaptureChunk: (input) => window.api.transcribeSpeechCaptureChunk(input),

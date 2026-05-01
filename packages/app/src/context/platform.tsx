@@ -8,7 +8,7 @@ type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
 type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: string[]; extensions?: string[] }
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
-export type SpeechModelID = "parakeet-tdt-v2" | "parakeet-tdt-v3"
+export type SpeechModelID = "apple-speech" | "parakeet-tdt-v2" | "parakeet-tdt-v3"
 export type SpeechTranscriptionQuality = "fast" | "accurate"
 export type SpeechModelInfo = {
   id: SpeechModelID
@@ -22,9 +22,19 @@ export type SpeechRuntimeConfig = {
   model: SpeechModelID
   quality: SpeechTranscriptionQuality
 }
+export type SpeechCaptureSessionSource = "native" | "renderer"
+export type SpeechCaptureSessionInfo = {
+  id: string
+  source: SpeechCaptureSessionSource
+}
 export type SpeechCaptureSamplesInput = {
   sessionId: string
   samples: ArrayBuffer
+  sampleRate: number
+}
+export type SpeechCaptureLevelEvent = {
+  sessionId: string
+  rms: number
   sampleRate: number
 }
 export type SpeechCaptureChunkInput = {
@@ -150,10 +160,13 @@ export type Platform = {
   prepareSpeechTranscription?(config: SpeechRuntimeConfig): Promise<void>
 
   /** Start a desktop-owned speech capture session (desktop only) */
-  startSpeechCaptureSession?(): Promise<string>
+  startSpeechCaptureSession?(): Promise<SpeechCaptureSessionInfo>
 
   /** Append raw mono PCM samples into the desktop speech capture session (desktop only) */
   appendSpeechCaptureSamples?(input: SpeechCaptureSamplesInput): Promise<void> | void
+
+  /** Subscribe to desktop speech capture levels (desktop only) */
+  onSpeechCaptureLevel?(cb: (event: SpeechCaptureLevelEvent) => void): () => void
 
   /** Start a chunk inside the desktop speech capture session (desktop only) */
   beginSpeechCaptureChunk?(sessionId: string): Promise<void> | void
