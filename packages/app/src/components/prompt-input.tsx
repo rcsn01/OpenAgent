@@ -1101,6 +1101,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     mode: () => store.mode,
     speechModel: settings.voice.model,
     speechQuality: settings.voice.quality,
+    inputGain: settings.voice.inputGain,
     audioProcessing: settings.voice.audioProcessing,
     pressToTalkKeybind: settings.voice.pressToTalkKeybind,
     baseSilenceMs: settings.voice.baseSilenceMs,
@@ -1108,6 +1109,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     vadSensitivity: settings.voice.vadSensitivity,
     prepareSpeechTranscription: platform.prepareSpeechTranscription,
     transcribeSpeech: platform.transcribeSpeech,
+    onAutoSubmit: () => void handleSubmit(new Event("submit")),
   })
 
   const placeholder = createMemo(() => {
@@ -1652,6 +1654,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         onModelChange={settings.voice.setModel}
                         quality={settings.voice.quality}
                         onQualityChange={settings.voice.setQuality}
+                        inputGain={settings.voice.inputGain}
+                        onInputGainChange={settings.voice.setInputGain}
+                        vadSensitivity={settings.voice.vadSensitivity}
+                        onVadSensitivityChange={settings.voice.setVadSensitivity}
                         audioProcessing={settings.voice.audioProcessing}
                         onAudioProcessingChange={settings.voice.setAudioProcessing}
                         pressToTalkKeybind={settings.voice.pressToTalkKeybind}

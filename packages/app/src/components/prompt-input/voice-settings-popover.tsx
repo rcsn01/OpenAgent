@@ -10,6 +10,7 @@ import { createStore } from "solid-js/store"
 import type { Accessor } from "solid-js"
 import { formatKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
+import type { VoiceInputGain, VoiceSettings } from "@/context/settings"
 import { usePlatform, type SpeechModelID, type SpeechModelInfo, type SpeechTranscriptionQuality } from "@/context/platform"
 
 const fallbackModels: SpeechModelInfo[] = [
@@ -37,6 +38,10 @@ interface VoiceSettingsPopoverProps {
   onModelChange: (value: SpeechModelID) => void
   quality: Accessor<SpeechTranscriptionQuality>
   onQualityChange: (value: SpeechTranscriptionQuality) => void
+  inputGain: Accessor<VoiceInputGain>
+  onInputGainChange: (value: VoiceInputGain) => void
+  vadSensitivity: Accessor<VoiceSettings["vadSensitivity"]>
+  onVadSensitivityChange: (value: VoiceSettings["vadSensitivity"]) => void
   audioProcessing: Accessor<boolean>
   onAudioProcessingChange: (value: boolean) => void
   pressToTalkKeybind: Accessor<string>
@@ -56,6 +61,50 @@ const qualityOptions = [
   },
 ] satisfies Array<{
   id: SpeechTranscriptionQuality
+  label: string
+  description: string
+}>
+
+const inputGainOptions = [
+  {
+    id: "normal",
+    label: "Normal",
+    description: "No extra preamp. Best if your microphone already sounds loud enough.",
+  },
+  {
+    id: "boost",
+    label: "Boost",
+    description: "Adds a moderate input boost for quieter voices and farther mics.",
+  },
+  {
+    id: "max",
+    label: "Max",
+    description: "Adds the strongest input boost. Best for very quiet microphones.",
+  },
+] satisfies Array<{
+  id: VoiceInputGain
+  label: string
+  description: string
+}>
+
+const vadSensitivityOptions = [
+  {
+    id: "low",
+    label: "Low",
+    description: "Reduces false triggers in noisy rooms, but needs louder speech.",
+  },
+  {
+    id: "normal",
+    label: "Normal",
+    description: "Balanced detection for most microphones and rooms.",
+  },
+  {
+    id: "high",
+    label: "High",
+    description: "Starts listening sooner for quieter speech and more distance.",
+  },
+] satisfies Array<{
+  id: VoiceSettings["vadSensitivity"]
   label: string
   description: string
 }>
@@ -202,8 +251,8 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
         disabled: props.disabled,
       }}
       title="Voice settings"
-      description="Choose model quality, audio cleanup, and your press-to-talk shortcut."
-      class="w-[320px] max-w-[calc(100vw-32px)]"
+      description="Choose model quality, mic sensitivity, boost, audio cleanup, and your press-to-talk shortcut."
+      class="w-[340px] max-w-[calc(100vw-32px)]"
       placement="top-end"
     >
       <div class="flex flex-col gap-3">
@@ -216,6 +265,34 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
             value={(item) => item.id}
             label={(item) => item.label}
             onSelect={(item) => item && props.onQualityChange(item.id)}
+            fill
+          />
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="text-12-medium text-text-strong">Mic sensitivity</div>
+          <div class="text-11-regular text-text-weak">
+            Higher sensitivity starts capture more easily when your voice is quiet or you are farther from the mic.
+          </div>
+          <RadioGroup
+            options={vadSensitivityOptions}
+            current={vadSensitivityOptions.find((item) => item.id === props.vadSensitivity())}
+            value={(item) => item.id}
+            label={(item) => item.label}
+            onSelect={(item) => item && props.onVadSensitivityChange(item.id)}
+            fill
+          />
+        </div>
+        <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+          <div class="text-12-medium text-text-strong">Mic boost</div>
+          <div class="text-11-regular text-text-weak">
+            Boost raises the captured input level before transcription. Try `Boost` first if the mic feels too quiet.
+          </div>
+          <RadioGroup
+            options={inputGainOptions}
+            current={inputGainOptions.find((item) => item.id === props.inputGain())}
+            value={(item) => item.id}
+            label={(item) => item.label}
+            onSelect={(item) => item && props.onInputGainChange(item.id)}
             fill
           />
         </div>

@@ -7,6 +7,7 @@ import onnx_asr
 MODEL_NAME = os.environ.get("PARAKEET_MODEL_NAME", "nemo-parakeet-tdt-0.6b-v3")
 MODEL_DIR = os.environ.get("PARAKEET_MODEL_DIR", "").strip() or None
 PREFERRED_QUANTIZATION = os.environ.get("PARAKEET_QUANTIZATION", "int8").strip() or None
+PROVIDERS = ["CPUExecutionProvider"]
 
 
 def emit(payload):
@@ -48,11 +49,14 @@ def load_model():
         try:
             if quantization:
                 if MODEL_DIR:
-                    return onnx_asr.load_model(MODEL_NAME, MODEL_DIR, quantization=quantization), quantization
-                return onnx_asr.load_model(MODEL_NAME, quantization=quantization), quantization
+                    return (
+                        onnx_asr.load_model(MODEL_NAME, MODEL_DIR, quantization=quantization, providers=PROVIDERS),
+                        quantization,
+                    )
+                return onnx_asr.load_model(MODEL_NAME, quantization=quantization, providers=PROVIDERS), quantization
             if MODEL_DIR:
-                return onnx_asr.load_model(MODEL_NAME, MODEL_DIR), None
-            return onnx_asr.load_model(MODEL_NAME), None
+                return onnx_asr.load_model(MODEL_NAME, MODEL_DIR, providers=PROVIDERS), None
+            return onnx_asr.load_model(MODEL_NAME, providers=PROVIDERS), None
         except Exception as exc:  # pragma: no cover
             errors.append(f"{quantization or 'default'}: {exc}")
 

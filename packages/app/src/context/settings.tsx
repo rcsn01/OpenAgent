@@ -4,6 +4,8 @@ import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
 import type { SpeechModelID, SpeechTranscriptionQuality } from "./platform"
 
+export type VoiceInputGain = "normal" | "boost" | "max"
+
 export interface NotificationSettings {
   agent: boolean
   permissions: boolean
@@ -23,6 +25,7 @@ export interface VoiceSettings {
   baseSilenceMs: number
   maxSilenceMs: number
   vadSensitivity: "low" | "normal" | "high"
+  inputGain: VoiceInputGain
   model: SpeechModelID
   quality: SpeechTranscriptionQuality
   audioProcessing: boolean
@@ -147,6 +150,7 @@ const defaultSettings: Settings = {
     baseSilenceMs: 650,
     maxSilenceMs: 1800,
     vadSensitivity: "normal",
+    inputGain: "boost",
     model: "parakeet-tdt-v3",
     quality: "fast",
     audioProcessing: true,
@@ -313,6 +317,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         quality: withFallback(() => store.voice?.quality, defaultSettings.voice.quality),
         setQuality(value: SpeechTranscriptionQuality) {
           setStore("voice", "quality", value)
+        },
+        inputGain: withFallback(() => store.voice?.inputGain, defaultSettings.voice.inputGain),
+        setInputGain(value: VoiceInputGain) {
+          setStore("voice", "inputGain", value)
         },
         audioProcessing: withFallback(
           () => store.voice?.audioProcessing,

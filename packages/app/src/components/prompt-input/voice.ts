@@ -2,6 +2,7 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { createEffect, createMemo, onCleanup, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
 import { matchKeybind, parseKeybind, type Keybind } from "@/context/command"
+import type { VoiceInputGain } from "@/context/settings"
 import type {
   SpeechModelID,
   SpeechRuntimeConfig,
@@ -10,7 +11,7 @@ import type {
   SpeechTranscriptionQuality,
 } from "@/context/platform"
 import type { Prompt } from "@/context/prompt"
-import { shouldFinalizeVoiceTurn } from "./voice-endpoint"
+import { shouldAutoSubmitVoiceTurn } from "./voice-endpoint"
 import { applyVoiceTranscript } from "./voice-prompt"
 
 type PromptVoiceInput = {
@@ -21,6 +22,7 @@ type PromptVoiceInput = {
   mode: Accessor<"normal" | "shell">
   speechModel: Accessor<SpeechModelID>
   speechQuality: Accessor<SpeechTranscriptionQuality>
+  inputGain: Accessor<VoiceInputGain>
   audioProcessing: Accessor<boolean>
   pressToTalkKeybind: Accessor<string>
   baseSilenceMs: Accessor<number>
@@ -28,6 +30,7 @@ type PromptVoiceInput = {
   vadSensitivity: Accessor<"low" | "normal" | "high">
   prepareSpeechTranscription?: (config: SpeechRuntimeConfig) => Promise<void>
   transcribeSpeech?: (input: SpeechTranscriptionInput) => Promise<SpeechTranscription>
+  onAutoSubmit?: () => void
 }
 
 const TRANSCRIPTION_MIME = "audio/wav"
@@ -37,9 +40,21 @@ const SPEECH_FRAME_COUNT = 3
 const SILENCE_FRAME_COUNT = 8
 
 const speechFactor = (value: "low" | "normal" | "high") => {
-  if (value === "high") return 2.4
-  if (value === "low") return 4
-  return 3
+  if (value === "high") return 1.7
+  if (value === "low") return 2.8
+  return 2.2
+}
+
+const minSpeechThreshold = (value: "low" | "normal" | "high") => {
+  if (value === "high") return 0.0035
+  if (value === "low") return 0.0065
+  return 0.005
+}
+
+const inputGainValue = (value: VoiceInputGain) => {
+  if (value === "max") return 2.8
+  if (value === "boost") return 1.9
+  return 1
 }
 
 const promptLength = (prompt: Prompt) =>
@@ -143,6 +158,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
   let audioContext: AudioContext | undefined
   let analyser: AnalyserNode | undefined
   let processor: ScriptProcessorNode | undefined
+  let inputGainNode: GainNode | undefined
   let sink: GainNode | undefined
   let audioBuffer: Uint8Array<ArrayBuffer> | undefined
   let animationFrame = 0
@@ -175,6 +191,12 @@ export function createPromptVoice(input: PromptVoiceInput) {
   const resetTurn = () => {
     turnTranscript = ""
     turnTranscriptUpdatedAt = 0
+  }
+
+  const finalizeTurn = () => {
+    resetTurn()
+    if (state.manualMicEnabled) input.onAutoSubmit?.()
+    return true
   }
 
   const resetChunkCapture = () => {
@@ -251,6 +273,13 @@ export function createPromptVoice(input: PromptVoiceInput) {
       processor = undefined
     }
 
+    if (inputGainNode) {
+      try {
+        inputGainNode.disconnect()
+      } catch {}
+      inputGainNode = undefined
+    }
+
     if (sink) {
       try {
         sink.disconnect()
@@ -280,13 +309,10 @@ export function createPromptVoice(input: PromptVoiceInput) {
   const maybeFinalizeTurn = (now = performance.now()) => {
     if (!turnTranscript || capturingChunk || pendingTranscriptions > 0) return false
     const silenceMs = now - lastSpeechAt
-    if (silenceMs >= input.maxSilenceMs()) {
-      resetTurn()
-      return true
-    }
+    if (silenceMs >= input.maxSilenceMs()) return finalizeTurn()
     const transcriptStableMs = turnTranscriptUpdatedAt ? now - turnTranscriptUpdatedAt : 0
     if (
-      !shouldFinalizeVoiceTurn({
+      !shouldAutoSubmitVoiceTurn({
         transcript: turnTranscript,
         silenceMs,
         transcriptStableMs,
@@ -296,8 +322,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
     ) {
       return false
     }
-    resetTurn()
-    return true
+    return finalizeTurn()
   }
 
   const queueTranscription = (audio: ArrayBuffer, runtime: SpeechRuntimeConfig, run: number) => {
@@ -384,7 +409,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
 
       const rms = Math.sqrt(total / audioBuffer.length)
       if (!state.speaking) noiseFloor = noiseFloor * 0.92 + rms * 0.08
-      const threshold = Math.max(0.008, noiseFloor * speechFactor(input.vadSensitivity()))
+      const threshold = Math.max(minSpeechThreshold(input.vadSensitivity()), noiseFloor * speechFactor(input.vadSensitivity()))
       const forceCapture = state.pressToTalkActive && !state.manualMicEnabled
       const active = forceCapture || rms > threshold
       const now = performance.now()
@@ -461,6 +486,8 @@ export function createPromptVoice(input: PromptVoiceInput) {
       audioBuffer = new Uint8Array<ArrayBuffer>(new ArrayBuffer(analyser.fftSize))
 
       const source = audioContext.createMediaStreamSource(stream)
+      inputGainNode = audioContext.createGain()
+      inputGainNode.gain.value = inputGainValue(input.inputGain())
       processor = audioContext.createScriptProcessor(4096, 1, 1)
       processor.onaudioprocess = (event) => {
         if (!recordedSampleRate) recordedSampleRate = audioContext?.sampleRate ?? event.inputBuffer.sampleRate
@@ -473,8 +500,9 @@ export function createPromptVoice(input: PromptVoiceInput) {
       sink = audioContext.createGain()
       sink.gain.value = 0
 
-      source.connect(analyser)
-      source.connect(processor)
+      source.connect(inputGainNode)
+      inputGainNode.connect(analyser)
+      inputGainNode.connect(processor)
       processor.connect(sink)
       sink.connect(audioContext.destination)
 
@@ -510,6 +538,11 @@ export function createPromptVoice(input: PromptVoiceInput) {
     if (input.mode() === "normal") return
     if (!state.pressToTalkActive) return
     setState("pressToTalkActive", false)
+  })
+
+  createEffect(() => {
+    if (!inputGainNode) return
+    inputGainNode.gain.value = inputGainValue(input.inputGain())
   })
 
   createEffect(() => {
