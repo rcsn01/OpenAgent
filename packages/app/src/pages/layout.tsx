@@ -85,6 +85,7 @@ import {
   WorkspaceDragOverlay,
   type WorkspaceSidebarContext,
 } from "./layout/sidebar-workspace"
+import { SidebarHub } from "./layout/sidebar-hub"
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
 
@@ -1282,12 +1283,23 @@ export default function Layout(props: ParentProps) {
     })
   }
 
+  function sidebarDialogDirectory() {
+    return currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
+  }
+
   function openSessionList() {
     const run = ++dialogRun
     void import("@/components/dialog-session-list").then((x) => {
       if (dialogDead || dialogRun !== run) return
       dialog.show(() => (
-        <x.DialogSessionList sessions={currentSessions()} currentID={params.id} onSelect={(session) => navigateToSession(session)} />
+        <x.DialogSessionList
+          title="Search chats"
+          placeholder="Search chats"
+          sessions={searchableSessions()}
+          currentID={params.id}
+          subtitle={sessionSearchSubtitle}
+          onSelect={(session) => navigateToSession(session)}
+        />
       ))
     })
   }
@@ -1326,20 +1338,34 @@ export default function Layout(props: ParentProps) {
   }
 
   function openPluginsManager() {
-    if (!currentDir()) return
+    const directory = sidebarDialogDirectory()
+    if (!directory) {
+      showToast({
+        title: "Open a project first",
+        description: "Plugins are managed per workspace.",
+      })
+      return
+    }
     const run = ++dialogRun
     void import("@/components/dialog-plugins").then((x) => {
       if (dialogDead || dialogRun !== run) return
-      dialog.show(() => <x.DialogPlugins />)
+      dialog.show(() => <x.DialogPlugins directory={directory} />)
     })
   }
 
   function openInstallPlugin() {
-    if (!currentDir()) return
+    const directory = sidebarDialogDirectory()
+    if (!directory) {
+      showToast({
+        title: "Open a project first",
+        description: "Plugins are managed per workspace.",
+      })
+      return
+    }
     const run = ++dialogRun
     void import("@/components/dialog-install-plugin").then((x) => {
       if (dialogDead || dialogRun !== run) return
-      dialog.show(() => <x.DialogInstallPlugin />)
+      dialog.show(() => <x.DialogInstallPlugin directory={directory} />)
     })
   }
 
@@ -2001,6 +2027,52 @@ export default function Layout(props: ParentProps) {
     return [...ordered, extra]
   }
 
+  function projectSessions(project: LocalProject) {
+    return workspaceIds(project)
+      .flatMap((directory) => sortedRootSessions(globalSync.child(directory, { bootstrap: true })[0], sortNow()))
+      .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
+  }
+
+  const searchableSessions = createMemo(() =>
+    layout.projects
+      .list()
+      .flatMap((project) => projectSessions(project))
+      .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created)),
+  )
+
+  const sessionSearchSubtitle = (session: Session) => {
+    const root = projectRoot(session.directory)
+    const project = layout.projects.list().find((item) => pathKey(item.worktree) === pathKey(root))
+    const projectName = project ? displayName(project) : getFilename(root)
+    if (pathKey(root) === pathKey(session.directory)) return projectName
+    return `${projectName} • ${getFilename(session.directory)}`
+  }
+
+  createEffect(() => {
+    if (!layout.sidebar.opened() && !layout.mobileSidebar.opened()) return
+    for (const project of layout.projects.list()) {
+      for (const directory of workspaceIds(project)) {
+        void globalSync.project.loadSessions(directory)
+      }
+    }
+  })
+
+  function openSidebarNewChat() {
+    const directory = currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
+    if (!directory) {
+      void chooseProject()
+      return
+    }
+    navigateWithSidebarReset(`/${base64Encode(directory)}/session`)
+  }
+
+  function openAutomationPlaceholder() {
+    showToast({
+      title: "Automations aren't available yet",
+      description: "This button is a placeholder until OpenCode adds automation support.",
+    })
+  }
+
   const sidebarProject = createMemo(() => {
     if (layout.sidebar.opened()) return currentProject()
     const hovered = hoverProjectData()
@@ -2448,32 +2520,54 @@ export default function Layout(props: ParentProps) {
 
   const projects = () => layout.projects.list()
   const projectOverlay = () => <ProjectDragOverlay projects={projects} activeProject={() => store.activeProject} />
-  const sidebarContent = (mobile?: boolean) => (
-    <SidebarContent
-      mobile={mobile}
-      opened={() => layout.sidebar.opened()}
-      aimMove={aim.move}
-      projects={projects}
-      renderProject={(project) => (
-        <SortableProject ctx={projectSidebarCtx} project={project} sortNow={sortNow} mobile={mobile} />
-      )}
-      handleDragStart={handleDragStart}
-      handleDragEnd={handleDragEnd}
-      handleDragOver={handleDragOver}
-      openProjectLabel={language.t("command.project.open")}
-      openProjectKeybind={() => command.keybind("project.open")}
-      onOpenProject={chooseProject}
-      renderProjectOverlay={projectOverlay}
-      settingsLabel={() => language.t("sidebar.settings")}
-      settingsKeybind={() => command.keybind("settings.open")}
-      onOpenSettings={openSettings}
-      helpLabel={() => language.t("sidebar.help")}
-      onOpenHelp={openHelp}
-      renderPanel={() =>
-        mobile ? <SidebarPanel project={currentProject} mobile /> : <SidebarPanel project={currentProject} merged />
-      }
-    />
-  )
+  const sidebarContent = (mobile?: boolean) => {
+    if (mobile || layout.sidebar.opened()) {
+      return (
+        <SidebarHub
+          projects={projects}
+          currentDir={currentDir}
+          currentSessionID={() => params.id}
+          getProjectSessions={projectSessions}
+          onOpenProject={(project) => void navigateToProject(project.worktree)}
+          onEditProject={showEditProjectDialog}
+          onOpenSession={navigateToSession}
+          onNewChat={openSidebarNewChat}
+          onSearch={openSessionList}
+          onPlugins={openPluginsManager}
+          onAutomations={openAutomationPlaceholder}
+          onSettings={openSettings}
+          onOpenProjectChooser={() => void chooseProject()}
+        />
+      )
+    }
+
+    return (
+      <SidebarContent
+        mobile={mobile}
+        opened={() => layout.sidebar.opened()}
+        aimMove={aim.move}
+        projects={projects}
+        renderProject={(project) => (
+          <SortableProject ctx={projectSidebarCtx} project={project} sortNow={sortNow} mobile={mobile} />
+        )}
+        handleDragStart={handleDragStart}
+        handleDragEnd={handleDragEnd}
+        handleDragOver={handleDragOver}
+        openProjectLabel={language.t("command.project.open")}
+        openProjectKeybind={() => command.keybind("project.open")}
+        onOpenProject={chooseProject}
+        renderProjectOverlay={projectOverlay}
+        settingsLabel={() => language.t("sidebar.settings")}
+        settingsKeybind={() => command.keybind("settings.open")}
+        onOpenSettings={openSettings}
+        helpLabel={() => language.t("sidebar.help")}
+        onOpenHelp={openHelp}
+        renderPanel={() =>
+          mobile ? <SidebarPanel project={currentProject} mobile /> : <SidebarPanel project={currentProject} merged />
+        }
+      />
+    )
+  }
 
   return (
     <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">

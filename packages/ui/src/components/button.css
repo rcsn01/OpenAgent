@@ -117,13 +117,13 @@
     line-height: var(--line-height-large);
     gap: 8px;
 
-    /* text-12-medium */
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 166.667% */
-    letter-spacing: var(--letter-spacing-normal);
+    font-family: var(--type-label-sm-font-family);
+    font-feature-settings: var(--type-label-sm-font-feature-settings, normal);
+    font-size: var(--type-label-sm-font-size);
+    font-style: var(--type-label-sm-font-style);
+    font-weight: var(--type-label-sm-font-weight);
+    line-height: var(--type-label-sm-line-height);
+    letter-spacing: var(--type-label-sm-letter-spacing);
   }
 
   &[data-size="normal"] {
@@ -137,12 +137,13 @@
     font-size: var(--font-size-small);
     gap: 8px;
 
-    /* text-12-medium */
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-small);
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    letter-spacing: var(--letter-spacing-normal);
+    font-family: var(--type-label-sm-font-family);
+    font-feature-settings: var(--type-label-sm-font-feature-settings, normal);
+    font-size: var(--type-label-sm-font-size);
+    font-style: var(--type-label-sm-font-style);
+    font-weight: var(--type-label-sm-font-weight);
+    line-height: var(--type-label-sm-line-height);
+    letter-spacing: var(--type-label-sm-letter-spacing);
   }
 
   &[data-size="large"] {
@@ -155,13 +156,13 @@
 
     gap: 8px;
 
-    /* text-14-medium */
-    font-family: var(--font-family-sans);
-    font-size: 14px;
-    font-style: normal;
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-large); /* 142.857% */
-    letter-spacing: var(--letter-spacing-normal);
+    font-family: var(--type-label-md-font-family);
+    font-feature-settings: var(--type-label-md-font-feature-settings, normal);
+    font-size: var(--type-label-md-font-size);
+    font-style: var(--type-label-md-font-style);
+    font-weight: var(--type-label-md-font-weight);
+    line-height: var(--type-label-md-line-height);
+    letter-spacing: var(--type-label-md-letter-spacing);
   }
 
   &:focus {

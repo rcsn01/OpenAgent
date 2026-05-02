@@ -8,12 +8,13 @@
 }
 
 [data-component="user-message"] {
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-base);
-  font-style: normal;
-  font-weight: var(--font-weight-regular);
-  line-height: var(--line-height-large);
-  letter-spacing: var(--letter-spacing-normal);
+  font-family: var(--type-prose-md-font-family);
+  font-feature-settings: var(--type-prose-md-font-feature-settings, normal);
+  font-size: var(--type-prose-md-font-size);
+  font-style: var(--type-prose-md-font-style);
+  font-weight: var(--type-prose-md-font-weight);
+  line-height: var(--type-prose-md-line-height);
+  letter-spacing: var(--type-prose-md-letter-spacing);
   color: var(--text-strong);
   display: flex;
   flex-direction: column;

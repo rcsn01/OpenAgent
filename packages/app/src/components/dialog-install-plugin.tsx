@@ -7,14 +7,12 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useMutation } from "@tanstack/solid-query"
 import { createSignal } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
-import { useSDK } from "@/context/sdk"
-import { useSync } from "@/context/sync"
+import { useGlobalSDK } from "@/context/global-sdk"
 
-export function DialogInstallPlugin(props: { onInstalled?: () => void | Promise<void> }) {
+export function DialogInstallPlugin(props: { directory: string; onInstalled?: () => void | Promise<void> }) {
   const dialog = useDialog()
   const globalSync = useGlobalSync()
-  const sdk = useSDK()
-  const sync = useSync()
+  const globalSDK = useGlobalSDK()
   const [spec, setSpec] = createSignal("")
   const [global, setGlobal] = createSignal(false)
 
@@ -22,11 +20,13 @@ export function DialogInstallPlugin(props: { onInstalled?: () => void | Promise<
     mutationFn: async () => {
       const value = spec().trim()
       if (!value) throw new Error("Plugin spec is required")
-      await sdk.client.experimental.plugins.install({
-        spec: value,
-        global: global(),
-      })
-      await globalSync.refresh(sync.directory)
+      await globalSDK
+        .createClient({ directory: props.directory, throwOnError: true })
+        .experimental.plugins.install({
+          spec: value,
+          global: global(),
+        })
+      await globalSync.refresh(props.directory)
       await props.onInstalled?.()
     },
     onSuccess: () => {

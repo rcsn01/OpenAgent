@@ -6,20 +6,20 @@ import { showToast } from "@opencode-ai/ui/toast"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { createMemo } from "solid-js"
+import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
-import { useSDK } from "@/context/sdk"
-import { useSync } from "@/context/sync"
 
-export function DialogPlugins() {
+export function DialogPlugins(props: { directory: string }) {
   const dialog = useDialog()
+  const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const queryClient = useQueryClient()
-  const sdk = useSDK()
-  const sync = useSync()
+  const client = () => globalSDK.createClient({ directory: props.directory, throwOnError: true }).experimental.plugins
+  const loadPlugins = async () => (await client().list()).data?.plugins ?? []
 
   const query = useQuery(() => ({
-    queryKey: [sync.directory, "experimental", "plugins"],
-    queryFn: () => sdk.client.experimental.plugins.list().then((result) => result.data?.plugins ?? []),
+    queryKey: [props.directory, "experimental", "plugins"],
+    queryFn: loadPlugins,
   }))
 
   const items = createMemo(() =>
@@ -27,14 +27,14 @@ export function DialogPlugins() {
   )
 
   const refresh = async () => {
-    await globalSync.refresh(sync.directory)
-    await queryClient.invalidateQueries({ queryKey: [sync.directory, "experimental", "plugins"] })
+    await globalSync.refresh(props.directory)
+    await queryClient.invalidateQueries({ queryKey: [props.directory, "experimental", "plugins"] })
   }
 
   const toggle = useMutation(() => ({
     mutationFn: async (input: { spec: string; source: string; enabled: boolean }) => {
-      if (input.enabled) await sdk.client.experimental.plugins.enable({ spec: input.spec, source: input.source })
-      else await sdk.client.experimental.plugins.disable({ spec: input.spec, source: input.source })
+      if (input.enabled) await client().enable({ spec: input.spec, source: input.source })
+      if (!input.enabled) await client().disable({ spec: input.spec, source: input.source })
       await refresh()
     },
     onError: (error) => {
@@ -48,7 +48,7 @@ export function DialogPlugins() {
 
   const install = () => {
     void import("./dialog-install-plugin").then((x) => {
-      dialog.show(() => <x.DialogInstallPlugin onInstalled={refresh} />)
+      dialog.show(() => <x.DialogInstallPlugin directory={props.directory} onInstalled={refresh} />)
     })
   }
 

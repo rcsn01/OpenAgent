@@ -443,7 +443,7 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                   const run = ++dialogRun
                   void import("./dialog-plugins").then((x) => {
                     if (dialogDead || dialogRun !== run) return
-                    dialog.show(() => <x.DialogPlugins />)
+                    dialog.show(() => <x.DialogPlugins directory={sync.directory} />)
                   })
                 }}
               >

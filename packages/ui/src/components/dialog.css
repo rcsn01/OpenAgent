@@ -63,13 +63,13 @@
         [data-slot="dialog-title"] {
           color: var(--text-strong);
 
-          /* text-16-medium */
-          font-family: var(--font-family-sans);
-          font-size: var(--font-size-large);
-          font-style: normal;
-          font-weight: var(--font-weight-medium);
-          line-height: var(--line-height-x-large); /* 150% */
-          letter-spacing: var(--letter-spacing-tight);
+          font-family: var(--type-title-sm-font-family);
+          font-feature-settings: var(--type-title-sm-font-feature-settings, normal);
+          font-size: var(--type-title-sm-font-size);
+          font-style: var(--type-title-sm-font-style);
+          font-weight: var(--type-title-sm-font-weight);
+          line-height: var(--type-title-sm-line-height);
+          letter-spacing: var(--type-title-sm-letter-spacing);
         }
         /* [data-slot="dialog-close-button"] {} */
       }
@@ -87,13 +87,13 @@
 
         color: var(--text-base);
 
-        /* text-14-regular */
-        font-family: var(--font-family-sans);
-        font-size: 14px;
-        font-style: normal;
-        font-weight: var(--font-weight-regular);
-        line-height: var(--line-height-large); /* 142.857% */
-        letter-spacing: var(--letter-spacing-normal);
+        font-family: var(--type-body-md-font-family);
+        font-feature-settings: var(--type-body-md-font-feature-settings, normal);
+        font-size: var(--type-body-md-font-size);
+        font-style: var(--type-body-md-font-style);
+        font-weight: var(--type-body-md-font-weight);
+        line-height: var(--type-body-md-line-height);
+        letter-spacing: var(--type-body-md-letter-spacing);
       }
 
       [data-slot="dialog-body"] {

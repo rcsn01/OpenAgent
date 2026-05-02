@@ -15,10 +15,87 @@
   --line-height-large: 150%;
   --line-height-x-large: 180%;
   --line-height-2x-large: 200%;
-  --letter-spacing-normal: 0;
-  --letter-spacing-tight: -0.1599999964237213;
-  --letter-spacing-tightest: -0.3199999928474426;
+  --letter-spacing-normal: 0px;
+  --letter-spacing-tight: -0.16px;
+  --letter-spacing-tightest: -0.32px;
   --paragraph-spacing-base: 0;
+
+  /*
+    Typography primitives above are intentionally literal.
+    Semantic type tokens below are the public design-language layer.
+    Utilities and component styles should prefer these semantic tokens.
+  */
+  --type-body-sm-font-family: var(--font-family-sans);
+  --type-body-sm-font-feature-settings: var(--font-family-sans--font-feature-settings);
+  --type-body-sm-font-size: var(--font-size-small);
+  --type-body-sm-font-style: normal;
+  --type-body-sm-font-weight: var(--font-weight-regular);
+  --type-body-sm-line-height: var(--line-height-large);
+  --type-body-sm-letter-spacing: var(--letter-spacing-normal);
+
+  --type-label-sm-font-family: var(--font-family-sans);
+  --type-label-sm-font-feature-settings: var(--font-family-sans--font-feature-settings);
+  --type-label-sm-font-size: var(--font-size-small);
+  --type-label-sm-font-style: normal;
+  --type-label-sm-font-weight: var(--font-weight-medium);
+  --type-label-sm-line-height: var(--line-height-large);
+  --type-label-sm-letter-spacing: var(--letter-spacing-normal);
+
+  --type-code-sm-font-family: var(--font-family-mono);
+  --type-code-sm-font-feature-settings: var(--font-family-mono--font-feature-settings);
+  --type-code-sm-font-size: var(--font-size-small);
+  --type-code-sm-font-style: normal;
+  --type-code-sm-font-weight: var(--font-weight-regular);
+  --type-code-sm-line-height: var(--line-height-large);
+  --type-code-sm-letter-spacing: var(--letter-spacing-normal);
+
+  --type-body-md-font-family: var(--font-family-sans);
+  --type-body-md-font-feature-settings: var(--font-family-sans--font-feature-settings);
+  --type-body-md-font-size: var(--font-size-base);
+  --type-body-md-font-style: normal;
+  --type-body-md-font-weight: var(--font-weight-regular);
+  --type-body-md-line-height: var(--line-height-x-large);
+  --type-body-md-letter-spacing: var(--letter-spacing-normal);
+
+  --type-prose-md-font-family: var(--font-family-sans);
+  --type-prose-md-font-feature-settings: var(--font-family-sans--font-feature-settings);
+  --type-prose-md-font-size: var(--font-size-base);
+  --type-prose-md-font-style: normal;
+  --type-prose-md-font-weight: var(--font-weight-regular);
+  --type-prose-md-line-height: var(--line-height-large);
+  --type-prose-md-letter-spacing: var(--letter-spacing-normal);
+
+  --type-label-md-font-family: var(--font-family-sans);
+  --type-label-md-font-feature-settings: var(--font-family-sans--font-feature-settings);
+  --type-label-md-font-size: var(--font-size-base);
+  --type-label-md-font-style: normal;
+  --type-label-md-font-weight: var(--font-weight-medium);
+  --type-label-md-line-height: var(--line-height-large);
+  --type-label-md-letter-spacing: var(--letter-spacing-normal);
+
+  --type-code-md-font-family: var(--font-family-mono);
+  --type-code-md-font-feature-settings: var(--font-family-mono--font-feature-settings);
+  --type-code-md-font-size: var(--font-size-base);
+  --type-code-md-font-style: normal;
+  --type-code-md-font-weight: var(--font-weight-regular);
+  --type-code-md-line-height: var(--line-height-large);
+  --type-code-md-letter-spacing: var(--letter-spacing-normal);
+
+  --type-title-sm-font-family: var(--font-family-sans);
+  --type-title-sm-font-feature-settings: var(--font-family-sans--font-feature-settings);
+  --type-title-sm-font-size: var(--font-size-large);
+  --type-title-sm-font-style: normal;
+  --type-title-sm-font-weight: var(--font-weight-medium);
+  --type-title-sm-line-height: var(--line-height-x-large);
+  --type-title-sm-letter-spacing: var(--letter-spacing-tight);
+
+  --type-title-md-font-family: var(--font-family-sans);
+  --type-title-md-font-feature-settings: var(--font-family-sans--font-feature-settings);
+  --type-title-md-font-size: var(--font-size-x-large);
+  --type-title-md-font-style: normal;
+  --type-title-md-font-weight: var(--font-weight-medium);
+  --type-title-md-line-height: var(--line-height-x-large);
+  --type-title-md-letter-spacing: var(--letter-spacing-tightest);
 
   --spacing: 0.25rem;
 
