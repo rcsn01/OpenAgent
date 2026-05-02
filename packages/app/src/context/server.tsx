@@ -4,9 +4,36 @@ import { createStore } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { useCheckServerHealth } from "@/utils/server-health"
 
-type StoredProject = { worktree: string; expanded: boolean }
+type StoredProject = { worktree: string; expanded: boolean; pinned?: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
 const HEALTH_POLL_INTERVAL_MS = 10_000
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+function migrateServerState(value: unknown) {
+  if (!isRecord(value)) return value
+  if (!isRecord(value.projects)) return value
+
+  let changed = false
+  const projects = Object.fromEntries(
+    Object.entries(value.projects).map(([key, item]) => {
+      if (!Array.isArray(item)) return [key, item]
+      return [
+        key,
+        item.map((project) => {
+          if (!isRecord(project)) return project
+          if (typeof project.pinned === "boolean") return project
+          changed = true
+          return { ...project, pinned: false }
+        }),
+      ]
+    }),
+  )
+
+  if (!changed) return value
+  return { ...value, projects }
+}
 
 export function normalizeServerUrl(input: string) {
   const trimmed = input.trim()
@@ -102,7 +129,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     const checkServerHealth = useCheckServerHealth()
 
     const [store, setStore, _, ready] = persisted(
-      Persist.global("server", ["server.v3"]),
+      { ...Persist.global("server", ["server.v3"]), migrate: migrateServerState },
       createStore({
         list: [] as StoredServer[],
         projects: {} as Record<string, StoredProject[]>,
@@ -250,7 +277,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
           if (!key) return
           const current = store.projects[key] ?? []
           if (current.find((x) => x.worktree === directory)) return
-          setStore("projects", key, [{ worktree: directory, expanded: true }, ...current])
+          setStore("projects", key, [{ worktree: directory, expanded: true, pinned: false }, ...current])
         },
         close(directory: string) {
           const key = origin()
@@ -275,6 +302,13 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
           const current = store.projects[key] ?? []
           const index = current.findIndex((x) => x.worktree === directory)
           if (index !== -1) setStore("projects", key, index, "expanded", false)
+        },
+        setPinned(directory: string, pinned: boolean) {
+          const key = origin()
+          if (!key) return
+          const current = store.projects[key] ?? []
+          const index = current.findIndex((x) => x.worktree === directory)
+          if (index !== -1) setStore("projects", key, index, "pinned", pinned)
         },
         move(directory: string, toIndex: number) {
           const key = origin()

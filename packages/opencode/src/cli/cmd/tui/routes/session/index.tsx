@@ -45,6 +45,7 @@ import type { EditTool } from "@/tool/edit"
 import type { ApplyPatchTool } from "@/tool/apply_patch"
 import type { WebFetchTool } from "@/tool/webfetch"
 import type { WebSearchTool } from "@/tool/websearch"
+import type { BackgroundTaskTool } from "@/tool/background_task"
 import type { BackgroundTaskGraphTool } from "@/tool/background_task_graph"
 import type {
   BackgroundTaskGraphCancelTool,
@@ -1969,10 +1970,13 @@ function WebSearch(props: ToolProps<typeof WebSearchTool>) {
   )
 }
 
-function Task(props: ToolProps<typeof TaskTool>) {
+function Task(props: ToolProps<typeof TaskTool> | ToolProps<typeof BackgroundTaskTool>) {
   const { navigate } = useRoute()
   const sync = useSync()
   const background = createMemo(() => props.tool === "background_task")
+  const backgroundStatus = createMemo(
+    () => ((props.metadata as Partial<Tool.InferMetadata<typeof BackgroundTaskTool>>).status ?? undefined),
+  )
   const childStatus = createMemo(() => {
     const sessionId = props.metadata.sessionId
     if (!sessionId) return
@@ -2002,7 +2006,7 @@ function Task(props: ToolProps<typeof TaskTool>) {
     if (!background()) return props.part.state.status === "running"
     const status = childStatus()?.type
     if (status) return status !== "idle"
-    return props.metadata.status === "running"
+    return backgroundStatus() === "running"
   })
 
   const duration = createMemo(() => {
@@ -2249,7 +2253,7 @@ function TodoWrite(props: ToolProps<typeof TodoWriteTool>) {
 
 function Question(props: ToolProps<typeof QuestionTool>) {
   const { theme } = useTheme()
-  const questions = createMemo(() => props.metadata.questions ?? [])
+  const questions = createMemo(() => props.input.questions ?? [])
   const count = createMemo(() => questions().length)
 
   function format(answer?: ReadonlyArray<string>) {

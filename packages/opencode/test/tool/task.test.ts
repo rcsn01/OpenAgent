@@ -16,7 +16,8 @@ import {
   BackgroundTaskGetTool,
   BackgroundTaskListTool,
 } from "../../src/tool/background_task_manage"
-import { BackgroundTaskTool, TaskTool, type TaskPromptOps } from "../../src/tool/task"
+import { BackgroundTaskTool } from "../../src/tool/background_task"
+import { TaskTool, type TaskPromptOps } from "../../src/tool/task"
 import { Truncate } from "@/tool/truncate"
 import { ToolRegistry } from "@/tool/registry"
 import { provideTmpdirInstance } from "../fixture/fixture"
@@ -52,14 +53,14 @@ const it = testEffect(
   ),
 )
 
-const seed = Effect.fn("TaskToolTest.seed")(function* (title = "Pinned") {
+const seed = Effect.fn("TaskToolTest.seed")(function* (title = "Pinned", agentName = "build") {
   const session = yield* Session.Service
   const chat = yield* session.create({ title })
   const user = yield* session.updateMessage({
     id: MessageID.ascending(),
     role: "user",
     sessionID: chat.id,
-    agent: "build",
+    agent: agentName,
     model: ref,
     time: { created: Date.now() },
   })
@@ -68,8 +69,8 @@ const seed = Effect.fn("TaskToolTest.seed")(function* (title = "Pinned") {
     role: "assistant",
     parentID: user.id,
     sessionID: chat.id,
-    mode: "build",
-    agent: "build",
+    mode: agentName,
+    agent: agentName,
     cost: 0,
     path: { cwd: "/tmp", root: "/tmp" },
     tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
@@ -130,19 +131,22 @@ describe("tool.task", () => {
         Effect.gen(function* () {
           const agent = yield* Agent.Service
           const build = yield* agent.get("build")
+          const assistant = yield* agent.get("assistant")
           const registry = yield* ToolRegistry.Service
-          const get = Effect.fnUntraced(function* () {
-            const tools = yield* registry.tools({ ...ref, agent: build })
+          const get = Effect.fnUntraced(function* (agentInfo: typeof build) {
+            const tools = yield* registry.tools({ ...ref, agent: agentInfo })
             return {
               task: tools.find((tool) => tool.id === TaskTool.id)?.description ?? "",
               background: tools.find((tool) => tool.id === BackgroundTaskTool.id)?.description ?? "",
             }
           })
-          const first = yield* get()
-          const second = yield* get()
+          const buildTools = yield* registry.tools({ ...ref, agent: build })
+          const first = yield* get(assistant)
+          const second = yield* get(assistant)
           const ids = (yield* registry.ids()).sort()
 
           expect(first).toEqual(second)
+          expect(buildTools.find((tool) => tool.id === BackgroundTaskTool.id)).toBeUndefined()
           expect(ids).toEqual(expect.arrayContaining(["background_task", "background_task_cancel", "background_task_get", "background_task_list", "task"]))
 
           const alpha = first.task.indexOf("- alpha: Alpha agent")
@@ -180,10 +184,12 @@ describe("tool.task", () => {
         Effect.gen(function* () {
           const agent = yield* Agent.Service
           const build = yield* agent.get("build")
+          const assistant = yield* agent.get("assistant")
           const registry = yield* ToolRegistry.Service
-          const tools = yield* registry.tools({ ...ref, agent: build })
-          const description = tools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
-          const backgroundDescription = tools.find((tool) => tool.id === BackgroundTaskTool.id)?.description ?? ""
+          const buildTools = yield* registry.tools({ ...ref, agent: build })
+          const assistantTools = yield* registry.tools({ ...ref, agent: assistant })
+          const description = buildTools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
+          const backgroundDescription = assistantTools.find((tool) => tool.id === BackgroundTaskTool.id)?.description ?? ""
 
           expect(description).toContain("- alpha: Alpha agent")
           expect(description).not.toContain("- zebra: Zebra agent")
@@ -344,7 +350,7 @@ describe("tool.task", () => {
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
         const sessions = yield* Session.Service
-        const { chat, assistant } = yield* seed()
+        const { chat, assistant } = yield* seed("Pinned", "assistant")
         const tool = yield* BackgroundTaskTool
         const def = yield* tool.init()
         const childStarted = defer<void>()
@@ -360,7 +366,7 @@ describe("tool.task", () => {
           {
             sessionID: chat.id,
             messageID: assistant.id,
-            agent: "build",
+            agent: "assistant",
             abort: new AbortController().signal,
             extra: {
               promptOps: {
@@ -490,7 +496,7 @@ describe("tool.task", () => {
   it.live("background task management tools can list, inspect, and cancel tasks", () =>
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
-        const { chat, assistant } = yield* seed()
+        const { chat, assistant } = yield* seed("Pinned", "assistant")
         const start = yield* BackgroundTaskTool
         const list = yield* BackgroundTaskListTool
         const get = yield* BackgroundTaskGetTool
@@ -512,7 +518,7 @@ describe("tool.task", () => {
           {
             sessionID: chat.id,
             messageID: assistant.id,
-            agent: "build",
+            agent: "assistant",
             abort: new AbortController().signal,
             extra: {
               promptOps: {
@@ -539,7 +545,7 @@ describe("tool.task", () => {
           {
             sessionID: chat.id,
             messageID: assistant.id,
-            agent: "build",
+            agent: "assistant",
             abort: new AbortController().signal,
             messages: [],
             metadata: () => Effect.void,
@@ -556,7 +562,7 @@ describe("tool.task", () => {
           {
             sessionID: chat.id,
             messageID: assistant.id,
-            agent: "build",
+            agent: "assistant",
             abort: new AbortController().signal,
             messages: [],
             metadata: () => Effect.void,
@@ -572,7 +578,7 @@ describe("tool.task", () => {
           {
             sessionID: chat.id,
             messageID: assistant.id,
-            agent: "build",
+            agent: "assistant",
             abort: new AbortController().signal,
             messages: [],
             metadata: () => Effect.void,
@@ -603,7 +609,7 @@ describe("tool.task", () => {
           {
             sessionID: chat.id,
             messageID: assistant.id,
-            agent: "build",
+            agent: "assistant",
             abort: new AbortController().signal,
             messages: [],
             metadata: () => Effect.void,

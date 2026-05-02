@@ -173,18 +173,19 @@ describe("tool parameters", () => {
       })
       expect(parsed.questions.length).toBe(1)
     })
-    test("accepts compatibility question fields", () => {
-      const parsed = parse(Question, {
-        questions: [
-          {
-            message: "pick one",
-            options: [{ label: "a", recommended: true }],
-            multiSelect: true,
-            allowFreeformInput: false,
-          },
-        ],
-      })
-      expect(parsed.questions.length).toBe(1)
+    test("rejects legacy compatibility question fields", () => {
+      expect(
+        accepts(Question, {
+          questions: [
+            {
+              message: "pick one",
+              options: [{ label: "a", recommended: true }],
+              multiSelect: true,
+              allowFreeformInput: false,
+            },
+          ],
+        }),
+      ).toBe(false)
     })
     test("rejects missing questions", () => {
       expect(accepts(Question, {})).toBe(false)
@@ -224,15 +225,16 @@ describe("tool parameters", () => {
   describe("todo", () => {
     test("accepts todos array", () => {
       const parsed = parse(Todo, {
-        todos: [{ id: "t1", content: "do x", status: "pending", priority: "medium" }],
+        todos: [{ content: "do x", status: "pending", priority: "medium" }],
       })
-      expect(parsed.todos?.length).toBe(1)
+      expect(parsed.todos.length).toBe(1)
     })
-    test("accepts compatibility todoList array", () => {
-      const parsed = parse(Todo, {
-        todoList: [{ id: 1, title: "do x", status: "not-started" }],
-      })
-      expect(parsed.todoList?.length).toBe(1)
+    test("rejects legacy compatibility todoList array", () => {
+      expect(
+        accepts(Todo, {
+          todoList: [{ id: 1, title: "do x", status: "not-started" }],
+        }),
+      ).toBe(false)
     })
     test("rejects missing todos", () => {
       expect(accepts(Todo, {})).toBe(false)

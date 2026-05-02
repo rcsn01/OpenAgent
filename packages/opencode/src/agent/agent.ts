@@ -8,6 +8,7 @@ import { Auth } from "../auth"
 import { ProviderTransform } from "@/provider/transform"
 
 import PROMPT_GENERATE from "./generate.txt"
+import PROMPT_ASSISTANT from "./prompt/assistant.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
@@ -123,6 +124,26 @@ export const layer = Layer.effect(
             ),
             mode: "primary",
             native: true,
+          },
+          assistant: {
+            name: "assistant",
+            description:
+              "Primary agent with background subagent and graph-task capabilities. Use this when you want the official assistant behavior plus advanced delegation workflows.",
+            options: {
+              assistant_tools: true,
+              extend_provider_prompt: true,
+            },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                question: "allow",
+                plan_enter: "allow",
+              }),
+              user,
+            ),
+            mode: "primary",
+            native: true,
+            prompt: PROMPT_ASSISTANT,
           },
           plan: {
             name: "plan",

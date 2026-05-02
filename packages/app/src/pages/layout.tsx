@@ -21,9 +21,7 @@ import { base64Encode } from "@opencode-ai/core/util/encode"
 import { decode64 } from "@/utils/base64"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Button } from "@opencode-ai/ui/button"
-import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { Session, type Message } from "@opencode-ai/sdk/v2/client"
@@ -86,6 +84,7 @@ import {
   type WorkspaceSidebarContext,
 } from "./layout/sidebar-workspace"
 import { SidebarHub } from "./layout/sidebar-hub"
+import { ProjectActionsMenu } from "./layout/project-actions-menu"
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
 
@@ -169,6 +168,7 @@ export default function Layout(props: ParentProps) {
   })
 
   const editor = createInlineEditorController()
+  const projectEditorId = (project: LocalProject) => `project:${pathKey(project.worktree)}`
   const setBusy = (directory: string, value: boolean) => {
     const key = pathKey(directory)
     if (value) {
@@ -1597,6 +1597,34 @@ export default function Layout(props: ParentProps) {
     })
   }
 
+  function openProjectNewChat(project: LocalProject) {
+    navigateWithSidebarReset(`/${base64Encode(project.worktree)}/session`)
+  }
+
+  function toggleProjectPin(project: LocalProject) {
+    layout.projects.setPinned(project.worktree, !project.pinned)
+  }
+
+  function requestProjectRename(project: LocalProject) {
+    editor.openEditor(projectEditorId(project), displayName(project))
+  }
+
+  async function openProjectDirectory(project: LocalProject) {
+    if (!platform.openPath || !server.isLocal()) return
+    await platform.openPath(project.worktree).catch((err) => {
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: errorMessage(err, language.t("common.requestFailed")),
+      })
+    })
+  }
+
+  async function createProjectWorktree(project: LocalProject) {
+    layout.sidebar.setWorkspaces(project.worktree, true)
+    await createWorkspace(project)
+  }
+
   async function chooseProject() {
     function resolve(result: string | string[] | null) {
       if (Array.isArray(result)) {
@@ -2033,6 +2061,119 @@ export default function Layout(props: ParentProps) {
       .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
   }
 
+  const projectSessionDirectories = (project: LocalProject) =>
+    [...new Map(workspaceIds(project).map((directory) => [pathKey(directory), directory])).values()]
+
+  const listProjectRootSessions = (project: LocalProject) =>
+    Promise.all(
+      projectSessionDirectories(project).map((directory) =>
+        globalSDK.client.session.list({ directory, roots: true }).then((x) => x.data ?? []),
+      ),
+    ).then((items) => items.flat().filter((session) => session.time.archived === undefined))
+
+  async function archiveProjectChats(project: LocalProject, sessions: Session[]) {
+    const archivedAt = Date.now()
+    await Promise.all(
+      sessions.map((session) =>
+        globalSDK.client.session.update({
+          sessionID: session.id,
+          directory: session.directory,
+          time: { archived: archivedAt },
+        }),
+      ),
+    )
+
+    const grouped = sessions.reduce(
+      (result, session) => result.set(session.directory, (result.get(session.directory) ?? new Set<string>()).add(session.id)),
+      new Map<string, Set<string>>(),
+    )
+
+    for (const [directory, ids] of grouped) {
+      const [, setStore] = globalSync.child(directory, { bootstrap: false })
+      setStore(
+        produce((draft) => {
+          draft.session = (draft.session ?? []).filter((session) => !ids.has(session.id))
+        }),
+      )
+    }
+
+    const activeArchived = sessions.some(
+      (session) => session.id === params.id && pathKey(session.directory) === pathKey(currentDir()),
+    )
+    if (activeArchived) navigateWithSidebarReset(`/${base64Encode(project.worktree)}/session`)
+
+    showToast({
+      title: language.t("sidebar.project.archiveSuccessTitle"),
+      description:
+        sessions.length === 1
+          ? language.t("sidebar.project.archiveSuccessDescription.one")
+          : language.t("sidebar.project.archiveSuccessDescription.many", { count: sessions.length }),
+    })
+  }
+
+  function DialogArchiveProjectChats(props: { project: LocalProject; sessions: Session[] }) {
+    const count = createMemo(() => props.sessions.length)
+    const description = createMemo(() =>
+      count() === 1
+        ? language.t("sidebar.project.archiveConfirmDescription.one", { name: displayName(props.project) })
+        : language.t("sidebar.project.archiveConfirmDescription.many", {
+            name: displayName(props.project),
+            count: count(),
+          }),
+    )
+
+    const handleArchive = () => {
+      dialog.close()
+      void archiveProjectChats(props.project, props.sessions).catch((err) => {
+        showToast({
+          variant: "error",
+          title: language.t("common.requestFailed"),
+          description: errorMessage(err, language.t("common.requestFailed")),
+        })
+      })
+    }
+
+    return (
+      <Dialog title={language.t("sidebar.project.archiveConfirmTitle")} fit>
+        <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
+          <div class="flex flex-col gap-1">
+            <span class="text-14-regular text-text-strong">{description()}</span>
+          </div>
+          <div class="flex justify-end gap-2">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              {language.t("common.cancel")}
+            </Button>
+            <Button variant="primary" size="large" onClick={handleArchive}>
+              {language.t("common.archive")}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    )
+  }
+
+  async function showArchiveProjectChatsDialog(project: LocalProject) {
+    const sessions = await listProjectRootSessions(project).catch((err) => {
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: errorMessage(err, language.t("common.requestFailed")),
+      })
+      return undefined
+    })
+
+    if (!sessions) return
+    if (sessions.length === 0) {
+      showToast({
+        title: language.t("sidebar.project.noneToArchiveTitle"),
+        description: language.t("sidebar.project.noneToArchiveDescription"),
+      })
+      return
+    }
+
+    dialog.show(() => <DialogArchiveProjectChats project={project} sessions={sessions} />)
+  }
+
   const searchableSessions = createMemo(() =>
     layout.projects
       .list()
@@ -2237,23 +2378,11 @@ export default function Layout(props: ParentProps) {
       if (!item) return [] as string[]
       return workspaceIds(item)
     })
-    const unseenCount = createMemo(() =>
-      workspaces().reduce((total, directory) => total + notification.project.unseenCount(directory), 0),
-    )
-    const clearNotifications = () =>
-      workspaces()
-        .filter((directory) => notification.project.unseenCount(directory) > 0)
-        .forEach((directory) => notification.project.markViewed(directory))
     const workspacesEnabled = createMemo(() => {
       const item = project()
       if (!item) return false
       if (item.vcs !== "git") return false
       return layout.sidebar.workspaces(item.worktree)()
-    })
-    const canToggle = createMemo(() => {
-      const item = project()
-      if (!item) return false
-      return item.vcs === "git" || layout.sidebar.workspaces(item.worktree)()
     })
     const homedir = createMemo(() => globalSync.data.path.home)
 
@@ -2298,7 +2427,7 @@ export default function Layout(props: ParentProps) {
                 <div class="group/project flex items-start justify-between gap-2 py-2 pl-2 pr-0">
                   <div class="flex flex-col min-w-0">
                     <InlineEditor
-                      id={`project:${projectId()}`}
+                      id={projectEditorId(project())}
                       value={projectName}
                       onSave={(next) => {
                         const item = project()
@@ -2326,73 +2455,20 @@ export default function Layout(props: ParentProps) {
                     </Tooltip>
                   </div>
 
-                  <DropdownMenu modal={!sidebarHovering()}>
-                    <DropdownMenu.Trigger
-                      as={IconButton}
-                      icon="dot-grid"
-                      variant="ghost"
-                      data-action="project-menu"
-                      data-project={slug()}
-                      class="shrink-0 size-6 rounded-md transition-opacity data-[expanded]:bg-surface-base-active"
-                      classList={{
-                        "opacity-100": panelProps.mobile || merged(),
-                        "opacity-0 group-hover/project:opacity-100 group-focus-within/project:opacity-100 data-[expanded]:opacity-100":
-                          !panelProps.mobile && !merged(),
-                      }}
-                      aria-label={language.t("common.moreOptions")}
-                    />
-                    <DropdownMenu.Portal>
-                      <DropdownMenu.Content class="mt-1">
-                        <DropdownMenu.Item
-                          onSelect={() => {
-                            const item = project()
-                            if (!item) return
-                            showEditProjectDialog(item)
-                          }}
-                        >
-                          <DropdownMenu.ItemLabel>{language.t("common.edit")}</DropdownMenu.ItemLabel>
-                        </DropdownMenu.Item>
-                        <DropdownMenu.Item
-                          data-action="project-workspaces-toggle"
-                          data-project={slug()}
-                          disabled={!canToggle()}
-                          onSelect={() => {
-                            const item = project()
-                            if (!item) return
-                            toggleProjectWorkspaces(item)
-                          }}
-                        >
-                          <DropdownMenu.ItemLabel>
-                            {workspacesEnabled()
-                              ? language.t("sidebar.workspaces.disable")
-                              : language.t("sidebar.workspaces.enable")}
-                          </DropdownMenu.ItemLabel>
-                        </DropdownMenu.Item>
-                        <DropdownMenu.Item
-                          data-action="project-clear-notifications"
-                          data-project={slug()}
-                          disabled={unseenCount() === 0}
-                          onSelect={clearNotifications}
-                        >
-                          <DropdownMenu.ItemLabel>
-                            {language.t("sidebar.project.clearNotifications")}
-                          </DropdownMenu.ItemLabel>
-                        </DropdownMenu.Item>
-                        <DropdownMenu.Separator />
-                        <DropdownMenu.Item
-                          data-action="project-close-menu"
-                          data-project={slug()}
-                          onSelect={() => {
-                            const dir = worktree()
-                            if (!dir) return
-                            closeProject(dir)
-                          }}
-                        >
-                          <DropdownMenu.ItemLabel>{language.t("common.close")}</DropdownMenu.ItemLabel>
-                        </DropdownMenu.Item>
-                      </DropdownMenu.Content>
-                    </DropdownMenu.Portal>
-                  </DropdownMenu>
+                  <ProjectActionsMenu
+                    project={project}
+                    hoverOnly={!panelProps.mobile && !merged()}
+                    sidebarHovering={sidebarHovering}
+                    triggerClass="size-6"
+                    triggerDataAction="project-menu"
+                    triggerDataProject={slug()}
+                    onTogglePin={toggleProjectPin}
+                    onOpenDirectory={openProjectDirectory}
+                    onCreateWorktree={createProjectWorktree}
+                    onRequestRename={requestProjectRename}
+                    onArchiveChats={showArchiveProjectChatsDialog}
+                    onRemove={(item) => closeProject(item.worktree)}
+                  />
                 </div>
               </div>
 
@@ -2529,7 +2605,16 @@ export default function Layout(props: ParentProps) {
           currentSessionID={() => params.id}
           getProjectSessions={projectSessions}
           onOpenProject={(project) => void navigateToProject(project.worktree)}
-          onEditProject={showEditProjectDialog}
+          onOpenProjectNewChat={openProjectNewChat}
+          onToggleProjectPin={toggleProjectPin}
+          onOpenProjectDirectory={(project) => void openProjectDirectory(project)}
+          onCreateProjectWorktree={(project) => void createProjectWorktree(project)}
+          onRequestProjectRename={requestProjectRename}
+          onRenameProject={(project, next) => {
+            void renameProject(project, next)
+          }}
+          onArchiveProjectChats={(project) => void showArchiveProjectChatsDialog(project)}
+          onRemoveProject={(project) => closeProject(project.worktree)}
           onOpenSession={navigateToSession}
           onNewChat={openSidebarNewChat}
           onSearch={openSessionList}
@@ -2537,6 +2622,8 @@ export default function Layout(props: ParentProps) {
           onAutomations={openAutomationPlaceholder}
           onSettings={openSettings}
           onOpenProjectChooser={() => void chooseProject()}
+          editorOpen={editor.editorOpen}
+          InlineEditor={editor.InlineEditor}
         />
       )
     }

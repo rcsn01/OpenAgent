@@ -219,25 +219,9 @@ exports[`tool parameters JSON Schema (wire shape) question 1`] = `
       "description": "Questions to ask",
       "items": {
         "properties": {
-          "allowFreeformInput": {
-            "description": "Alternate freeform-input field accepted for compatibility",
-            "type": "boolean",
-          },
-          "custom": {
-            "description": "Allow typing a custom answer (default: true)",
-            "type": "boolean",
-          },
           "header": {
             "description": "Very short label (max 30 chars)",
             "type": "string",
-          },
-          "message": {
-            "description": "Additional prompt text accepted for compatibility",
-            "type": "string",
-          },
-          "multiSelect": {
-            "description": "Alternate multiple-choice field accepted for compatibility",
-            "type": "boolean",
           },
           "multiple": {
             "description": "Allow selecting multiple choices",
@@ -255,28 +239,25 @@ exports[`tool parameters JSON Schema (wire shape) question 1`] = `
                   "description": "Display text (1-5 words, concise)",
                   "type": "string",
                 },
-                "recommended": {
-                  "description": "Whether this option is recommended",
-                  "type": "boolean",
-                },
               },
+              "ref": "QuestionOption",
               "required": [
                 "label",
+                "description",
               ],
               "type": "object",
             },
             "type": "array",
-          },
-          "prompt": {
-            "description": "Alternate question field accepted for compatibility",
-            "type": "string",
           },
           "question": {
             "description": "Complete question",
             "type": "string",
           },
         },
+        "ref": "QuestionPrompt",
         "required": [
+          "question",
+          "header",
           "options",
         ],
         "type": "object",
@@ -347,15 +328,6 @@ exports[`tool parameters JSON Schema (wire shape) task 1`] = `
       "description": "A short (3-5 words) description of the task",
       "type": "string",
     },
-    "execution_mode": {
-      "description": "Compatibility override for how to run the subagent. Prefer the dedicated background_task tool when you want background execution.",
-      "enum": [
-        "blocking",
-        "background",
-      ],
-      "ref": "TaskExecutionMode",
-      "type": "string",
-    },
     "prompt": {
       "description": "The task for the agent to perform",
       "type": "string",
@@ -382,34 +354,6 @@ exports[`tool parameters JSON Schema (wire shape) todo 1`] = `
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
-    "todoList": {
-      "description": "The updated todo list",
-      "items": {
-        "properties": {
-          "content": {
-            "description": "Brief description of the task",
-            "type": "string",
-          },
-          "priority": {
-            "description": "Priority level of the task: high, medium, low",
-            "type": "string",
-          },
-          "status": {
-            "description": "Current status of the task: pending, in_progress, completed, cancelled",
-            "type": "string",
-          },
-          "title": {
-            "description": "Alternate task title field accepted for compatibility",
-            "type": "string",
-          },
-        },
-        "required": [
-          "status",
-        ],
-        "type": "object",
-      },
-      "type": "array",
-    },
     "todos": {
       "description": "The updated todo list",
       "items": {
@@ -426,19 +370,20 @@ exports[`tool parameters JSON Schema (wire shape) todo 1`] = `
             "description": "Current status of the task: pending, in_progress, completed, cancelled",
             "type": "string",
           },
-          "title": {
-            "description": "Alternate task title field accepted for compatibility",
-            "type": "string",
-          },
         },
         "required": [
+          "content",
           "status",
+          "priority",
         ],
         "type": "object",
       },
       "type": "array",
     },
   },
+  "required": [
+    "todos",
+  ],
   "type": "object",
 }
 `;

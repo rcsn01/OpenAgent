@@ -1,15 +1,32 @@
+import { createMediaQuery } from "@solid-primitives/media"
+import { base64Encode } from "@opencode-ai/core/util/encode"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { type Session } from "@opencode-ai/sdk/v2/client"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
-import { sessionTitle } from "@/utils/session-title"
-import { pathKey } from "@/utils/path-key"
-import { displayName } from "./helpers"
+import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
-import { For, Show, type Accessor } from "solid-js"
+import { useLanguage } from "@/context/language"
 import { type LocalProject } from "@/context/layout"
+import { pathKey } from "@/utils/path-key"
+import { sessionTitle } from "@/utils/session-title"
+import { displayName } from "./helpers"
+import { ProjectActionsMenu } from "./project-actions-menu"
+
+type InlineEditorComponent = (props: {
+  id: string
+  value: Accessor<string>
+  onSave: (next: string) => void
+  class?: string
+  displayClass?: string
+  editing?: boolean
+  stopPropagation?: boolean
+  openOnDblClick?: boolean
+}) => JSX.Element
 
 const updatedAt = (session: Session) => session.time.updated ?? session.time.created
+const projectEditorId = (project: LocalProject) => `project:${pathKey(project.worktree)}`
 
 const compactRelativeTime = (value: number) => {
   const diff = Math.max(0, Date.now() - value)
@@ -46,13 +63,151 @@ const SidebarAction = (props: {
   </button>
 )
 
+const ProjectSection = (props: {
+  label: string
+  projects: Accessor<LocalProject[]>
+  currentDir: Accessor<string>
+  currentSessionID: Accessor<string | undefined>
+  getProjectSessions: (project: LocalProject) => Session[]
+  onOpenProject: (project: LocalProject) => void
+  onOpenProjectNewChat: (project: LocalProject) => void
+  onToggleProjectPin: (project: LocalProject) => void
+  onOpenProjectDirectory: (project: LocalProject) => void
+  onCreateProjectWorktree: (project: LocalProject) => void
+  onRequestProjectRename: (project: LocalProject) => void
+  onRenameProject: (project: LocalProject, next: string) => void
+  onArchiveProjectChats: (project: LocalProject) => void
+  onRemoveProject: (project: LocalProject) => void
+  onOpenSession: (session: Session) => void
+  editorOpen: (id: string) => boolean
+  InlineEditor: InlineEditorComponent
+}) => {
+  const language = useLanguage()
+  const touch = createMediaQuery("(hover: none)")
+  const [expanded, setExpanded] = createStore({} as Record<string, boolean>)
+
+  return (
+    <Show when={props.projects().length > 0}>
+      <div class="space-y-3">
+        <div class="type-prose-md px-2 pb-2 text-text-weaker">{props.label}</div>
+        <For each={props.projects()}>
+          {(project) => {
+            const sessions = () => props.getProjectSessions(project)
+            const visible = () => (expanded[project.worktree] ? sessions() : sessions().slice(0, 5))
+
+            return (
+              <section class="group/project space-y-1">
+                <div class="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1 text-left transition-colors hover:bg-surface-base-hover"
+                    onClick={() => props.onOpenProject(project)}
+                  >
+                    <span class="flex size-5 shrink-0 items-center justify-center text-icon-base">
+                      <Icon name="folder" />
+                    </span>
+                    <props.InlineEditor
+                      id={projectEditorId(project)}
+                      value={() => displayName(project)}
+                      onSave={(next) => props.onRenameProject(project, next)}
+                      class="type-prose-md min-w-0 truncate text-text-strong"
+                      displayClass="type-prose-md min-w-0 truncate text-text-strong"
+                      editing={props.editorOpen(projectEditorId(project))}
+                      openOnDblClick={false}
+                    />
+                  </button>
+                  <div class="flex shrink-0 items-center gap-0.5">
+                    <ProjectActionsMenu
+                      project={() => project}
+                      hoverOnly={!touch()}
+                      triggerClass="size-7 text-text-weak hover:text-text-strong"
+                      triggerDataAction="project-menu"
+                      triggerDataProject={base64Encode(project.worktree)}
+                      onTogglePin={props.onToggleProjectPin}
+                      onOpenDirectory={props.onOpenProjectDirectory}
+                      onCreateWorktree={props.onCreateProjectWorktree}
+                      onRequestRename={props.onRequestProjectRename}
+                      onArchiveChats={props.onArchiveProjectChats}
+                      onRemove={props.onRemoveProject}
+                    />
+                    <Tooltip value={language.t("command.session.new")} placement="top">
+                      <IconButton
+                        icon="new-session"
+                        variant="ghost"
+                        class="size-7 rounded-lg text-text-weak hover:text-text-strong"
+                          aria-label={language.t("command.session.new")}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            props.onOpenProjectNewChat(project)
+                          }}
+                        />
+                      </Tooltip>
+                  </div>
+                </div>
+
+                <div class="space-y-0.5 pl-7">
+                  <Show
+                    when={sessions().length > 0}
+                    fallback={<div class="type-prose-md px-3 py-0.5 text-text-weaker">No chats yet</div>}
+                  >
+                    <For each={visible()}>
+                      {(session) => {
+                        const active =
+                          props.currentSessionID() === session.id &&
+                          pathKey(props.currentDir()) === pathKey(session.directory)
+
+                        return (
+                          <button
+                            type="button"
+                            class="flex w-full items-center gap-2 rounded-2xl px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover"
+                            classList={{ "bg-surface-base-active": active }}
+                            onClick={() => props.onOpenSession(session)}
+                          >
+                            <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
+                              {sessionTitle(session.title) || getFilename(session.directory)}
+                            </span>
+                            <span class="type-prose-md shrink-0 text-text-weak">
+                              {compactRelativeTime(updatedAt(session))}
+                            </span>
+                          </button>
+                        )
+                      }}
+                    </For>
+                  </Show>
+                  <Show when={sessions().length > 5}>
+                    <button
+                      type="button"
+                      class="type-prose-md px-3 py-0.5 text-text-weaker transition-colors hover:text-text-strong"
+                      onClick={() => setExpanded(project.worktree, (value) => !value)}
+                    >
+                      {expanded[project.worktree] ? "Show less" : "Show more"}
+                    </button>
+                  </Show>
+                </div>
+              </section>
+            )
+          }}
+        </For>
+      </div>
+    </Show>
+  )
+}
+
 export const SidebarHub = (props: {
   projects: Accessor<LocalProject[]>
   currentDir: Accessor<string>
   currentSessionID: Accessor<string | undefined>
   getProjectSessions: (project: LocalProject) => Session[]
   onOpenProject: (project: LocalProject) => void
-  onEditProject: (project: LocalProject) => void
+  onOpenProjectNewChat: (project: LocalProject) => void
+  onToggleProjectPin: (project: LocalProject) => void
+  onOpenProjectDirectory: (project: LocalProject) => void
+  onCreateProjectWorktree: (project: LocalProject) => void
+  onRequestProjectRename: (project: LocalProject) => void
+  onRenameProject: (project: LocalProject, next: string) => void
+  onArchiveProjectChats: (project: LocalProject) => void
+  onRemoveProject: (project: LocalProject) => void
   onOpenSession: (session: Session) => void
   onNewChat: () => void
   onSearch: () => void
@@ -60,8 +215,12 @@ export const SidebarHub = (props: {
   onAutomations: () => void
   onSettings: () => void
   onOpenProjectChooser: () => void
+  editorOpen: (id: string) => boolean
+  InlineEditor: InlineEditorComponent
 }) => {
-  const [expanded, setExpanded] = createStore({} as Record<string, boolean>)
+  const language = useLanguage()
+  const pinnedProjects = createMemo(() => props.projects().filter((project) => !!project.pinned))
+  const otherProjects = createMemo(() => props.projects().filter((project) => !project.pinned))
 
   return (
     <div class="flex h-full min-h-0 w-full min-w-0 flex-col border-r border-border-weaker-base bg-background-base px-4 pb-3 pt-2">
@@ -74,98 +233,61 @@ export const SidebarHub = (props: {
 
       <div class="mt-4 flex-1 min-h-0 overflow-y-auto pr-1 no-scrollbar">
         <div class="pb-4">
-          <div class="type-prose-md px-2 pb-2 text-text-weaker">Projects</div>
           <Show
             when={props.projects().length > 0}
             fallback={
               <div class="rounded-2xl border border-border-weak-base bg-surface-raised-base px-4 py-4">
-                <div class="type-prose-md text-text-strong">No projects yet</div>
-                <div class="type-prose-md mt-1 text-text-weak">Open a folder to start a new chat.</div>
+                <div class="type-prose-md text-text-strong">{language.t("sidebar.empty.title")}</div>
+                <div class="type-prose-md mt-1 text-text-weak">{language.t("sidebar.empty.description")}</div>
                 <button
                   type="button"
                   class="type-prose-md mt-4 inline-flex rounded-xl bg-surface-base-active px-3 py-2 text-text-strong transition-colors hover:bg-surface-base-hover"
                   onClick={props.onOpenProjectChooser}
                 >
-                  Open project
+                  {language.t("command.project.open")}
                 </button>
               </div>
             }
           >
-            <div class="space-y-3">
-              <For each={props.projects()}>
-                {(project) => {
-                  const sessions = () => props.getProjectSessions(project)
-                  const visible = () => (expanded[project.worktree] ? sessions() : sessions().slice(0, 5))
-
-                  return (
-                    <section class="space-y-1">
-                      <div class="flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1 text-left transition-colors hover:bg-surface-base-hover"
-                          onClick={() => props.onOpenProject(project)}
-                        >
-                          <span class="flex size-5 shrink-0 items-center justify-center text-icon-base">
-                            <Icon name="folder" />
-                          </span>
-                          <span class="type-prose-md truncate text-text-strong">{displayName(project)}</span>
-                        </button>
-                        <IconButton
-                          icon="edit-small-2"
-                          variant="ghost"
-                          class="size-7 shrink-0 rounded-lg text-text-weak hover:text-text-strong"
-                          aria-label={`Edit ${displayName(project)}`}
-                          onClick={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            props.onEditProject(project)
-                          }}
-                        />
-                      </div>
-
-                      <div class="space-y-0.5 pl-7">
-                        <Show
-                          when={sessions().length > 0}
-                          fallback={<div class="type-prose-md px-3 py-0.5 text-text-weaker">No chats yet</div>}
-                        >
-                          <For each={visible()}>
-                            {(session) => {
-                              const active =
-                                props.currentSessionID() === session.id &&
-                                pathKey(props.currentDir()) === pathKey(session.directory)
-
-                              return (
-                                <button
-                                  type="button"
-                                  class="flex w-full items-center gap-2 rounded-2xl px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover"
-                                  classList={{ "bg-surface-base-active": active }}
-                                  onClick={() => props.onOpenSession(session)}
-                                >
-                                  <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
-                                    {sessionTitle(session.title) || getFilename(session.directory)}
-                                  </span>
-                                  <span class="type-prose-md shrink-0 text-text-weak">
-                                    {compactRelativeTime(updatedAt(session))}
-                                  </span>
-                                </button>
-                              )
-                            }}
-                          </For>
-                        </Show>
-                        <Show when={sessions().length > 5}>
-                          <button
-                            type="button"
-                            class="type-prose-md px-3 py-0.5 text-text-weaker transition-colors hover:text-text-strong"
-                            onClick={() => setExpanded(project.worktree, (value) => !value)}
-                          >
-                            {expanded[project.worktree] ? "Show less" : "Show more"}
-                          </button>
-                        </Show>
-                      </div>
-                    </section>
-                  )
-                }}
-              </For>
+            <div class="space-y-4">
+              <ProjectSection
+                label={language.t("sidebar.project.pinnedSection")}
+                projects={pinnedProjects}
+                currentDir={props.currentDir}
+                currentSessionID={props.currentSessionID}
+                getProjectSessions={props.getProjectSessions}
+                onOpenProject={props.onOpenProject}
+                onOpenProjectNewChat={props.onOpenProjectNewChat}
+                onToggleProjectPin={props.onToggleProjectPin}
+                onOpenProjectDirectory={props.onOpenProjectDirectory}
+                onCreateProjectWorktree={props.onCreateProjectWorktree}
+                onRequestProjectRename={props.onRequestProjectRename}
+                onRenameProject={props.onRenameProject}
+                onArchiveProjectChats={props.onArchiveProjectChats}
+                onRemoveProject={props.onRemoveProject}
+                onOpenSession={props.onOpenSession}
+                editorOpen={props.editorOpen}
+                InlineEditor={props.InlineEditor}
+              />
+              <ProjectSection
+                label={language.t("sidebar.project.projectsSection")}
+                projects={otherProjects}
+                currentDir={props.currentDir}
+                currentSessionID={props.currentSessionID}
+                getProjectSessions={props.getProjectSessions}
+                onOpenProject={props.onOpenProject}
+                onOpenProjectNewChat={props.onOpenProjectNewChat}
+                onToggleProjectPin={props.onToggleProjectPin}
+                onOpenProjectDirectory={props.onOpenProjectDirectory}
+                onCreateProjectWorktree={props.onCreateProjectWorktree}
+                onRequestProjectRename={props.onRequestProjectRename}
+                onRenameProject={props.onRenameProject}
+                onArchiveProjectChats={props.onArchiveProjectChats}
+                onRemoveProject={props.onRemoveProject}
+                onOpenSession={props.onOpenSession}
+                editorOpen={props.editorOpen}
+                InlineEditor={props.InlineEditor}
+              />
             </div>
           </Show>
         </div>

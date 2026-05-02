@@ -4,12 +4,13 @@ import { QuestionTool } from "./question"
 import { BashTool } from "./bash"
 import { BackgroundTaskGraphCancelTool, BackgroundTaskGraphGetTool, BackgroundTaskGraphListTool } from "./background_task_graph_manage"
 import { BackgroundTaskCancelTool, BackgroundTaskGetTool, BackgroundTaskListTool } from "./background_task_manage"
+import { BackgroundTaskTool } from "./background_task"
 import { BackgroundTaskGraphTool } from "./background_task_graph"
 import { EditTool } from "./edit"
 import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
 import { ReadTool } from "./read"
-import { BackgroundTaskTool, TaskTool } from "./task"
+import { TaskTool } from "./task"
 import { TodoWriteTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
@@ -54,6 +55,16 @@ import { Skill } from "../skill"
 import { Permission } from "@/permission"
 
 const log = Log.create({ service: "tool.registry" })
+const assistantOnlyToolIDs = new Set([
+  "background_task",
+  "background_task_list",
+  "background_task_get",
+  "background_task_cancel",
+  "background_task_graph",
+  "background_task_graph_list",
+  "background_task_graph_get",
+  "background_task_graph_cancel",
+])
 
 type TaskDef = Tool.InferDef<typeof TaskTool>
 type ReadDef = Tool.InferDef<typeof ReadTool>
@@ -307,6 +318,8 @@ export const layer: Layer.Layer<
 
     const tools: Interface["tools"] = Effect.fn("ToolRegistry.tools")(function* (input) {
       const filtered = (yield* all()).filter((tool) => {
+        if (assistantOnlyToolIDs.has(tool.id) && input.agent.options["assistant_tools"] !== true) return false
+
         if (tool.id === WebSearchTool.id) {
           return input.providerID === ProviderID.opencode || Flag.OPENCODE_ENABLE_EXA
         }

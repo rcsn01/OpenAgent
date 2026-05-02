@@ -187,7 +187,7 @@ function bash(info: ToolProps<typeof BashTool>) {
 }
 
 function todo(info: ToolProps<typeof TodoWriteTool>) {
-  const todos = info.metadata.todos ?? ("todos" in info.input ? info.input.todos : info.input.todoList)
+  const todos = info.metadata.todos ?? info.input.todos ?? []
   block(
     {
       icon: "#",

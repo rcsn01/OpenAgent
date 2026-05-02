@@ -3,57 +3,23 @@ import * as Tool from "./tool"
 import DESCRIPTION_WRITE from "./todowrite.txt"
 import { Todo } from "../session/todo"
 
-const TodoStatusAliases = {
-  "not-started": "pending",
-  "not_started": "pending",
-  "in-progress": "in_progress",
-  inprogress: "in_progress",
-  canceled: "cancelled",
-} as const
-
 // Todo.Info is still a zod schema (session/todo.ts). Inline the field shape
 // here rather than referencing its `.shape` — the LLM-visible JSON Schema is
 // identical, and it removes the last zod dependency from this tool.
 const TodoItem = Schema.Struct({
-  content: Schema.optional(Schema.String).annotate({ description: "Brief description of the task" }),
-  title: Schema.optional(Schema.String).annotate({
-    description: "Alternate task title field accepted for compatibility",
-  }),
+  content: Schema.String.annotate({ description: "Brief description of the task" }),
   status: Schema.String.annotate({
     description: "Current status of the task: pending, in_progress, completed, cancelled",
   }),
-  priority: Schema.optional(Schema.String).annotate({ description: "Priority level of the task: high, medium, low" }),
+  priority: Schema.String.annotate({ description: "Priority level of the task: high, medium, low" }),
 })
 
-const TodoList = Schema.mutable(Schema.Array(TodoItem)).annotate({ description: "The updated todo list" })
-
 export const Parameters = Schema.Struct({
-  todos: Schema.optional(TodoList),
-  todoList: Schema.optional(TodoList),
-}).check(
-  Schema.makeFilter(
-    (input) => input.todos !== undefined || input.todoList !== undefined || "Expected either `todos` or `todoList`",
-  ),
-)
+  todos: Schema.mutable(Schema.Array(TodoItem)).annotate({ description: "The updated todo list" }),
+})
 
 type Metadata = {
   todos: Todo.Info[]
-}
-
-function normalizeStatus(status: string): string {
-  const key = status.trim().toLowerCase().replace(/\s+/g, "_")
-  return TodoStatusAliases[key as keyof typeof TodoStatusAliases] ?? status
-}
-
-function normalizeTodos(params: Schema.Schema.Type<typeof Parameters>) {
-  const items = params.todos ?? params.todoList
-  if (!items) throw new Error("The todowrite tool requires either `todos` or `todoList`.")
-
-  return items.map((item, index) => ({
-    content: item.content?.trim() || item.title?.trim() || `Task ${index + 1}`,
-    status: normalizeStatus(item.status),
-    priority: item.priority?.trim() || "medium",
-  }))
 }
 
 export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Service>(
@@ -66,8 +32,6 @@ export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Servi
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
-          const todos = normalizeTodos(params)
-
           yield* ctx.ask({
             permission: "todowrite",
             patterns: ["*"],
@@ -77,14 +41,14 @@ export const TodoWriteTool = Tool.define<typeof Parameters, Metadata, Todo.Servi
 
           yield* todo.update({
             sessionID: ctx.sessionID,
-            todos,
+            todos: params.todos,
           })
 
           return {
-            title: `${todos.filter((x) => x.status !== "completed").length} todos`,
-            output: JSON.stringify(todos, null, 2),
+            title: `${params.todos.filter((x) => x.status !== "completed").length} todos`,
+            output: JSON.stringify(params.todos, null, 2),
             metadata: {
-              todos,
+              todos: params.todos,
             },
           }
         }),

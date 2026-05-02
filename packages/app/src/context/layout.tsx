@@ -51,7 +51,7 @@ type TabHandoff = {
   at: number
 }
 
-export type LocalProject = Partial<Project> & { worktree: string; expanded: boolean }
+export type LocalProject = Partial<Project> & { worktree: string; expanded: boolean; pinned?: boolean }
 
 export type ReviewDiffStyle = "unified" | "split"
 
@@ -384,7 +384,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       return available[Math.floor(Math.random() * available.length)]
     }
 
-    function enrich(project: { worktree: string; expanded: boolean }) {
+    function enrich(project: { worktree: string; expanded: boolean; pinned?: boolean }) {
       const [childStore] = globalSync.child(project.worktree, { bootstrap: false })
       const projectID = childStore.project
       const metadata = projectID
@@ -451,6 +451,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           }
 
           if (project.expanded) server.projects.expand(root)
+          if (project.pinned) server.projects.setPinned(root, true)
         }
       })
     })
@@ -573,6 +574,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         move(directory: string, toIndex: number) {
           server.projects.move(directory, toIndex)
+        },
+        setPinned(directory: string, pinned: boolean) {
+          server.projects.setPinned(directory, pinned)
         },
       },
       sidebar: {
