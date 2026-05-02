@@ -54,6 +54,12 @@ const sourcemapsFlag = process.argv.includes("--sourcemaps")
 const plugin = createSolidTransformPlugin()
 const skipEmbedWebUi = process.argv.includes("--skip-embed-web-ui")
 
+const resignDarwinBinary = async (binaryPath: string) => {
+  if (process.platform !== "darwin") return
+  await $`codesign --remove-signature ${binaryPath}`.quiet()
+  await $`codesign --force --sign - ${binaryPath}`.quiet()
+}
+
 const createEmbeddedWebUIBundle = async () => {
   console.log(`Building Web UI to embed in the binary`)
   const appDir = path.join(import.meta.dirname, "../../app")
@@ -223,6 +229,10 @@ for (const item of targets) {
       OPENCODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
     },
   })
+
+  if (item.os === "darwin") {
+    await resignDarwinBinary(`dist/${name}/bin/openagent`)
+  }
 
   // Smoke test: only run if binary is for current platform
   if (item.os === process.platform && item.arch === process.arch && !item.abi) {

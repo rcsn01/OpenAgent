@@ -69,6 +69,16 @@ done
 INSTALL_DIR=$HOME/.openagent/bin
 mkdir -p "$INSTALL_DIR"
 
+resign_darwin_binary() {
+    if [ "$(uname -s)" != "Darwin" ]; then
+        return
+    fi
+
+    local target="$1"
+    codesign --remove-signature "$target" >/dev/null 2>&1 || true
+    codesign --force --sign - "$target" >/dev/null
+}
+
 # If --binary is provided, skip all download/detection logic
 if [ -n "$binary_path" ]; then
     if [ ! -f "$binary_path" ]; then
@@ -356,6 +366,7 @@ download_and_install() {
 
     mv "$extracted_binary" "$INSTALL_DIR/$APP"
     chmod 755 "${INSTALL_DIR}/$APP"
+    resign_darwin_binary "${INSTALL_DIR}/$APP"
     rm -rf "$tmp_dir"
 }
 
@@ -363,6 +374,7 @@ install_from_binary() {
     print_message info "\n${MUTED}Installing ${NC}$APP ${MUTED}from: ${NC}$binary_path"
     cp "$binary_path" "${INSTALL_DIR}/$APP"
     chmod 755 "${INSTALL_DIR}/$APP"
+    resign_darwin_binary "${INSTALL_DIR}/$APP"
 }
 
 if [ -n "$binary_path" ]; then

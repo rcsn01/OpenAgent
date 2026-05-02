@@ -137,6 +137,11 @@ export default function Layout(props: ParentProps) {
     light: "theme.scheme.light",
     dark: "theme.scheme.dark",
   }
+  const macDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
+  const desktopTitlebarInset = createMemo(() => {
+    if (!macDesktop()) return undefined
+    return `${40 / (platform.webviewZoom?.() ?? 1)}px`
+  })
   const colorSchemeLabel = (scheme: ColorScheme) => language.t(colorSchemeKey[scheme])
   const currentDir = createMemo(() => appRoute.directory())
   const currentSessionID = createMemo(() => appRoute.sessionID())
@@ -2717,7 +2722,9 @@ export default function Layout(props: ParentProps) {
               arm()
             }}
           >
-            <div class="@container w-full h-full contain-strict">{sidebarContent()}</div>
+            <div class="@container box-border w-full h-full contain-strict" style={{ "padding-top": desktopTitlebarInset() }}>
+              {sidebarContent()}
+            </div>
           </nav>
 
           <Show when={layout.sidebar.opened()}>

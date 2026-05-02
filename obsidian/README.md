@@ -34,3 +34,10 @@ The hands-free dictation system.
 - [[Voice Mode/Settings]] — all user-configurable options
 - [[Voice Mode/Implementation History]] — the 5 phases of development
 - [[Voice Mode/Testing]] — test coverage and what each suite verifies
+
+### GUI Chat Mode
+
+How the standalone `/chat` experience works in the GUI app.
+
+- [[GUI Chat Mode/Index|GUI Chat Mode]] — overview and navigation
+- [[GUI Chat Mode/Hidden Workspaces]] — hidden directory structure, location, and whether chat-only `AGENTS.md` / skills are possible
