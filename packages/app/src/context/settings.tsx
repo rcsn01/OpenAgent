@@ -45,6 +45,7 @@ export interface Settings {
     showStatus: boolean
     showTerminal: boolean
     showReasoningSummaries: boolean
+    showMessageTimestamps: boolean
     shellToolPartsExpanded: boolean
     editToolPartsExpanded: boolean
     showSessionProgressBar: boolean
@@ -137,6 +138,7 @@ const defaultSettings: Settings = {
     showStatus: false,
     showTerminal: false,
     showReasoningSummaries: false,
+    showMessageTimestamps: false,
     shellToolPartsExpanded: false,
     editToolPartsExpanded: false,
     showSessionProgressBar: true,
@@ -274,6 +276,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         ),
         setShowReasoningSummaries(value: boolean) {
           setStore("general", "showReasoningSummaries", value)
+        },
+        showMessageTimestamps: withFallback(
+          () => store.general?.showMessageTimestamps,
+          defaultSettings.general.showMessageTimestamps,
+        ),
+        setShowMessageTimestamps(value: boolean) {
+          setStore("general", "showMessageTimestamps", value)
         },
         shellToolPartsExpanded: withFallback(
           () => store.general?.shellToolPartsExpanded,

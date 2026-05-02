@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { upsertCommandRegistration } from "./command"
+import { normalizeSlash, slashTriggers, upsertCommandRegistration } from "./command"
 
 describe("upsertCommandRegistration", () => {
   test("replaces keyed registrations", () => {
@@ -21,5 +21,37 @@ describe("upsertCommandRegistration", () => {
     expect(next).toHaveLength(2)
     expect(next[0]?.options).toBe(two)
     expect(next[1]?.options).toBe(one)
+  })
+})
+
+describe("normalizeSlash", () => {
+  test("normalizes string commands", () => {
+    expect(normalizeSlash("sessions")).toEqual({
+      name: "sessions",
+      aliases: [],
+    })
+  })
+
+  test("deduplicates aliases and removes the primary trigger", () => {
+    expect(
+      normalizeSlash({
+        name: "sessions",
+        aliases: ["resume", "continue", "sessions", "resume"],
+      }),
+    ).toEqual({
+      name: "sessions",
+      aliases: ["resume", "continue"],
+    })
+  })
+})
+
+describe("slashTriggers", () => {
+  test("returns primary name followed by aliases", () => {
+    expect(
+      slashTriggers({
+        name: "models",
+        aliases: ["model"],
+      }),
+    ).toEqual(["models", "model"])
   })
 })

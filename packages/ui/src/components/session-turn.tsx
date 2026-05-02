@@ -147,6 +147,7 @@ export function SessionTurn(
   props: ParentProps<{
     sessionID: string
     messageID: string
+    messageTimestamp?: string
     messages?: MessageType[]
     actions?: UserActions
     showReasoningSummaries?: boolean
@@ -390,6 +391,9 @@ export function SessionTurn(
               data-slot="session-turn-message-container"
               class={props.classes?.container}
             >
+              <Show when={props.messageTimestamp}>
+                <div class="pb-2 text-11-regular text-text-weak">{props.messageTimestamp}</div>
+              </Show>
               <div data-slot="session-turn-message-content" aria-live="off">
                 <Message message={message()!} parts={parts()} actions={props.actions} />
               </div>

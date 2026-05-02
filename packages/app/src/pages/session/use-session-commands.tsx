@@ -1,4 +1,5 @@
 import { useNavigate } from "@solidjs/router"
+import { formatTranscript, type TranscriptOptions } from "@opencode-ai/sdk/transcript"
 import { useCommand, type CommandOption } from "@/context/command"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
@@ -220,6 +221,30 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       )
   }
 
+  const openRename = () => {
+    const sessionID = params.id
+    if (!sessionID) return
+    void import("@/components/dialog-session-rename").then((x) => {
+      dialog.show(() => <x.DialogSessionRename sessionID={sessionID} />)
+    })
+  }
+
+  const openTimeline = () => {
+    const sessionID = params.id
+    if (!sessionID) return
+    void import("@/components/dialog-session-timeline").then((x) => {
+      dialog.show(() => (
+        <x.DialogSessionTimeline
+          sessionID={sessionID}
+          onSelect={(message) => {
+            setActiveMessage(message)
+            navigate(`/${params.dir}/session/${sessionID}#message-${message.id}`)
+          }}
+        />
+      ))
+    })
+  }
+
   const openFile = () => {
     void import("@/components/dialog-select-file").then((x) => {
       dialog.show(() => <x.DialogSelectFile onOpenFile={showAllFiles} />)
@@ -265,6 +290,18 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const chooseMcp = () => {
     void import("@/components/dialog-select-mcp").then((x) => {
       dialog.show(() => <x.DialogSelectMcp />)
+    })
+  }
+
+  const chooseAgent = () => {
+    void import("@/components/dialog-select-agent").then((x) => {
+      dialog.show(() => <x.DialogSelectAgent />)
+    })
+  }
+
+  const chooseVariant = () => {
+    void import("@/components/dialog-select-variant").then((x) => {
+      dialog.show(() => <x.DialogSelectVariant />)
     })
   }
 
@@ -356,6 +393,159 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
+  const openSessionGraphs = () => {
+    const sessionID = params.id
+    if (!sessionID) return
+    void import("@/components/dialog-session-graphs").then((x) => {
+      dialog.show(() => <x.DialogSessionGraphs sessionID={sessionID} directory={sdk.directory} />)
+    })
+  }
+
+  const transcriptOptions = (overrides?: Partial<TranscriptOptions>) => ({
+    thinking: settings.general.showReasoningSummaries(),
+    toolDetails: settings.general.shellToolPartsExpanded() || settings.general.editToolPartsExpanded(),
+    assistantMetadata: true,
+    providers: sync.data.provider.all,
+    ...overrides,
+  })
+
+  const sessionTranscript = (overrides?: Partial<TranscriptOptions>) => {
+    const sessionID = params.id
+    if (!sessionID) return
+    const session = info()
+    if (!session) return
+    return formatTranscript(
+      session,
+      messages().map((message) => ({
+        info: message,
+        parts: sync.data.part[message.id] ?? [],
+      })),
+      transcriptOptions(overrides),
+    )
+  }
+
+  const transcriptFilename = () => {
+    const session = info()
+    const raw = session?.title || `session-${params.id?.slice(0, 8) ?? "transcript"}`
+    const slug = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+    return `${slug || `session-${params.id?.slice(0, 8) ?? "transcript"}`}.md`
+  }
+
+  const saveTranscript = async (filename: string, content: string) => {
+    if (platform.platform === "desktop" && platform.saveFilePickerDialog && platform.writeTextFile) {
+      const path = await platform.saveFilePickerDialog({
+        title: "Export transcript",
+        defaultPath: filename,
+      })
+      if (!path) return false
+      await platform.writeTextFile(path, content)
+      return true
+    }
+
+    if (typeof document === "undefined" || typeof URL === "undefined") return false
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" })
+    const href = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = href
+    link.download = filename
+    link.style.display = "none"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(href)
+    return true
+  }
+
+  const copyTranscript = async () => {
+    const transcript = sessionTranscript()
+    if (!transcript) return
+    if (!(await write(transcript))) {
+      showToast({
+        title: "Failed to copy session transcript",
+        variant: "error",
+      })
+      return
+    }
+    showToast({
+      title: "Session transcript copied",
+      variant: "success",
+    })
+  }
+
+  const exportTranscript = () => {
+    const defaults = transcriptOptions()
+    void import("@/components/dialog-session-export").then((x) => {
+      dialog.show(() => (
+        <x.DialogSessionExport
+          defaultFilename={transcriptFilename()}
+          defaults={{
+            thinking: defaults.thinking,
+            toolDetails: defaults.toolDetails,
+            assistantMetadata: defaults.assistantMetadata,
+          }}
+          onCopy={async (options) => {
+            const transcript = sessionTranscript(options)
+            if (!transcript) return
+            if (!(await write(transcript))) {
+              showToast({
+                title: "Failed to copy session transcript",
+                variant: "error",
+              })
+              return
+            }
+            showToast({
+              title: "Session transcript copied",
+              variant: "success",
+            })
+          }}
+          onExport={async (options) => {
+            const transcript = sessionTranscript(options)
+            if (!transcript) return
+            if (!(await saveTranscript(options.filename, transcript))) {
+              showToast({
+                title: "Failed to export session transcript",
+                variant: "error",
+              })
+              return
+            }
+            showToast({
+              title: "Session transcript exported",
+              variant: "success",
+            })
+          }}
+        />
+      ))
+    })
+  }
+
+  const toggleThinking = () => {
+    const next = !settings.general.showReasoningSummaries()
+    settings.general.setShowReasoningSummaries(next)
+    showToast({
+      title: next ? "Thinking shown" : "Thinking hidden",
+    })
+  }
+
+  const toggleTimestamps = () => {
+    const next = !settings.general.showMessageTimestamps()
+    settings.general.setShowMessageTimestamps(next)
+    showToast({
+      title: next ? "Timestamps shown" : "Timestamps hidden",
+    })
+  }
+
+  const toggleToolDetails = () => {
+    const next = !(settings.general.shellToolPartsExpanded() || settings.general.editToolPartsExpanded())
+    settings.general.setShellToolPartsExpanded(next)
+    settings.general.setEditToolPartsExpanded(next)
+    showToast({
+      title: next ? "Tool details shown" : "Tool details hidden",
+    })
+  }
+
   const shareCmds = () => {
     if (sync.data.config.share === "disabled") return []
     return [
@@ -365,7 +555,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
         description: info()?.share?.url
           ? language.t("toast.session.share.success.description")
           : language.t("command.session.share.description"),
-        slash: "share",
+        slash: { name: "share" },
         disabled: !params.id,
         onSelect: share,
       }),
@@ -373,7 +563,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
         id: "session.unshare",
         title: language.t("command.session.unshare"),
         description: language.t("command.session.unshare.description"),
-        slash: "unshare",
+        slash: { name: "unshare" },
         disabled: !params.id || !info()?.share?.url,
         onSelect: unshare,
       }),
@@ -385,14 +575,28 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "session.new",
       title: language.t("command.session.new"),
       keybind: "mod+shift+s",
-      slash: "new",
+      slash: { name: "new", aliases: ["clear"] },
       onSelect: () => navigate(`/${params.dir}/session`),
+    }),
+    sessionCommand({
+      id: "session.rename",
+      title: "Rename session",
+      slash: { name: "rename" },
+      disabled: !params.id,
+      onSelect: openRename,
+    }),
+    sessionCommand({
+      id: "session.timeline",
+      title: "Jump to message",
+      slash: { name: "timeline" },
+      disabled: !params.id || visibleUserMessages().length === 0,
+      onSelect: openTimeline,
     }),
     sessionCommand({
       id: "session.undo",
       title: language.t("command.session.undo"),
       description: language.t("command.session.undo.description"),
-      slash: "undo",
+      slash: { name: "undo" },
       disabled: !params.id || visibleUserMessages().length === 0,
       onSelect: undo,
     }),
@@ -400,7 +604,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "session.redo",
       title: language.t("command.session.redo"),
       description: language.t("command.session.redo.description"),
-      slash: "redo",
+      slash: { name: "redo" },
       disabled: !params.id || !info()?.revert?.messageID,
       onSelect: redo,
     }),
@@ -408,15 +612,55 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "session.compact",
       title: language.t("command.session.compact"),
       description: language.t("command.session.compact.description"),
-      slash: "compact",
+      slash: { name: "compact", aliases: ["summarize"] },
       disabled: !params.id || visibleUserMessages().length === 0,
       onSelect: compact,
+    }),
+    sessionCommand({
+      id: "session.copy",
+      title: "Copy session transcript",
+      slash: { name: "copy" },
+      disabled: !params.id || messages().length === 0,
+      onSelect: () => void copyTranscript(),
+    }),
+    sessionCommand({
+      id: "session.export",
+      title: "Export session transcript",
+      slash: { name: "export" },
+      disabled: !params.id || messages().length === 0,
+      onSelect: exportTranscript,
+    }),
+    sessionCommand({
+      id: "session.graphs",
+      title: "Subagent graphs",
+      disabled: !params.id,
+      onSelect: openSessionGraphs,
+    }),
+    sessionCommand({
+      id: "session.thinking",
+      title: settings.general.showReasoningSummaries() ? "Hide thinking" : "Show thinking",
+      slash: { name: "thinking", aliases: ["toggle-thinking"] },
+      onSelect: toggleThinking,
+    }),
+    sessionCommand({
+      id: "session.timestamps",
+      title: settings.general.showMessageTimestamps() ? "Hide timestamps" : "Show timestamps",
+      slash: { name: "timestamps", aliases: ["toggle-timestamps"] },
+      onSelect: toggleTimestamps,
+    }),
+    sessionCommand({
+      id: "session.tool-details",
+      title:
+        settings.general.shellToolPartsExpanded() || settings.general.editToolPartsExpanded()
+          ? "Hide tool details"
+          : "Show tool details",
+      onSelect: toggleToolDetails,
     }),
     sessionCommand({
       id: "session.fork",
       title: language.t("command.session.fork"),
       description: language.t("command.session.fork.description"),
-      slash: "fork",
+      slash: { name: "fork" },
       disabled: !params.id || visibleUserMessages().length === 0,
       onSelect: fork,
     }),
@@ -428,7 +672,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.file.open"),
       description: language.t("palette.search.placeholder"),
       keybind: "mod+k,mod+p",
-      slash: "open",
+      slash: { name: "open" },
       onSelect: openFile,
     }),
     fileCommand({
@@ -456,7 +700,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       id: "terminal.toggle",
       title: language.t("command.terminal.toggle"),
       keybind: "ctrl+`",
-      slash: "terminal",
+      slash: { name: "terminal" },
       onSelect: () => view().terminal.toggle(),
     }),
     viewCommand({
@@ -518,8 +762,14 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.model.choose"),
       description: language.t("command.model.choose.description"),
       keybind: "mod+'",
-      slash: "model",
+      slash: { name: "models", aliases: ["model"] },
       onSelect: chooseModel,
+    }),
+    modelCommand({
+      id: "model.variant.choose",
+      title: "Select variant",
+      slash: { name: "variants" },
+      onSelect: chooseVariant,
     }),
     modelCommand({
       id: "model.variant.cycle",
@@ -536,18 +786,23 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.mcp.toggle"),
       description: language.t("command.mcp.toggle.description"),
       keybind: "mod+;",
-      slash: "mcp",
+      slash: { name: "mcps", aliases: ["mcp"] },
       onSelect: chooseMcp,
     }),
   ]
 
   const agentCmds = () => [
     agentCommand({
+      id: "agent.choose",
+      title: "Select agent",
+      slash: { name: "agents", aliases: ["agent"] },
+      onSelect: chooseAgent,
+    }),
+    agentCommand({
       id: "agent.cycle",
       title: language.t("command.agent.cycle"),
       description: language.t("command.agent.cycle.description"),
       keybind: "mod+.",
-      slash: "agent",
       onSelect: () => local.agent.move(1),
     }),
     agentCommand({

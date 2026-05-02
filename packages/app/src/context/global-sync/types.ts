@@ -2,6 +2,8 @@ import type {
   Agent,
   Command,
   Config,
+  ConsoleState,
+  FormatterStatus,
   LspStatus,
   McpStatus,
   Message,
@@ -40,6 +42,7 @@ export type State = {
   provider_ready: boolean
   provider: ProviderListResponse
   config: Config
+  console_state: ConsoleState
   path: Path
   session: Session[]
   sessionTotal: number
@@ -64,6 +67,7 @@ export type State = {
   }
   lsp_ready: boolean
   lsp: LspStatus[]
+  formatter: FormatterStatus[]
   vcs: VcsInfo | undefined
   limit: number
   message: {

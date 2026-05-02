@@ -656,6 +656,8 @@ export type TextPart = {
   }
 }
 
+export type SubtaskExecutionMode = "blocking" | "background"
+
 export type SubtaskPart = {
   id: string
   sessionID: string
@@ -664,6 +666,7 @@ export type SubtaskPart = {
   prompt: string
   description: string
   agent: string
+  execution_mode?: SubtaskExecutionMode
   model?: {
     providerID: string
     modelID: string
@@ -1173,7 +1176,7 @@ export type GlobalEvent = {
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
 
 /**
- * Server configuration for opencode serve and web commands
+ * Server configuration for openagent serve and web commands
  */
 export type ServerConfig = {
   /**
@@ -1955,12 +1958,15 @@ export type AgentPartInput = {
   }
 }
 
+export type SubtaskInputExecutionMode = "blocking" | "background"
+
 export type SubtaskPartInput = {
   id?: string
   type: "subtask"
   prompt: string
   description: string
   agent: string
+  execution_mode?: SubtaskInputExecutionMode
   model?: {
     providerID: string
     modelID: string
@@ -3050,6 +3056,136 @@ export type ExperimentalConsoleSwitchOrgResponses = {
 export type ExperimentalConsoleSwitchOrgResponse =
   ExperimentalConsoleSwitchOrgResponses[keyof ExperimentalConsoleSwitchOrgResponses]
 
+export type ExperimentalPluginsListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/plugins"
+}
+
+export type ExperimentalPluginsListResponses = {
+  /**
+   * Configured plugins
+   */
+  200: {
+    plugins: Array<{
+      spec: string
+      packageName: string
+      version?: string
+      source: string
+      scope: "global" | "local"
+      kind: "file" | "npm"
+      enabled: boolean
+      editable: boolean
+      installed: boolean
+      target?: string
+      targets: Array<"server" | "tui">
+    }>
+  }
+}
+
+export type ExperimentalPluginsListResponse = ExperimentalPluginsListResponses[keyof ExperimentalPluginsListResponses]
+
+export type ExperimentalPluginsInstallData = {
+  body?: {
+    spec: string
+    global?: boolean
+    force?: boolean
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/plugins/install"
+}
+
+export type ExperimentalPluginsInstallErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalPluginsInstallError = ExperimentalPluginsInstallErrors[keyof ExperimentalPluginsInstallErrors]
+
+export type ExperimentalPluginsInstallResponses = {
+  /**
+   * Install success
+   */
+  200: boolean
+}
+
+export type ExperimentalPluginsInstallResponse =
+  ExperimentalPluginsInstallResponses[keyof ExperimentalPluginsInstallResponses]
+
+export type ExperimentalPluginsEnableData = {
+  body?: {
+    spec: string
+    source: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/plugins/enable"
+}
+
+export type ExperimentalPluginsEnableErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalPluginsEnableError = ExperimentalPluginsEnableErrors[keyof ExperimentalPluginsEnableErrors]
+
+export type ExperimentalPluginsEnableResponses = {
+  /**
+   * Enable success
+   */
+  200: boolean
+}
+
+export type ExperimentalPluginsEnableResponse =
+  ExperimentalPluginsEnableResponses[keyof ExperimentalPluginsEnableResponses]
+
+export type ExperimentalPluginsDisableData = {
+  body?: {
+    spec: string
+    source: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/plugins/disable"
+}
+
+export type ExperimentalPluginsDisableErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalPluginsDisableError = ExperimentalPluginsDisableErrors[keyof ExperimentalPluginsDisableErrors]
+
+export type ExperimentalPluginsDisableResponses = {
+  /**
+   * Disable success
+   */
+  200: boolean
+}
+
+export type ExperimentalPluginsDisableResponse =
+  ExperimentalPluginsDisableResponses[keyof ExperimentalPluginsDisableResponses]
+
 export type ToolIdsData = {
   body?: never
   path?: never
@@ -3563,6 +3699,68 @@ export type SessionTodoResponses = {
 }
 
 export type SessionTodoResponse = SessionTodoResponses[keyof SessionTodoResponses]
+
+export type SessionGraphsData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/graphs"
+}
+
+export type SessionGraphsErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionGraphsError = SessionGraphsErrors[keyof SessionGraphsErrors]
+
+export type SessionGraphsResponses = {
+  /**
+   * Task graphs for the session tree
+   */
+  200: {
+    sessionID: string
+    rootSessionID: string
+    focusGraphID?: string
+    graphs: Array<{
+      graphID: string
+      parentSessionID: string
+      origin: "background_task" | "background_task_graph"
+      status: "active" | "completed" | "failed" | "cancelled"
+      createdAt: number
+      completedAt?: number
+      nodes: Array<{
+        graphID: string
+        nodeID: string
+        description: string
+        agent: string
+        dependencies: Array<string>
+        status: "pending" | "running" | "completed" | "failed" | "blocked" | "cancelled"
+        sessionID?: string
+        title?: string
+        output?: string
+        error?: string
+        blockedBy?: Array<string>
+        createdAt: number
+        startedAt?: number
+        completedAt?: number
+      }>
+    }>
+  }
+}
+
+export type SessionGraphsResponse = SessionGraphsResponses[keyof SessionGraphsResponses]
 
 export type SessionInitData = {
   body?: {

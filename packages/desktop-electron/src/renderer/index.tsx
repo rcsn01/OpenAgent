@@ -156,6 +156,10 @@ const createPlatform = (): Platform => {
       return handleWslPicker(result)
     },
 
+    writeTextFile(path, content) {
+      return window.api.writeTextFile(path, content)
+    },
+
     openLink(url: string) {
       window.api.openLink(url)
     },

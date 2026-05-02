@@ -200,6 +200,11 @@ export function createChildStoreManager(input: {
               return providerQuery.data ?? EMPTY
             },
             config: {},
+            console_state: {
+              activeOrgName: undefined,
+              consoleManagedProviders: [],
+              switchableOrgCount: 0,
+            },
             get path() {
               if (pathQuery.isLoading || !pathQuery.data)
                 return { state: "", config: "", worktree: "", directory: "", home: "" }
@@ -227,6 +232,7 @@ export function createChildStoreManager(input: {
             get lsp() {
               return lspQuery.isLoading ? [] : (lspQuery.data ?? [])
             },
+            formatter: [],
             vcs: vcsStore.value,
             limit: 5,
             message: {},

@@ -4,6 +4,7 @@ import path from "path"
 import { parse as parseJsonc } from "jsonc-parser"
 import { Filesystem } from "@/util/filesystem"
 import { createPlugTask, type PlugCtx, type PlugDeps } from "../../src/cli/cmd/plug"
+import { setPluginEnabledInFile } from "../../src/plugin/install"
 import { tmpdir } from "../fixture/fixture"
 
 function deps(global: string, target: string | Error): PlugDeps {
@@ -566,5 +567,51 @@ describe("plugin.install.task", () => {
     const ok = await run(ctx(tmp.path))
     expect(ok).toBe(false)
     expect(await Filesystem.exists(path.join(tmp.path, ".opencode", "opencode.jsonc"))).toBe(false)
+  })
+
+  test("disables and re-enables configured plugins without dropping sibling options", async () => {
+    await using tmp = await tmpdir()
+    const file = path.join(tmp.path, "opencode.jsonc")
+    await Bun.write(
+      file,
+      `{
+  "plugin": [
+    ["acme@1.2.3", { "custom": true }]
+  ]
+}
+`,
+    )
+
+    const disabled = await setPluginEnabledInFile({ file, spec: "acme@1.2.3", enabled: false })
+    expect(disabled.ok).toBe(true)
+    expect(parseJsonc(await fs.readFile(file, "utf8"))).toEqual({
+      plugin: [["acme@1.2.3", { custom: true, enabled: false }]],
+    })
+
+    const enabled = await setPluginEnabledInFile({ file, spec: "acme@1.2.3", enabled: true })
+    expect(enabled.ok).toBe(true)
+    expect(parseJsonc(await fs.readFile(file, "utf8"))).toEqual({
+      plugin: [["acme@1.2.3", { custom: true }]],
+    })
+  })
+
+  test("disables string plugin entries by converting them to tuple config", async () => {
+    await using tmp = await tmpdir()
+    const file = path.join(tmp.path, "opencode.jsonc")
+    await Bun.write(
+      file,
+      `{
+  "plugin": [
+    "acme@1.2.3"
+  ]
+}
+`,
+    )
+
+    const disabled = await setPluginEnabledInFile({ file, spec: "acme@1.2.3", enabled: false })
+    expect(disabled.ok).toBe(true)
+    expect(parseJsonc(await fs.readFile(file, "utf8"))).toEqual({
+      plugin: [["acme@1.2.3", { enabled: false }]],
+    })
   })
 })

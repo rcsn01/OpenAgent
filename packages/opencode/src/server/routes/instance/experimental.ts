@@ -10,13 +10,21 @@ import { Project } from "@/project/project"
 import { MCP } from "@/mcp"
 import { Session } from "@/session/session"
 import { Config } from "@/config/config"
+import { ConfigPlugin } from "@/config/plugin"
 import { ConsoleState } from "@/config/console-state"
 import { Account } from "@/account/account"
 import { AccountID, OrgID } from "@/account/schema"
+import { Filesystem } from "@/util/filesystem"
+import { installPlugin, patchPluginConfig, readPluginManifest, setPluginEnabledInFile } from "@/plugin/install"
+import { parsePluginSpecifier, pluginSource, resolvePathPluginTarget } from "@/plugin/shared"
+import { Global } from "@opencode-ai/core/global"
+import { Npm } from "@opencode-ai/core/npm"
 import { errors } from "../../error"
 import { lazy } from "@/util/lazy"
 import { Effect, Option } from "effect"
 import { Agent } from "@/agent/agent"
+import npa from "npm-package-arg"
+import path from "path"
 import { jsonRequest, runRequest } from "./trace"
 
 const ConsoleOrgOption = z.object({
@@ -37,6 +45,37 @@ const ConsoleSwitchBody = z.object({
   orgID: z.string(),
 })
 
+const PluginTargetKind = z.enum(["server", "tui"])
+
+const ExperimentalPlugin = z.object({
+  spec: z.string(),
+  packageName: z.string(),
+  version: z.string().optional(),
+  source: z.string(),
+  scope: z.enum(["global", "local"]),
+  kind: z.enum(["file", "npm"]),
+  enabled: z.boolean(),
+  editable: z.boolean(),
+  installed: z.boolean(),
+  target: z.string().optional(),
+  targets: z.array(PluginTargetKind),
+})
+
+const ExperimentalPluginList = z.object({
+  plugins: z.array(ExperimentalPlugin),
+})
+
+const ExperimentalPluginInstallBody = z.object({
+  spec: z.string(),
+  global: z.boolean().optional(),
+  force: z.boolean().optional(),
+})
+
+const ExperimentalPluginStateBody = z.object({
+  spec: z.string(),
+  source: z.string(),
+})
+
 const QueryBoolean = z.union([
   z.preprocess((value) => (value === "true" ? true : value === "false" ? false : value), z.boolean()),
   z.enum(["true", "false"]),
@@ -45,6 +84,55 @@ const QueryBoolean = z.union([
 function queryBoolean(value: z.infer<typeof QueryBoolean> | undefined) {
   if (value === undefined) return
   return value === true || value === "true"
+}
+
+function editablePluginSource(source: string) {
+  return (
+    !source.startsWith("http://") &&
+    !source.startsWith("https://") &&
+    source !== "OPENCODE_CONFIG_CONTENT" &&
+    !source.startsWith("file://")
+  )
+}
+
+function npmCacheTarget(spec: string) {
+  let key = spec
+  try {
+    const hit = npa(spec)
+    if (hit?.name && hit.raw === hit.name) key = `${hit.name}@latest`
+  } catch {}
+  return path.join(Global.Path.cache, "packages", Npm.sanitize(key))
+}
+
+async function pluginTarget(spec: string) {
+  if (pluginSource(spec) === "file") {
+    return resolvePathPluginTarget(spec).catch(() => undefined)
+  }
+
+  const target = npmCacheTarget(spec)
+  if (!(await Filesystem.exists(target))) return
+  return target
+}
+
+function pluginError(
+  result:
+    | Exclude<Awaited<ReturnType<typeof readPluginManifest>>, { ok: true }>
+    | Exclude<Awaited<ReturnType<typeof setPluginEnabledInFile>>, { ok: true }>
+    | Exclude<Awaited<ReturnType<typeof patchPluginConfig>>, { ok: true }>,
+): never {
+  if (result.code === "manifest_read_failed") {
+    throw new Error(`Failed to read plugin manifest from ${result.file}`)
+  }
+  if (result.code === "manifest_no_targets") {
+    throw new Error(`Plugin ${result.file} does not expose plugin entrypoints`)
+  }
+  if (result.code === "plugin_not_found") {
+    throw new Error(`Plugin ${result.spec} was not found in ${result.file}`)
+  }
+  if (result.code === "invalid_json") {
+    throw new Error(`Invalid JSON in ${result.file} (${result.parse} at line ${result.line}, column ${result.col})`)
+  }
+  throw new Error("error" in result && result.error instanceof Error ? result.error.message : "Plugin update failed")
 }
 
 export const ExperimentalRoutes = lazy(() =>
@@ -139,6 +227,195 @@ export const ExperimentalRoutes = lazy(() =>
           const body = c.req.valid("json")
           const account = yield* Account.Service
           yield* account.use(AccountID.make(body.accountID), Option.some(OrgID.make(body.orgID)))
+          return true
+        }),
+    )
+    .get(
+      "/plugins",
+      describeRoute({
+        summary: "List configured plugins",
+        description: "Get configured GUI-manageable plugin metadata, including source, scope, targets, and enabled state.",
+        operationId: "experimental.plugins.list",
+        responses: {
+          200: {
+            description: "Configured plugins",
+            content: {
+              "application/json": {
+                schema: resolver(ExperimentalPluginList),
+              },
+            },
+          },
+        },
+      }),
+      async (c) =>
+        jsonRequest("ExperimentalRoutes.plugins.list", c, function* () {
+          const config = yield* Config.Service
+          const current = yield* config.get()
+          const plugins = yield* Effect.promise(() =>
+            Promise.all(
+              (current.plugin_origins ?? []).map(async (origin) => {
+                const spec = ConfigPlugin.pluginSpecifier(origin.spec)
+                const target = await pluginTarget(spec)
+                const manifest = target ? await readPluginManifest(target) : undefined
+                const parsed = parsePluginSpecifier(spec)
+                return {
+                  spec,
+                  packageName: parsed.pkg,
+                  version: parsed.version || undefined,
+                  source: origin.source,
+                  scope: origin.scope,
+                  kind: pluginSource(spec),
+                  enabled: ConfigPlugin.pluginOptions(origin.spec)?.enabled !== false,
+                  editable: editablePluginSource(origin.source),
+                  installed: !!target,
+                  target,
+                  targets: manifest?.ok ? manifest.targets.map((item: { kind: "server" | "tui" }) => item.kind) : [],
+                }
+              }),
+            ),
+          )
+          return { plugins }
+        }),
+    )
+    .post(
+      "/plugins/install",
+      describeRoute({
+        summary: "Install and configure a plugin",
+        description: "Install a plugin package and update shared server plugin config for the current instance.",
+        operationId: "experimental.plugins.install",
+        responses: {
+          200: {
+            description: "Install success",
+            content: {
+              "application/json": {
+                schema: resolver(z.boolean()),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("json", ExperimentalPluginInstallBody),
+      async (c) =>
+        jsonRequest("ExperimentalRoutes.plugins.install", c, function* () {
+          const body = c.req.valid("json")
+          const config = yield* Config.Service
+          const target = yield* Effect.promise(() => installPlugin(body.spec))
+          if (!target.ok) {
+            throw new Error(`Failed to install plugin ${body.spec}`)
+          }
+
+          const manifest = yield* Effect.promise(() => readPluginManifest(target.target))
+          if (!manifest.ok) pluginError(manifest)
+
+          const serverTargets = manifest.targets.filter((item) => item.kind === "server")
+          if (!serverTargets.length) {
+            throw new Error(`Plugin ${body.spec} does not expose a server entrypoint`)
+          }
+
+          const patched = yield* Effect.promise(() =>
+            patchPluginConfig({
+              spec: body.spec,
+              targets: serverTargets,
+              force: body.force,
+              global: body.global,
+              vcs: Instance.project.vcs,
+              worktree: Instance.worktree,
+              directory: Instance.directory,
+              config: Global.Path.config,
+            }),
+          )
+          if (!patched.ok) pluginError(patched)
+
+          yield* config.invalidate(true)
+          return true
+        }),
+    )
+    .post(
+      "/plugins/enable",
+      describeRoute({
+        summary: "Enable a configured plugin",
+        description: "Enable a plugin entry in its source config file.",
+        operationId: "experimental.plugins.enable",
+        responses: {
+          200: {
+            description: "Enable success",
+            content: {
+              "application/json": {
+                schema: resolver(z.boolean()),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("json", ExperimentalPluginStateBody),
+      async (c) =>
+        jsonRequest("ExperimentalRoutes.plugins.enable", c, function* () {
+          const body = c.req.valid("json")
+          const config = yield* Config.Service
+          const current = yield* config.get()
+          const hit = (current.plugin_origins ?? []).find(
+            (item) => item.source === body.source && ConfigPlugin.pluginSpecifier(item.spec) === body.spec,
+          )
+          if (!hit || !editablePluginSource(hit.source)) {
+            throw new Error("Plugin configuration is not editable")
+          }
+
+          const result = yield* Effect.promise(() =>
+            setPluginEnabledInFile({
+              file: hit.source,
+              spec: body.spec,
+              enabled: true,
+            }),
+          )
+          if (!result.ok) pluginError(result)
+
+          yield* config.invalidate(true)
+          return true
+        }),
+    )
+    .post(
+      "/plugins/disable",
+      describeRoute({
+        summary: "Disable a configured plugin",
+        description: "Disable a plugin entry in its source config file.",
+        operationId: "experimental.plugins.disable",
+        responses: {
+          200: {
+            description: "Disable success",
+            content: {
+              "application/json": {
+                schema: resolver(z.boolean()),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("json", ExperimentalPluginStateBody),
+      async (c) =>
+        jsonRequest("ExperimentalRoutes.plugins.disable", c, function* () {
+          const body = c.req.valid("json")
+          const config = yield* Config.Service
+          const current = yield* config.get()
+          const hit = (current.plugin_origins ?? []).find(
+            (item) => item.source === body.source && ConfigPlugin.pluginSpecifier(item.spec) === body.spec,
+          )
+          if (!hit || !editablePluginSource(hit.source)) {
+            throw new Error("Plugin configuration is not editable")
+          }
+
+          const result = yield* Effect.promise(() =>
+            setPluginEnabledInFile({
+              file: hit.source,
+              spec: body.spec,
+              enabled: false,
+            }),
+          )
+          if (!result.ok) pluginError(result)
+
+          yield* config.invalidate(true)
           return true
         }),
     )

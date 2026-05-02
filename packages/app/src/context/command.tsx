@@ -78,7 +78,7 @@ export interface CommandOption {
   description?: string
   category?: string
   keybind?: KeybindConfig
-  slash?: string
+  slash?: SlashCommand
   suggested?: boolean
   disabled?: boolean
   onSelect?: (source?: "palette" | "keybind" | "slash") => void
@@ -92,7 +92,45 @@ export type CommandCatalogItem = {
   description?: string
   category?: string
   keybind?: KeybindConfig
-  slash?: string
+  slash?: ResolvedSlashCommand
+}
+
+export type SlashCommand = string | { name: string; aliases?: string[] }
+
+export type ResolvedSlashCommand = {
+  name: string
+  aliases: string[]
+}
+
+export function normalizeSlash(input: SlashCommand | undefined): ResolvedSlashCommand | undefined {
+  if (!input) return
+  if (typeof input === "string") {
+    const name = input.trim()
+    if (!name) return
+    return {
+      name,
+      aliases: [],
+    }
+  }
+
+  const name = input.name.trim()
+  if (!name) return
+  return {
+    name,
+    aliases: Array.from(
+      new Set(
+        (input.aliases ?? [])
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0 && item !== name),
+      ),
+    ),
+  }
+}
+
+export function slashTriggers(input: SlashCommand | undefined) {
+  const slash = normalizeSlash(input)
+  if (!slash) return []
+  return [slash.name, ...slash.aliases]
 }
 
 export type CommandRegistration = {
@@ -241,7 +279,7 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
 
     type CommandCatalog = Record<string, CommandCatalogItem>
     const [catalog, setCatalog, _, catalogReady] = persisted(
-      Persist.global("command.catalog.v1"),
+      Persist.global("command.catalog.v2"),
       createStore<CommandCatalog>({}),
     )
 
@@ -284,7 +322,7 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
             description: opt.description,
             category: opt.category,
             keybind: opt.keybind,
-            slash: opt.slash,
+            slash: normalizeSlash(opt.slash),
           }
           return acc
         }, {} as CommandCatalog),

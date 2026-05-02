@@ -10,9 +10,11 @@ export type AtOption =
 export interface SlashCommand {
   id: string
   trigger: string
+  aliases: string[]
   title: string
   description?: string
   keybind?: string
+  searchText: string
   type: "builtin" | "custom"
   source?: "command" | "mcp" | "skill"
 }

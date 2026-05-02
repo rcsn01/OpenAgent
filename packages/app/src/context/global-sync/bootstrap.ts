@@ -276,7 +276,18 @@ export async function bootstrapDirectory(input: {
         ),
       () =>
         retry(() => input.sdk.config.get().then((x) => input.setStore("config", reconcile(x.data!, { merge: false })))),
+      () =>
+        retry(() =>
+          input.sdk.experimental.console.get().then((x) =>
+            input.setStore("console_state", {
+              activeOrgName: x.data?.activeOrgName,
+              consoleManagedProviders: x.data?.consoleManagedProviders ?? [],
+              switchableOrgCount: x.data?.switchableOrgCount ?? 0,
+            }),
+          ),
+        ),
       () => retry(() => input.sdk.session.status().then((x) => input.setStore("session_status", x.data!))),
+      () => retry(() => input.sdk.formatter.status().then((x) => input.setStore("formatter", x.data ?? []))),
       !seededProject &&
         (() => retry(() => input.sdk.project.current()).then((x) => input.setStore("project", x.data!.id))),
       !seededPath &&

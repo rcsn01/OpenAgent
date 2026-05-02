@@ -74,6 +74,10 @@ type PatchErr =
 type PatchOne = Ok<{ item: PatchItem }> | PatchErr
 
 export type PatchResult = Ok<{ dir: string; items: PatchItem[] }> | (PatchErr & { dir: string })
+export type PluginStateResult =
+  | Ok<{ file: string; changed: boolean; spec: string }>
+  | Err<"plugin_not_found", { file: string; spec: string }>
+  | PatchErr
 
 const defaultInstallDeps: InstallDeps = {
   resolve: (spec) => resolvePluginTarget(spec),
@@ -256,6 +260,62 @@ function patchPluginList(
   }
 }
 
+function samePlugin(input: { current: string; target: string }) {
+  if (input.current === input.target) return true
+  if (input.current.startsWith("file://") || input.target.startsWith("file://")) return false
+  return parsePluginSpecifier(input.current).pkg === parsePluginSpecifier(input.target).pkg
+}
+
+function pluginState(item: unknown) {
+  if (!Array.isArray(item)) return true
+  const options = item[1]
+  if (!isRecord(options)) return true
+  return options.enabled !== false
+}
+
+function patchPluginState(text: string, list: unknown[] | undefined, spec: string, enabled: boolean) {
+  const row = (list ?? [])
+    .map((item, i) => ({
+      i,
+      item,
+      spec: pluginSpec(item),
+    }))
+    .find((item) => item.spec && samePlugin({ current: item.spec, target: spec }))
+  if (!row || !row.spec) return
+
+  const current = pluginState(row.item)
+  if (current === enabled) {
+    return {
+      changed: false,
+      text,
+      spec: row.spec,
+    }
+  }
+
+  if (typeof row.item === "string") {
+    return {
+      changed: true,
+      text: patch(text, ["plugin", row.i], enabled ? row.item : [row.item, { enabled: false }]),
+      spec: row.item,
+    }
+  }
+
+  if (!Array.isArray(row.item) || typeof row.item[0] !== "string") return
+  const options = isRecord(row.item[1]) ? { ...row.item[1] } : {}
+  if (enabled) delete options.enabled
+  if (!enabled) options.enabled = false
+
+  return {
+    changed: true,
+    text: patch(
+      text,
+      ["plugin", row.i],
+      Object.keys(options).length > 0 ? [row.item[0], options] : row.item[0],
+    ),
+    spec: row.item[0],
+  }
+}
+
 export async function installPlugin(spec: string, dep: InstallDeps = defaultInstallDeps): Promise<InstallResult> {
   const target = await dep.resolve(spec).then(
     (item) => ({
@@ -435,5 +495,79 @@ export async function patchPluginConfig(input: PatchInput, dep: PatchDeps = defa
     ok: true,
     dir,
     items,
+  }
+}
+
+export async function setPluginEnabledInFile(
+  input: { file: string; spec: string; enabled: boolean },
+  dep: Pick<PatchDeps, "readText" | "write"> = defaultPatchDeps,
+): Promise<PluginStateResult> {
+  const src = await dep.readText(input.file).then(
+    (value) => ({ ok: true as const, value }),
+    (error: unknown) => ({ ok: false as const, error }),
+  )
+  if (!src.ok) {
+    return {
+      ok: false,
+      code: "patch_failed",
+      kind: "server",
+      error: src.error,
+    }
+  }
+  const text = src.value.trim() ? src.value : "{}"
+
+  const errs: JsoncParseError[] = []
+  const data = parseJsonc(text, errs, { allowTrailingComma: true })
+  if (errs.length) {
+    const err = errs[0]
+    const lines = text.substring(0, err.offset).split("\n")
+    return {
+      ok: false,
+      code: "invalid_json",
+      kind: "server",
+      file: input.file,
+      line: lines.length,
+      col: lines[lines.length - 1].length + 1,
+      parse: printParseErrorCode(err.error),
+    }
+  }
+
+  const list = pluginList(data)
+  const next = patchPluginState(text, list, input.spec, input.enabled)
+  if (!next) {
+    return {
+      ok: false,
+      code: "plugin_not_found",
+      file: input.file,
+      spec: input.spec,
+    }
+  }
+  if (!next.changed) {
+    return {
+      ok: true,
+      file: input.file,
+      changed: false,
+      spec: next.spec,
+    }
+  }
+
+  const write = await dep.write(input.file, next.text).then(
+    () => ({ ok: true as const }),
+    (error: unknown) => ({ ok: false as const, error }),
+  )
+  if (!write.ok) {
+    return {
+      ok: false,
+      code: "patch_failed",
+      kind: "server",
+      error: write.error,
+    }
+  }
+
+  return {
+    ok: true,
+    file: input.file,
+    changed: true,
+    spec: next.spec,
   }
 }

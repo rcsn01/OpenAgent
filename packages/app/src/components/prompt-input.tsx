@@ -28,7 +28,7 @@ import { Select } from "@opencode-ai/ui/select"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { ModelSelectorPopover } from "@/components/dialog-select-model"
 import { useProviders } from "@/hooks/use-providers"
-import { useCommand } from "@/context/command"
+import { normalizeSlash, useCommand } from "@/context/command"
 import { Persist, persisted } from "@/utils/persist"
 import { usePermission } from "@/context/permission"
 import { useLanguage } from "@/context/language"
@@ -622,20 +622,30 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const slashCommands = createMemo<SlashCommand[]>(() => {
     const builtin = command.options
       .filter((opt) => !opt.disabled && !opt.id.startsWith("suggested.") && opt.slash)
-      .map((opt) => ({
-        id: opt.id,
-        trigger: opt.slash!,
-        title: opt.title,
-        description: opt.description,
-        keybind: opt.keybind,
-        type: "builtin" as const,
-      }))
+      .flatMap((opt) => {
+        const slash = normalizeSlash(opt.slash)
+        if (!slash) return []
+        return [
+          {
+            id: opt.id,
+            trigger: slash.name,
+            aliases: slash.aliases,
+            title: opt.title,
+            description: opt.description,
+            keybind: opt.keybind,
+            searchText: [slash.name, ...slash.aliases].join(" "),
+            type: "builtin" as const,
+          },
+        ]
+      })
 
     const custom = sync.data.command.map((cmd) => ({
       id: `custom.${cmd.name}`,
       trigger: cmd.name,
+      aliases: [],
       title: cmd.name,
       description: cmd.description,
+      searchText: cmd.name,
       type: "custom" as const,
       source: cmd.source,
     }))
@@ -670,7 +680,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   } = useFilteredList<SlashCommand>({
     items: slashCommands,
     key: (x) => x?.id,
-    filterKeys: ["trigger", "title"],
+    filterKeys: ["trigger", "title", "searchText"],
     onSelect: handleSlashSelect,
   })
 

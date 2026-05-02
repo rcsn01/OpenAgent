@@ -420,6 +420,9 @@ function createGlobalSync() {
     },
     child: children.child,
     peek: children.peek,
+    refresh(directory: string) {
+      return bootstrapInstance(directory)
+    },
     // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
     project: projectApi,

@@ -149,6 +149,11 @@ export default function Layout(props: ParentProps) {
   }
   const colorSchemeLabel = (scheme: ColorScheme) => language.t(colorSchemeKey[scheme])
   const currentDir = createMemo(() => route().dir)
+  const currentConsoleState = createMemo(() => {
+    const directory = currentDir()
+    if (!directory) return
+    return globalSync.child(directory, { bootstrap: false })[0].console_state
+  })
 
   const [state, setState] = createStore({
     autoselect: !initialDirectory,
@@ -1044,6 +1049,7 @@ export default function Layout(props: ParentProps) {
         id: "provider.connect",
         title: language.t("command.provider.connect"),
         category: language.t("command.category.provider"),
+        slash: { name: "connect" },
         onSelect: () => connectProvider(),
       },
       {
@@ -1065,6 +1071,14 @@ export default function Layout(props: ParentProps) {
         category: language.t("command.category.session"),
         keybind: "alt+arrowup",
         onSelect: () => navigateSessionByOffset(-1),
+      },
+      {
+        id: "session.list",
+        title: "Sessions",
+        category: language.t("command.category.session"),
+        slash: { name: "sessions", aliases: ["resume", "continue"] },
+        disabled: currentSessions().length === 0,
+        onSelect: () => openSessionList(),
       },
       {
         id: "session.next",
@@ -1115,7 +1129,7 @@ export default function Layout(props: ParentProps) {
         title: language.t("command.workspace.toggle"),
         description: language.t("command.workspace.toggle.description"),
         category: language.t("command.category.workspace"),
-        slash: "workspace",
+        slash: { name: "workspace" },
         disabled: !currentProject() || currentProject()?.vcs !== "git",
         onSelect: () => {
           const project = currentProject()
@@ -1132,6 +1146,37 @@ export default function Layout(props: ParentProps) {
               : language.t("toast.workspace.enabled.description"),
           })
         },
+      },
+      {
+        id: "status.open",
+        title: "Status",
+        category: language.t("command.category.view"),
+        slash: { name: "status" },
+        disabled: !currentDir(),
+        onSelect: () => openStatus(),
+      },
+      {
+        id: "plugin.manager",
+        title: "Plugins",
+        category: language.t("command.category.settings"),
+        slash: { name: "plugins" },
+        disabled: !currentDir(),
+        onSelect: () => openPluginsManager(),
+      },
+      {
+        id: "plugin.install",
+        title: "Install plugin",
+        category: language.t("command.category.settings"),
+        slash: { name: "install-plugin" },
+        disabled: !currentDir(),
+        onSelect: () => openInstallPlugin(),
+      },
+      {
+        id: "theme.list",
+        title: "Themes",
+        category: language.t("command.category.theme"),
+        slash: { name: "themes" },
+        onSelect: () => openThemeList(),
       },
       {
         id: "theme.cycle",
@@ -1152,6 +1197,16 @@ export default function Layout(props: ParentProps) {
           theme.previewTheme(id)
           return () => theme.cancelPreview()
         },
+      })
+    }
+
+    if ((currentConsoleState()?.switchableOrgCount ?? 0) > 1) {
+      commands.push({
+        id: "org.switch",
+        title: "Switch org",
+        category: language.t("command.category.provider"),
+        slash: { name: "org", aliases: ["orgs", "switch-org"] },
+        onSelect: () => openConsoleOrg(),
       })
     }
 
@@ -1181,6 +1236,14 @@ export default function Layout(props: ParentProps) {
       title: language.t("command.language.cycle"),
       category: language.t("command.category.language"),
       onSelect: () => cycleLanguage(1),
+    })
+
+    commands.push({
+      id: "help.open",
+      title: "Help",
+      category: language.t("command.category.view"),
+      slash: { name: "help" },
+      onSelect: () => openHelp(),
     })
 
     for (const locale of language.locales) {
@@ -1216,6 +1279,67 @@ export default function Layout(props: ParentProps) {
     void import("@/components/dialog-settings").then((x) => {
       if (dialogDead || dialogRun !== run) return
       dialog.show(() => <x.DialogSettings />)
+    })
+  }
+
+  function openSessionList() {
+    const run = ++dialogRun
+    void import("@/components/dialog-session-list").then((x) => {
+      if (dialogDead || dialogRun !== run) return
+      dialog.show(() => (
+        <x.DialogSessionList sessions={currentSessions()} currentID={params.id} onSelect={(session) => navigateToSession(session)} />
+      ))
+    })
+  }
+
+  function openThemeList() {
+    const run = ++dialogRun
+    void import("@/components/dialog-theme-list").then((x) => {
+      if (dialogDead || dialogRun !== run) return
+      dialog.show(() => <x.DialogThemeList />)
+    })
+  }
+
+  function openStatus() {
+    const run = ++dialogRun
+    void import("@/components/dialog-status").then((x) => {
+      if (dialogDead || dialogRun !== run) return
+      dialog.show(() => <x.DialogStatus />)
+    })
+  }
+
+  function openHelp() {
+    const run = ++dialogRun
+    void import("@/components/dialog-help").then((x) => {
+      if (dialogDead || dialogRun !== run) return
+      dialog.show(() => <x.DialogHelp />)
+    })
+  }
+
+  function openConsoleOrg() {
+    if (!currentDir()) return
+    const run = ++dialogRun
+    void import("@/components/dialog-console-org").then((x) => {
+      if (dialogDead || dialogRun !== run) return
+      dialog.show(() => <x.DialogConsoleOrg />)
+    })
+  }
+
+  function openPluginsManager() {
+    if (!currentDir()) return
+    const run = ++dialogRun
+    void import("@/components/dialog-plugins").then((x) => {
+      if (dialogDead || dialogRun !== run) return
+      dialog.show(() => <x.DialogPlugins />)
+    })
+  }
+
+  function openInstallPlugin() {
+    if (!currentDir()) return
+    const run = ++dialogRun
+    void import("@/components/dialog-install-plugin").then((x) => {
+      if (dialogDead || dialogRun !== run) return
+      dialog.show(() => <x.DialogInstallPlugin />)
     })
   }
 
@@ -2344,7 +2468,7 @@ export default function Layout(props: ParentProps) {
       settingsKeybind={() => command.keybind("settings.open")}
       onOpenSettings={openSettings}
       helpLabel={() => language.t("sidebar.help")}
-      onOpenHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
+      onOpenHelp={openHelp}
       renderPanel={() =>
         mobile ? <SidebarPanel project={currentProject} mobile /> : <SidebarPanel project={currentProject} merged />
       }

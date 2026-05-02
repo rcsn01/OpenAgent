@@ -27,6 +27,13 @@ import type {
   ExperimentalConsoleGetResponses,
   ExperimentalConsoleListOrgsResponses,
   ExperimentalConsoleSwitchOrgResponses,
+  ExperimentalPluginsDisableErrors,
+  ExperimentalPluginsDisableResponses,
+  ExperimentalPluginsEnableErrors,
+  ExperimentalPluginsEnableResponses,
+  ExperimentalPluginsInstallErrors,
+  ExperimentalPluginsInstallResponses,
+  ExperimentalPluginsListResponses,
   ExperimentalResourceListResponses,
   ExperimentalSessionListResponses,
   ExperimentalWorkspaceAdaptorListResponses,
@@ -130,6 +137,8 @@ import type {
   SessionForkResponses,
   SessionGetErrors,
   SessionGetResponses,
+  SessionGraphsErrors,
+  SessionGraphsResponses,
   SessionInitErrors,
   SessionInitResponses,
   SessionListResponses,
@@ -286,7 +295,7 @@ export class Global extends HeyApiClient {
   /**
    * Get health
    *
-   * Get health information about the OpenCode server.
+   * Get health information about the OpenAgent server.
    */
   public health<ThrowOnError extends boolean = false>(options?: Options<never, ThrowOnError>) {
     return (options?.client ?? this.client).get<GlobalHealthResponses, unknown, ThrowOnError>({
@@ -320,9 +329,9 @@ export class Global extends HeyApiClient {
   }
 
   /**
-   * Upgrade opencode
+   * Upgrade openagent
    *
-   * Upgrade opencode to the specified version or latest if not specified.
+   * Upgrade openagent to the specified version or latest if not specified.
    */
   public upgrade<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -838,6 +847,169 @@ export class Console extends HeyApiClient {
   }
 }
 
+export class Plugins extends HeyApiClient {
+  /**
+   * List configured plugins
+   *
+   * Get configured GUI-manageable plugin metadata, including source, scope, targets, and enabled state.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExperimentalPluginsListResponses, unknown, ThrowOnError>({
+      url: "/experimental/plugins",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Install and configure a plugin
+   *
+   * Install a plugin package and update shared server plugin config for the current instance.
+   */
+  public install<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      spec?: string
+      global?: boolean
+      force?: boolean
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "spec" },
+            { in: "body", key: "global" },
+            { in: "body", key: "force" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExperimentalPluginsInstallResponses,
+      ExperimentalPluginsInstallErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/plugins/install",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Enable a configured plugin
+   *
+   * Enable a plugin entry in its source config file.
+   */
+  public enable<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      spec?: string
+      source?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "spec" },
+            { in: "body", key: "source" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExperimentalPluginsEnableResponses,
+      ExperimentalPluginsEnableErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/plugins/enable",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Disable a configured plugin
+   *
+   * Disable a plugin entry in its source config file.
+   */
+  public disable<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      spec?: string
+      source?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "spec" },
+            { in: "body", key: "source" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExperimentalPluginsDisableResponses,
+      ExperimentalPluginsDisableErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/plugins/disable",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Session extends HeyApiClient {
   /**
    * List sessions
@@ -923,6 +1095,11 @@ export class Experimental extends HeyApiClient {
   private _console?: Console
   get console(): Console {
     return (this._console ??= new Console({ client: this.client }))
+  }
+
+  private _plugins?: Plugins
+  get plugins(): Plugins {
+    return (this._plugins ??= new Plugins({ client: this.client }))
   }
 
   private _session?: Session
@@ -1921,6 +2098,38 @@ export class Session2 extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<SessionTodoResponses, SessionTodoErrors, ThrowOnError>({
       url: "/session/{sessionID}/todo",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get session task graphs
+   *
+   * Retrieve live background task graph state for a session and its root session tree.
+   */
+  public graphs<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionGraphsResponses, SessionGraphsErrors, ThrowOnError>({
+      url: "/session/{sessionID}/graphs",
       ...options,
       ...params,
     })

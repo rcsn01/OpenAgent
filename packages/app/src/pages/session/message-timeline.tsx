@@ -306,6 +306,12 @@ export function MessageTimeline(props: {
   const shareUrl = createMemo(() => info()?.share?.url)
   const shareEnabled = createMemo(() => sync.data.config.share !== "disabled")
   const parentID = createMemo(() => info()?.parentID)
+  const hasSessionFamily = createMemo(() => {
+    const id = sessionID()
+    if (!id) return false
+    if (parentID()) return true
+    return sync.data.session.some((item) => item.parentID === id)
+  })
   const parent = createMemo(() => {
     const id = parentID()
     if (!id) return
@@ -333,6 +339,13 @@ export function MessageTimeline(props: {
     return language.t("command.session.new")
   })
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
+  const openSessionGraphs = () => {
+    const id = sessionID()
+    if (!id) return
+    void import("@/components/dialog-session-graphs").then((x) => {
+      dialog.show(() => <x.DialogSessionGraphs sessionID={id} directory={sdk.directory} />)
+    })
+  }
   const stageCfg = { init: 1, batch: 3 }
   const staging = createTimelineStaging({
     sessionKey,
@@ -815,6 +828,15 @@ export function MessageTimeline(props: {
                   <Show when={sessionID()} keyed>
                     {(id) => (
                       <div class="shrink-0 flex items-center gap-3">
+                        <Show when={hasSessionFamily()}>
+                          <IconButton
+                            icon="branch"
+                            variant="ghost"
+                            class="size-6 rounded-md"
+                            aria-label="Open subagent graphs"
+                            onClick={openSessionGraphs}
+                          />
+                        </Show>
                         <SessionContextUsage placement="bottom" />
                         <Show when={!parentID()}>
                           <DropdownMenu
@@ -1024,6 +1046,7 @@ export function MessageTimeline(props: {
               <For each={rendered()}>
                 {(messageID) => {
                   const active = createMemo(() => activeMessageID() === messageID)
+                  const message = createMemo(() => sessionMessages().find((item) => item.id === messageID))
                   const comments = createMemo(() => messageComments(sync.data.part[messageID] ?? []), [], {
                     equals: (a, b) =>
                       a.length === b.length &&
@@ -1096,6 +1119,14 @@ export function MessageTimeline(props: {
                         actions={props.actions}
                         active={active()}
                         status={active() ? sessionStatus() : undefined}
+                        messageTimestamp={
+                          settings.general.showMessageTimestamps() && message()
+                            ? new Date(message()!.time.created).toLocaleString(undefined, {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              })
+                            : undefined
+                        }
                         showReasoningSummaries={settings.general.showReasoningSummaries()}
                         shellToolDefaultOpen={settings.general.shellToolPartsExpanded()}
                         editToolDefaultOpen={settings.general.editToolPartsExpanded()}

@@ -111,6 +111,9 @@ export type Platform = {
   /** Save file picker dialog (Tauri only) */
   saveFilePickerDialog?(opts?: SaveFilePickerOptions): Promise<string | null>
 
+  /** Write a UTF-8 text file (desktop only) */
+  writeTextFile?(path: string, content: string): Promise<void>
+
   /** Storage mechanism, defaults to localStorage */
   storage?: (name?: string) => SyncStorage | AsyncStorage
 
