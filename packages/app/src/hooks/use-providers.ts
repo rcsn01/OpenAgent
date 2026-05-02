@@ -1,6 +1,5 @@
+import { useAppRoute } from "@/context/app-route"
 import { useGlobalSync } from "@/context/global-sync"
-import { decode64 } from "@/utils/base64"
-import { useParams } from "@solidjs/router"
 import { createMemo } from "solid-js"
 
 export const popularProviders = [
@@ -16,9 +15,9 @@ export const popularProviders = [
 const popularProviderSet = new Set(popularProviders)
 
 export function useProviders() {
+  const route = useAppRoute()
   const globalSync = useGlobalSync()
-  const params = useParams()
-  const dir = createMemo(() => decode64(params.dir) ?? "")
+  const dir = createMemo(() => route.directory())
   const providers = () => {
     if (dir()) {
       const [projectStore] = globalSync.child(dir())

@@ -17,6 +17,7 @@ import { Plugin } from "@/plugin"
 import { Provider } from "@/provider/provider"
 import { ProviderAuth } from "@/provider/auth"
 import { Agent } from "@/agent/agent"
+import { GeneralChat } from "@/general-chat/general-chat"
 import { Skill } from "@/skill"
 import { Discovery } from "@/skill/discovery"
 import { Question } from "@/question"
@@ -71,6 +72,7 @@ export const AppLayer = Layer.mergeAll(
   Provider.defaultLayer,
   ProviderAuth.defaultLayer,
   Agent.defaultLayer,
+  GeneralChat.defaultLayer,
   Skill.defaultLayer,
   Discovery.defaultLayer,
   Question.defaultLayer,

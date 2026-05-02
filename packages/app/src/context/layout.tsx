@@ -14,7 +14,8 @@ import { createScrollPersistence, type SessionScroll } from "./layout-scroll"
 import { createPathHelpers } from "./file/path"
 
 const AVATAR_COLOR_KEYS = ["pink", "mint", "orange", "purple", "cyan", "lime"] as const
-const DEFAULT_SIDEBAR_WIDTH = 344
+const DEFAULT_SIDEBAR_WIDTH = 256
+const LEGACY_DEFAULT_SIDEBAR_WIDTH = 344
 const DEFAULT_FILE_TREE_WIDTH = 200
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
@@ -156,6 +157,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           workspacesDefault: sidebar.workspaces,
         }
       })()
+      const normalizedSidebar = (() => {
+        if (!isRecord(migratedSidebar)) return migratedSidebar
+        if (migratedSidebar.width !== LEGACY_DEFAULT_SIDEBAR_WIDTH) return migratedSidebar
+        return {
+          ...migratedSidebar,
+          width: DEFAULT_SIDEBAR_WIDTH,
+        }
+      })()
 
       const review = value.review
       const fileTree = value.fileTree
@@ -209,7 +218,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       })()
 
       if (
-        migratedSidebar === sidebar &&
+        normalizedSidebar === sidebar &&
         migratedReview === review &&
         migratedFileTree === fileTree &&
         migratedSessionTabs === sessionTabs
@@ -219,7 +228,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
 
       return {
         ...value,
-        sidebar: migratedSidebar,
+        sidebar: normalizedSidebar,
         review: migratedReview,
         fileTree: migratedFileTree,
         sessionTabs: migratedSessionTabs,

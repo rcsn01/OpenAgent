@@ -1,11 +1,11 @@
 import { createStore, produce } from "solid-js/store"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { batch, createEffect, createMemo, createRoot, on, onCleanup } from "solid-js"
-import { useParams } from "@solidjs/router"
 import { useSDK } from "./sdk"
 import type { Platform } from "./platform"
 import { defaultTitle, titleNumber } from "./terminal-title"
 import { Persist, persisted, removePersisted } from "@/utils/persist"
+import { useAppRoute } from "./app-route"
 
 export type LocalPTY = {
   id: string
@@ -357,7 +357,7 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
   gate: false,
   init: () => {
     const sdk = useSDK()
-    const params = useParams()
+    const route = useAppRoute()
     const cache = new Map<string, TerminalCacheEntry>()
 
     caches.add(cache)
@@ -402,11 +402,11 @@ export const { use: useTerminal, provider: TerminalProvider } = createSimpleCont
       return entry.value
     }
 
-    const workspace = createMemo(() => loadWorkspace(params.dir!, params.id))
+    const workspace = createMemo(() => loadWorkspace(route.params().dir, route.sessionID()))
 
     createEffect(
       on(
-        () => ({ dir: params.dir, id: params.id }),
+        () => ({ dir: route.params().dir, id: route.sessionID() }),
         (next, prev) => {
           if (!prev?.dir) return
           if (next.dir === prev.dir && next.id === prev.id) return

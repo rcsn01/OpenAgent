@@ -50,7 +50,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const terminal = useTerminal()
   const layout = useLayout()
   const navigate = useNavigate()
-  const { params, tabs, view } = useSessionLayout()
+  const { params, tabs, view, href } = useSessionLayout()
 
   const info = () => {
     const id = params.id
@@ -238,7 +238,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
           sessionID={sessionID}
           onSelect={(message) => {
             setActiveMessage(message)
-            navigate(`/${params.dir}/session/${sessionID}#message-${message.id}`)
+            navigate(`${href(sessionID)}#message-${message.id}`)
           }}
         />
       ))
@@ -576,7 +576,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.session.new"),
       keybind: "mod+shift+s",
       slash: { name: "new", aliases: ["clear"] },
-      onSelect: () => navigate(`/${params.dir}/session`),
+      onSelect: () => navigate(href()),
     }),
     sessionCommand({
       id: "session.rename",

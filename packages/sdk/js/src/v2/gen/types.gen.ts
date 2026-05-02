@@ -1734,6 +1734,12 @@ export type WellKnownAuth = {
 
 export type Auth = OAuth | ApiAuth | WellKnownAuth
 
+export type GeneralChat = {
+  session: Session
+  rootSessionID: string
+  directory: string
+}
+
 export type Workspace = {
   id: string
   type: string
@@ -2435,6 +2441,122 @@ export type AppLogResponses = {
 }
 
 export type AppLogResponse = AppLogResponses[keyof AppLogResponses]
+
+export type ExperimentalChatListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/chat"
+}
+
+export type ExperimentalChatListErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalChatListError = ExperimentalChatListErrors[keyof ExperimentalChatListErrors]
+
+export type ExperimentalChatListResponses = {
+  /**
+   * List of general chats
+   */
+  200: Array<GeneralChat>
+}
+
+export type ExperimentalChatListResponse = ExperimentalChatListResponses[keyof ExperimentalChatListResponses]
+
+export type ExperimentalChatCreateData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/chat"
+}
+
+export type ExperimentalChatCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalChatCreateError = ExperimentalChatCreateErrors[keyof ExperimentalChatCreateErrors]
+
+export type ExperimentalChatCreateResponses = {
+  /**
+   * General chat created
+   */
+  200: GeneralChat
+}
+
+export type ExperimentalChatCreateResponse = ExperimentalChatCreateResponses[keyof ExperimentalChatCreateResponses]
+
+export type ExperimentalChatDeleteData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/chat/{sessionID}"
+}
+
+export type ExperimentalChatDeleteErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalChatDeleteError = ExperimentalChatDeleteErrors[keyof ExperimentalChatDeleteErrors]
+
+export type ExperimentalChatDeleteResponses = {
+  /**
+   * General chat deleted
+   */
+  200: boolean
+}
+
+export type ExperimentalChatDeleteResponse = ExperimentalChatDeleteResponses[keyof ExperimentalChatDeleteResponses]
+
+export type ExperimentalChatGetData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/chat/{sessionID}"
+}
+
+export type ExperimentalChatGetErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalChatGetError = ExperimentalChatGetErrors[keyof ExperimentalChatGetErrors]
+
+export type ExperimentalChatGetResponses = {
+  /**
+   * General chat
+   */
+  200: GeneralChat
+}
+
+export type ExperimentalChatGetResponse = ExperimentalChatGetResponses[keyof ExperimentalChatGetResponses]
 
 export type ExperimentalWorkspaceAdaptorListData = {
   body?: never

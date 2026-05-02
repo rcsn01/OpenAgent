@@ -69,6 +69,8 @@ const emptyUserMessages: UserMessage[] = []
 type FollowupItem = FollowupDraft & { id: string }
 type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
 const emptyFollowups: FollowupItem[] = []
+const COLLAPSED_SIDEBAR_WIDTH = 64
+const MIN_REVIEW_COLUMN_WIDTH = 200
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -403,6 +405,12 @@ export default function Page() {
   const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
   const desktopSidePanelOpen = createMemo(() => desktopReviewOpen() || desktopFileTreeOpen())
+  const reviewResizeMax = () => {
+    if (typeof window === "undefined") return 1000
+    const sidebarWidth = layout.sidebar.opened() ? layout.sidebar.width() : COLLAPSED_SIDEBAR_WIDTH
+    const reserve = desktopFileTreeOpen() ? layout.fileTree.width() + MIN_REVIEW_COLUMN_WIDTH : MIN_REVIEW_COLUMN_WIDTH
+    return Math.max(MIN_REVIEW_COLUMN_WIDTH, window.innerWidth - sidebarWidth - reserve)
+  }
   const sessionPanelWidth = createMemo(() => {
     if (!desktopSidePanelOpen()) return "100%"
     if (desktopReviewOpen()) return `${layout.session.width()}px`
@@ -1940,8 +1948,8 @@ export default function Page() {
               <ResizeHandle
                 direction="horizontal"
                 size={layout.session.width()}
-                min={450}
-                max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.45}
+                min={MIN_REVIEW_COLUMN_WIDTH}
+                max={reviewResizeMax()}
                 onResize={(width) => {
                   size.touch()
                   layout.session.resize(width)

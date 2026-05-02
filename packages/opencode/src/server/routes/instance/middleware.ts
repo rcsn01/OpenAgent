@@ -5,18 +5,21 @@ import { AppRuntime } from "@/effect/app-runtime"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { WorkspaceContext } from "@/control-plane/workspace-context"
 import { WorkspaceID } from "@/control-plane/schema"
+import { resolveGeneralChatDirectory } from "@/general-chat/shared"
 
 export function InstanceMiddleware(workspaceID?: WorkspaceID): MiddlewareHandler {
   return async (c, next) => {
     const raw = c.req.query("directory") || c.req.header("x-opencode-directory") || process.cwd()
     const directory = AppFileSystem.resolve(
-      (() => {
-        try {
-          return decodeURIComponent(raw)
-        } catch {
-          return raw
-        }
-      })(),
+      await resolveGeneralChatDirectory(
+        (() => {
+          try {
+            return decodeURIComponent(raw)
+          } catch {
+            return raw
+          }
+        })(),
+      ),
     )
 
     return WorkspaceContext.provide({

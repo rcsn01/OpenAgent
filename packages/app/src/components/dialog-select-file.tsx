@@ -12,11 +12,13 @@ import { formatKeybind, useCommand, type CommandOption } from "@/context/command
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLayout } from "@/context/layout"
+import { useAppRoute } from "@/context/app-route"
 import { useFile } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { decode64 } from "@/utils/base64"
+import { pathKey } from "@/utils/path-key"
 import { getRelativeTime } from "@/utils/time"
 
 type EntryType = "command" | "file" | "session"
@@ -267,6 +269,7 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
   const file = useFile()
   const dialog = useDialog()
   const navigate = useNavigate()
+  const route = useAppRoute()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const { params, tabs, view } = useSessionLayout()
@@ -276,13 +279,14 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
   const commandEntries = createCommandEntries({ filesOnly, command, language })
   const fileEntries = createFileEntries({ file, tabs, language })
 
-  const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
+  const projectDirectory = createMemo(() => (route.isChat() ? "" : decode64(params.dir) ?? ""))
   const project = createMemo(() => {
     const directory = projectDirectory()
     if (!directory) return
     return layout.projects.list().find((p) => p.worktree === directory || p.sandboxes?.includes(directory))
   })
   const workspaces = createMemo(() => {
+    if (route.isChat()) return route.directory() ? [route.directory()] : []
     const directory = projectDirectory()
     const current = project()
     if (!current) return directory ? [directory] : []
@@ -293,6 +297,7 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
   })
   const homedir = createMemo(() => globalSync.data.path.home)
   const label = (directory: string) => {
+    if (route.isChat()) return language.t("sidebar.chat.section")
     const current = project()
     const kind =
       current && directory === current.worktree
@@ -369,7 +374,11 @@ export function DialogSelectFile(props: { mode?: DialogSelectFileMode; onOpenFil
 
     if (item.type === "session") {
       if (!item.directory || !item.sessionID) return
-      navigate(`/${base64Encode(item.directory)}/session/${item.sessionID}`)
+      if (route.isChat() && pathKey(route.directory()) === pathKey(item.directory)) {
+        navigate(route.href(item.sessionID))
+      } else {
+        navigate(`/${base64Encode(item.directory)}/session/${item.sessionID}`)
+      }
       return
     }
 

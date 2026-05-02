@@ -24,6 +24,14 @@ import type {
   EventTuiPromptAppend,
   EventTuiSessionSelect,
   EventTuiToastShow,
+  ExperimentalChatCreateErrors,
+  ExperimentalChatCreateResponses,
+  ExperimentalChatDeleteErrors,
+  ExperimentalChatDeleteResponses,
+  ExperimentalChatGetErrors,
+  ExperimentalChatGetResponses,
+  ExperimentalChatListErrors,
+  ExperimentalChatListResponses,
   ExperimentalConsoleGetResponses,
   ExperimentalConsoleListOrgsResponses,
   ExperimentalConsoleSwitchOrgResponses,
@@ -515,6 +523,144 @@ export class App extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<AppSkillsResponses, unknown, ThrowOnError>({
       url: "/skill",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Chat extends HeyApiClient {
+  /**
+   * List general chats
+   *
+   * List standalone general chats backed by hidden workspaces.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      ExperimentalChatListResponses,
+      ExperimentalChatListErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/chat",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create general chat
+   *
+   * Create a standalone general chat backed by a hidden workspace.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExperimentalChatCreateResponses,
+      ExperimentalChatCreateErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/chat",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Delete general chat
+   *
+   * Delete a general chat session and remove its hidden workspace.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      ExperimentalChatDeleteResponses,
+      ExperimentalChatDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/chat/{sessionID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get general chat
+   *
+   * Resolve a general chat session to its hidden backing workspace.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExperimentalChatGetResponses, ExperimentalChatGetErrors, ThrowOnError>({
+      url: "/experimental/chat/{sessionID}",
       ...options,
       ...params,
     })
@@ -1087,6 +1233,11 @@ export class Resource extends HeyApiClient {
 }
 
 export class Experimental extends HeyApiClient {
+  private _chat?: Chat
+  get chat(): Chat {
+    return (this._chat ??= new Chat({ client: this.client }))
+  }
+
   private _workspace?: Workspace
   get workspace(): Workspace {
     return (this._workspace ??= new Workspace({ client: this.client }))

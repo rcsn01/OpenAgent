@@ -11,6 +11,7 @@ import { getFilename } from "@opencode-ai/core/util/path"
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Portal } from "solid-js/web"
+import { useAppRoute } from "@/context/app-route"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -24,6 +25,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
+import { sessionTitle } from "@/utils/session-title"
 import { StatusPopover } from "../status-popover"
 
 const OPEN_APPS = [
@@ -138,15 +140,18 @@ export function SessionHeader() {
   const settings = useSettings()
   const sync = useSync()
   const terminal = useTerminal()
+  const route = useAppRoute()
   const { params, view } = useSessionLayout()
 
-  const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
+  const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
+  const projectDirectory = createMemo(() => (route.isChat() ? "" : decode64(params.dir) ?? ""))
   const project = createMemo(() => {
     const directory = projectDirectory()
     if (!directory) return
     return layout.projects.list().find((p) => p.worktree === directory || p.sandboxes?.includes(directory))
   })
   const name = createMemo(() => {
+    if (route.isChat()) return sessionTitle(info()?.title) ?? language.t("command.session.new")
     const current = project()
     if (current) return current.name || getFilename(current.worktree)
     return getFilename(projectDirectory())
@@ -291,9 +296,11 @@ export function SessionHeader() {
             >
               <div class="flex min-w-0 flex-1 items-center overflow-visible">
                 <span class="flex-1 min-w-0 text-12-regular text-text-weak truncate text-left">
-                  {language.t("session.header.search.placeholder", {
-                    project: name(),
-                  })}
+                  {route.isChat()
+                    ? language.t("session.header.search.placeholder.chat")
+                    : language.t("session.header.search.placeholder", {
+                        project: name(),
+                      })}
                 </span>
               </div>
 

@@ -13,12 +13,13 @@ import {
   type Accessor,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { useLocation, useNavigate, useParams } from "@solidjs/router"
+import { useNavigate } from "@solidjs/router"
+import { useAppRoute } from "@/context/app-route"
+import { type GeneralChatInfo, useGeneralChats } from "@/context/general-chat"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
 import { base64Encode } from "@opencode-ai/core/util/encode"
-import { decode64 } from "@/utils/base64"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Button } from "@opencode-ai/ui/button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
@@ -88,6 +89,8 @@ import { ProjectActionsMenu } from "./layout/project-actions-menu"
 import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
 
+const MIN_SIDEBAR_WIDTH = 160
+
 export default function Layout(props: ParentProps) {
   const [store, setStore, , ready] = persisted(
     Persist.global("layout.page", ["layout.page.v1"]),
@@ -109,7 +112,8 @@ export default function Layout(props: ParentProps) {
   let dialogRun = 0
   let dialogDead = false
 
-  const params = useParams()
+  const appRoute = useAppRoute()
+  const generalChats = useGeneralChats()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const layout = useLayout()
@@ -126,20 +130,6 @@ export default function Layout(props: ParentProps) {
   const command = useCommand()
   const theme = useTheme()
   const language = useLanguage()
-  const initialDirectory = decode64(params.dir)
-  const location = useLocation()
-  const route = createMemo(() => {
-    const slug = params.dir
-    if (!slug) return { slug, dir: "" }
-    const dir = decode64(slug)
-    if (!dir) return { slug, dir: "" }
-    const store = globalSync.peek(dir, { bootstrap: false })
-    return {
-      slug,
-      store,
-      dir: store[0].path.directory || dir,
-    }
-  })
   const availableThemeEntries = createMemo(() => theme.ids().map((id) => [id, theme.themes()[id]] as const))
   const colorSchemeOrder: ColorScheme[] = ["system", "light", "dark"]
   const colorSchemeKey: Record<ColorScheme, "theme.scheme.system" | "theme.scheme.light" | "theme.scheme.dark"> = {
@@ -148,7 +138,11 @@ export default function Layout(props: ParentProps) {
     dark: "theme.scheme.dark",
   }
   const colorSchemeLabel = (scheme: ColorScheme) => language.t(colorSchemeKey[scheme])
-  const currentDir = createMemo(() => route().dir)
+  const currentDir = createMemo(() => appRoute.directory())
+  const currentSessionID = createMemo(() => appRoute.sessionID())
+  const currentGeneralChatID = createMemo(() =>
+    appRoute.isChat() ? appRoute.rootSessionID() ?? currentSessionID() : undefined,
+  )
   const currentConsoleState = createMemo(() => {
     const directory = currentDir()
     if (!directory) return
@@ -156,7 +150,7 @@ export default function Layout(props: ParentProps) {
   })
 
   const [state, setState] = createStore({
-    autoselect: !initialDirectory,
+    autoselect: appRoute.kind() === "none",
     busyWorkspaces: {} as Record<string, boolean>,
     hoverProject: undefined as string | undefined,
     scrollSessionKey: undefined as string | undefined,
@@ -302,10 +296,7 @@ export default function Layout(props: ParentProps) {
 
   createEffect(() => {
     if (!state.autoselect) return
-    const dir = params.dir
-    if (!dir) return
-    const directory = decode64(dir)
-    if (!directory) return
+    if (appRoute.kind() === "none") return
     setState("autoselect", false)
   })
 
@@ -502,7 +493,7 @@ export default function Layout(props: ParentProps) {
           }
         }
 
-        const currentSession = params.id
+        const currentSession = currentSessionID()
         if (pathKey(directory) === pathKey(currentDir()) && props.sessionID === currentSession) return
         if (pathKey(directory) === pathKey(currentDir()) && session?.parentID === currentSession) return
 
@@ -529,7 +520,7 @@ export default function Layout(props: ParentProps) {
       onCleanup(unsub)
 
       createEffect(() => {
-        const currentSession = params.id
+        const currentSession = currentSessionID()
         if (!currentDir() || !currentSession) return
         const sessionKey = `${currentDir()}:${currentSession}`
         dismissSessionAlert(sessionKey)
@@ -705,7 +696,7 @@ export default function Layout(props: ParentProps) {
       seen: lru,
       keep: sessionID,
       limit: PREFETCH_MAX_SESSIONS_PER_DIR,
-      preserve: params.id && pathKey(directory) === pathKey(currentDir()) ? [params.id] : undefined,
+      preserve: currentSessionID() && pathKey(directory) === pathKey(currentDir()) ? [currentSessionID()!] : undefined,
     })
   }
 
@@ -718,7 +709,8 @@ export default function Layout(props: ParentProps) {
   })
 
   createEffect(() => {
-    route()
+    appRoute.slug()
+    currentSessionID()
     globalSDK.url
 
     prefetchToken.value += 1
@@ -911,10 +903,10 @@ export default function Layout(props: ParentProps) {
     const sessions = currentSessions()
     if (sessions.length === 0) return
 
-    const index = params.id ? sessions.findIndex((s) => s.id === params.id) : 0
+    const index = currentSessionID() ? sessions.findIndex((s) => s.id === currentSessionID()) : 0
     if (index === -1) return
 
-    if (!params.id) {
+    if (!currentSessionID()) {
       const first = sessions[index]
       if (first) prefetchSession(first, "high")
     }
@@ -926,7 +918,7 @@ export default function Layout(props: ParentProps) {
     const sessions = currentSessions()
     if (sessions.length === 0) return
 
-    const sessionIndex = params.id ? sessions.findIndex((s) => s.id === params.id) : -1
+    const sessionIndex = currentSessionID() ? sessions.findIndex((s) => s.id === currentSessionID()) : -1
 
     let targetIndex: number
     if (sessionIndex === -1) {
@@ -973,7 +965,7 @@ export default function Layout(props: ParentProps) {
     const hasUnseen = sessions.some((session) => notification.session.unseenCount(session.id) > 0)
     if (!hasUnseen) return
 
-    const activeIndex = params.id ? sessions.findIndex((s) => s.id === params.id) : -1
+    const activeIndex = currentSessionID() ? sessions.findIndex((s) => s.id === currentSessionID()) : -1
     const start = activeIndex === -1 ? (offset > 0 ? -1 : 0) : activeIndex
 
     for (let i = 1; i <= sessions.length; i++) {
@@ -1007,11 +999,11 @@ export default function Layout(props: ParentProps) {
         if (match.found) draft.session.splice(match.index, 1)
       }),
     )
-    if (session.id === params.id) {
+    if (session.id === currentSessionID()) {
       if (nextSession) {
-        navigate(`/${params.dir}/session/${nextSession.id}`)
+        navigateWithSidebarReset(appRoute.href(nextSession.id))
       } else {
-        navigate(`/${params.dir}/session`)
+        navigateWithSidebarReset(appRoute.href())
       }
     }
   }
@@ -1107,9 +1099,9 @@ export default function Layout(props: ParentProps) {
         title: language.t("command.session.archive"),
         category: language.t("command.category.session"),
         keybind: "mod+shift+backspace",
-        disabled: !params.dir || !params.id,
+        disabled: !currentDir() || !currentSessionID(),
         onSelect: () => {
-          const session = currentSessions().find((s) => s.id === params.id)
+          const session = currentSessions().find((s) => s.id === currentSessionID())
           if (session) void archiveSession(session)
         },
       },
@@ -1284,7 +1276,8 @@ export default function Layout(props: ParentProps) {
   }
 
   function sidebarDialogDirectory() {
-    return currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
+    if (!appRoute.isChat() && currentDir()) return currentDir()
+    return currentProject()?.worktree || layout.projects.list()[0]?.worktree
   }
 
   function openSessionList() {
@@ -1296,9 +1289,16 @@ export default function Layout(props: ParentProps) {
           title="Search chats"
           placeholder="Search chats"
           sessions={searchableSessions()}
-          currentID={params.id}
+          currentID={currentSessionID()}
           subtitle={sessionSearchSubtitle}
-          onSelect={(session) => navigateToSession(session)}
+          onSelect={(session) => {
+            const generalChat = generalChatForSession(session)
+            if (generalChat) {
+              openGeneralChat(generalChat.rootSessionID)
+              return
+            }
+            navigateToSession(session)
+          }}
         />
       ))
     })
@@ -1661,7 +1661,7 @@ export default function Layout(props: ParentProps) {
     const current = currentDir()
     const currentKey = pathKey(current)
     const deletedKey = pathKey(directory)
-    const shouldLeave = leaveDeletedWorkspace || (!!params.dir && currentKey === deletedKey)
+    const shouldLeave = leaveDeletedWorkspace || currentKey === deletedKey
     if (!leaveDeletedWorkspace && shouldLeave) {
       navigateWithSidebarReset(`/${base64Encode(root)}/session`)
     }
@@ -1710,7 +1710,7 @@ export default function Layout(props: ParentProps) {
       : [root]
     const valid = dirs.some((item) => pathKey(item) === nextKey)
 
-    if (params.dir && projectRoot(nextCurrent) === root && !valid) {
+    if (nextCurrent && projectRoot(nextCurrent) === root && !valid) {
       navigateWithSidebarReset(`/${base64Encode(root)}/session`)
     }
   }
@@ -1814,7 +1814,7 @@ export default function Layout(props: ParentProps) {
     })
 
     const handleDelete = () => {
-      const leaveDeletedWorkspace = !!params.dir && pathKey(currentDir()) === pathKey(props.directory)
+      const leaveDeletedWorkspace = pathKey(currentDir()) === pathKey(props.directory)
       if (leaveDeletedWorkspace) {
         navigateWithSidebarReset(`/${base64Encode(props.root)}/session`)
       }
@@ -1936,7 +1936,7 @@ export default function Layout(props: ParentProps) {
   createEffect(
     on(
       () => {
-        return [pageReady(), route().slug, params.id, currentProject()?.worktree, currentDir()] as const
+        return [pageReady(), appRoute.slug(), currentSessionID(), currentProject()?.worktree, currentDir()] as const
       },
       ([ready, slug, id, root, dir]) => {
         if (!ready || !slug || !dir) {
@@ -1984,7 +1984,7 @@ export default function Layout(props: ParentProps) {
     document.documentElement.style.setProperty("--dialog-left-margin", `${sidebarWidth}px`)
   })
 
-  const side = createMemo(() => Math.max(layout.sidebar.width(), 244))
+  const side = createMemo(() => Math.max(layout.sidebar.width(), MIN_SIDEBAR_WIDTH))
   const panel = createMemo(() => Math.max(side() - 64, 0))
 
   const loadedSessionDirs = new Set<string>()
@@ -2098,7 +2098,7 @@ export default function Layout(props: ParentProps) {
     }
 
     const activeArchived = sessions.some(
-      (session) => session.id === params.id && pathKey(session.directory) === pathKey(currentDir()),
+      (session) => session.id === currentSessionID() && pathKey(session.directory) === pathKey(currentDir()),
     )
     if (activeArchived) navigateWithSidebarReset(`/${base64Encode(project.worktree)}/session`)
 
@@ -2174,14 +2174,36 @@ export default function Layout(props: ParentProps) {
     dialog.show(() => <DialogArchiveProjectChats project={project} sessions={sessions} />)
   }
 
+  const generalChatSessions = createMemo(() => generalChats.list())
   const searchableSessions = createMemo(() =>
-    layout.projects
-      .list()
-      .flatMap((project) => projectSessions(project))
+    [...generalChatSessions().map((chat) => chat.session), ...layout.projects.list().flatMap((project) => projectSessions(project))]
       .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created)),
   )
 
+  const openGeneralChat = (sessionID?: string) =>
+    navigateWithSidebarReset(sessionID ? `/chat/${encodeURIComponent(sessionID)}` : "/chat")
+
+  const generalChatForSession = (session: Session) =>
+    generalChatSessions().find(
+      (chat) => chat.rootSessionID === session.id || pathKey(chat.directory) === pathKey(session.directory),
+    )
+
+  async function archiveGeneralChat(chat: GeneralChatInfo) {
+    await globalSDK.client.session.update({
+      sessionID: chat.rootSessionID,
+      directory: chat.directory,
+      time: { archived: Date.now() },
+    })
+    generalChats.remove(chat.rootSessionID)
+    if (currentGeneralChatID() === chat.rootSessionID) navigateWithSidebarReset("/chat")
+    showToast({
+      title: language.t("sidebar.chat.archiveSuccessTitle"),
+      description: language.t("sidebar.chat.archiveSuccessDescription"),
+    })
+  }
+
   const sessionSearchSubtitle = (session: Session) => {
+    if (generalChatForSession(session)) return language.t("sidebar.chat.section")
     const root = projectRoot(session.directory)
     const project = layout.projects.list().find((item) => pathKey(item.worktree) === pathKey(root))
     const projectName = project ? displayName(project) : getFilename(root)
@@ -2199,7 +2221,9 @@ export default function Layout(props: ParentProps) {
   })
 
   function openSidebarNewChat() {
-    const directory = currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
+    const directory = appRoute.isChat()
+      ? currentProject()?.worktree || layout.projects.list()[0]?.worktree
+      : currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
     if (!directory) {
       void chooseProject()
       return
@@ -2360,7 +2384,7 @@ export default function Layout(props: ParentProps) {
     const project = panelProps.project
     const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
     const hover = createMemo(() => !panelProps.mobile && panelProps.merged === false && !layout.sidebar.opened())
-    const empty = createMemo(() => !params.dir && layout.projects.list().length === 0)
+    const empty = createMemo(() => appRoute.kind() === "none" && layout.projects.list().length === 0)
     const projectName = createMemo(() => {
       const item = project()
       if (!item) return ""
@@ -2600,9 +2624,22 @@ export default function Layout(props: ParentProps) {
     if (mobile || layout.sidebar.opened()) {
       return (
         <SidebarHub
+          chats={generalChatSessions}
+          currentChatID={currentGeneralChatID}
           projects={projects}
           currentDir={currentDir}
-          currentSessionID={() => params.id}
+          currentSessionID={() => (appRoute.isChat() ? undefined : currentSessionID())}
+          onOpenChat={(chat) => openGeneralChat(chat.rootSessionID)}
+          onArchiveChat={(chat) =>
+            void archiveGeneralChat(chat).catch((err) => {
+              showToast({
+                variant: "error",
+                title: language.t("common.requestFailed"),
+                description: errorMessage(err, language.t("common.requestFailed")),
+              })
+            })
+          }
+          onNewGeneralChat={() => openGeneralChat()}
           getProjectSessions={projectSessions}
           onOpenProject={(project) => void navigateToProject(project.worktree)}
           onOpenProjectNewChat={openProjectNewChat}
@@ -2656,149 +2693,128 @@ export default function Layout(props: ParentProps) {
     )
   }
 
+  const desktopNavWidth = () => (layout.sidebar.opened() ? `${side()}px` : "4rem")
+
   return (
-    <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
+    <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
       {autoselecting() ?? ""}
-      <Titlebar />
-      <div class="flex-1 min-h-0 min-w-0 flex">
-        <div class="flex-1 min-h-0 relative">
-          <div class="size-full relative overflow-x-hidden">
+      <div class="hidden xl:block relative shrink-0 min-h-0 overflow-visible" style={{ width: desktopNavWidth() }}>
+        <div class="size-full relative overflow-visible">
+          <nav
+            aria-label={language.t("sidebar.nav.projectsAndSessions")}
+            data-component="sidebar-nav-desktop"
+            class="absolute inset-0 z-10"
+            ref={(el) => {
+              setState("nav", el)
+            }}
+            onMouseEnter={() => {
+              disarm()
+            }}
+            onMouseLeave={() => {
+              aim.reset()
+              if (!sidebarHovering()) return
+
+              arm()
+            }}
+          >
+            <div class="@container w-full h-full contain-strict">{sidebarContent()}</div>
+          </nav>
+
+          <Show when={layout.sidebar.opened()}>
             <nav
-              aria-label={language.t("sidebar.nav.projectsAndSessions")}
-              data-component="sidebar-nav-desktop"
-              classList={{
-                "hidden xl:block": true,
-                "absolute inset-y-0 left-0": true,
-                "z-10": true,
-              }}
-              style={{ width: `${side()}px` }}
-              ref={(el) => {
-                setState("nav", el)
-              }}
-              onMouseEnter={() => {
-                disarm()
-              }}
-              onMouseLeave={() => {
-                aim.reset()
-                if (!sidebarHovering()) return
-
-                arm()
-              }}
+              class="absolute inset-y-0 right-0 z-30 w-0 overflow-visible"
+              onPointerDown={() => setState("sizing", true)}
             >
-              <div class="@container w-full h-full contain-strict">{sidebarContent()}</div>
-            </nav>
-
-            <Show when={layout.sidebar.opened()}>
-              <div
-                class="hidden xl:block absolute inset-y-0 z-30 w-0 overflow-visible"
-                style={{ left: `${side()}px` }}
-                onPointerDown={() => setState("sizing", true)}
-              >
-                <ResizeHandle
-                  direction="horizontal"
-                  size={layout.sidebar.width()}
-                  min={244}
-                  max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.3 + 64}
-                  onResize={(w) => {
-                    setState("sizing", true)
-                    if (sizet !== undefined) clearTimeout(sizet)
-                    sizet = window.setTimeout(() => setState("sizing", false), 120)
-                    layout.sidebar.resize(w)
-                  }}
-                />
-              </div>
-            </Show>
-
-            <div
-              class="hidden xl:block pointer-events-none absolute top-0 right-0 z-0 border-t border-border-weaker-base"
-              style={{ left: "calc(4rem + 12px)" }}
-            />
-
-            <div class="xl:hidden">
-              <div
-                classList={{
-                  "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
-                  "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
-                  "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
-                }}
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) layout.mobileSidebar.hide()
+              <ResizeHandle
+                direction="horizontal"
+                size={layout.sidebar.width()}
+                min={MIN_SIDEBAR_WIDTH}
+                max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.3 + 64}
+                onResize={(w) => {
+                  setState("sizing", true)
+                  if (sizet !== undefined) clearTimeout(sizet)
+                  sizet = window.setTimeout(() => setState("sizing", false), 120)
+                  layout.sidebar.resize(w)
                 }}
               />
-              <nav
-                aria-label={language.t("sidebar.nav.projectsAndSessions")}
-                data-component="sidebar-nav-mobile"
-                classList={{
-                  "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
-                  "translate-x-0": layout.mobileSidebar.opened(),
-                  "-translate-x-full": !layout.mobileSidebar.opened(),
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {sidebarContent(true)}
-              </nav>
-            </div>
-
+            </nav>
+          </Show>
+        </div>
+      </div>
+      <div class="flex-1 min-h-0 min-w-0 flex flex-col relative">
+        <Titlebar embedded />
+        <div class="flex-1 min-h-0 relative overflow-x-hidden">
+          <div class="xl:hidden">
             <div
               classList={{
-                "absolute inset-0": true,
-                "xl:inset-y-0 xl:right-0 xl:left-[var(--main-left)]": true,
-                "z-20": true,
-                "transition-[left] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[left] motion-reduce:transition-none":
-                  !state.sizing,
+                "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
+                "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
+                "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
               }}
-              style={{
-                "--main-left": layout.sidebar.opened() ? `${side()}px` : "4rem",
+              onClick={(e) => {
+                if (e.target === e.currentTarget) layout.mobileSidebar.hide()
               }}
-            >
-              <main
-                classList={{
-                  "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base xl:border-l xl:rounded-tl-[12px]": true,
-                }}
-              >
-                <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
-                  {props.children}
-                </Show>
-              </main>
-            </div>
-
-            <div
+            />
+            <nav
+              aria-label={language.t("sidebar.nav.projectsAndSessions")}
+              data-component="sidebar-nav-mobile"
               classList={{
-                "hidden xl:flex absolute inset-y-0 left-16 z-30": true,
-                "opacity-100 translate-x-0 pointer-events-auto": state.peeked && !layout.sidebar.opened(),
-                "opacity-0 -translate-x-2 pointer-events-none": !state.peeked || layout.sidebar.opened(),
-                "transition-[opacity,transform] motion-reduce:transition-none": true,
-                "duration-180 ease-out": state.peeked && !layout.sidebar.opened(),
-                "duration-120 ease-in": !state.peeked || layout.sidebar.opened(),
+                "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
+                "translate-x-0": layout.mobileSidebar.opened(),
+                "-translate-x-full": !layout.mobileSidebar.opened(),
               }}
-              onMouseMove={disarm}
-              onMouseEnter={() => {
-                disarm()
-                aim.reset()
-              }}
-              onPointerDown={disarm}
-              onMouseLeave={() => {
-                arm()
-              }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <Show when={peekProject()}>
-                <SidebarPanel project={peekProject} merged={false} />
-              </Show>
-            </div>
+              {sidebarContent(true)}
+            </nav>
+          </div>
 
-            <div
-              classList={{
-                "hidden xl:block pointer-events-none absolute inset-y-0 right-0 z-25 overflow-hidden": true,
-                "opacity-100 translate-x-0": state.peeked && !layout.sidebar.opened(),
-                "opacity-0 -translate-x-2": !state.peeked || layout.sidebar.opened(),
-                "transition-[opacity,transform] motion-reduce:transition-none": true,
-                "duration-180 ease-out": state.peeked && !layout.sidebar.opened(),
-                "duration-120 ease-in": !state.peeked || layout.sidebar.opened(),
-              }}
-              style={{ left: `calc(4rem + ${panel()}px)` }}
-            >
-              <div class="h-full w-px" style={{ "box-shadow": "var(--shadow-sidebar-overlay)" }} />
-            </div>
+          <main
+            classList={{
+              "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base xl:border-l xl:rounded-tl-[12px]": true,
+            }}
+          >
+            <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
+              {props.children}
+            </Show>
+          </main>
+
+          <div
+            classList={{
+              "hidden xl:flex absolute inset-y-0 left-0 z-30": true,
+              "opacity-100 translate-x-0 pointer-events-auto": state.peeked && !layout.sidebar.opened(),
+              "opacity-0 -translate-x-2 pointer-events-none": !state.peeked || layout.sidebar.opened(),
+              "transition-[opacity,transform] motion-reduce:transition-none": true,
+              "duration-180 ease-out": state.peeked && !layout.sidebar.opened(),
+              "duration-120 ease-in": !state.peeked || layout.sidebar.opened(),
+            }}
+            onMouseMove={disarm}
+            onMouseEnter={() => {
+              disarm()
+              aim.reset()
+            }}
+            onPointerDown={disarm}
+            onMouseLeave={() => {
+              arm()
+            }}
+          >
+            <Show when={peekProject()}>
+              <SidebarPanel project={peekProject} merged={false} />
+            </Show>
+          </div>
+
+          <div
+            classList={{
+              "hidden xl:block pointer-events-none absolute inset-y-0 right-0 z-25 overflow-hidden": true,
+              "opacity-100 translate-x-0": state.peeked && !layout.sidebar.opened(),
+              "opacity-0 -translate-x-2": !state.peeked || layout.sidebar.opened(),
+              "transition-[opacity,transform] motion-reduce:transition-none": true,
+              "duration-180 ease-out": state.peeked && !layout.sidebar.opened(),
+              "duration-120 ease-in": !state.peeked || layout.sidebar.opened(),
+            }}
+            style={{ left: `${panel()}px` }}
+          >
+            <div class="h-full w-px" style={{ "box-shadow": "var(--shadow-sidebar-overlay)" }} />
           </div>
         </div>
         {import.meta.env.DEV && <DebugBar />}

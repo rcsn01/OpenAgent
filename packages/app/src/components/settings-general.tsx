@@ -8,7 +8,7 @@ import { TextField } from "@opencode-ai/ui/text-field"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
 import { showToast } from "@opencode-ai/ui/toast"
-import { useParams } from "@solidjs/router"
+import { useAppRoute } from "@/context/app-route"
 import { useLanguage } from "@/context/language"
 import { usePermission } from "@/context/permission"
 import { usePlatform, type DisplayBackend } from "@/context/platform"
@@ -26,7 +26,6 @@ import {
   terminalInput,
   useSettings,
 } from "@/context/settings"
-import { decode64 } from "@/utils/base64"
 import { playSoundById, SOUND_OPTIONS } from "@/utils/sound"
 import { Link } from "./link"
 import { SettingsList } from "./settings-list"
@@ -86,7 +85,7 @@ export const SettingsGeneral: Component = () => {
   const language = useLanguage()
   const permission = usePermission()
   const platform = usePlatform()
-  const params = useParams()
+  const route = useAppRoute()
   const settings = useSettings()
 
   const [store, setStore] = createStore({
@@ -94,30 +93,30 @@ export const SettingsGeneral: Component = () => {
   })
 
   const linux = createMemo(() => platform.platform === "desktop" && platform.os === "linux")
-  const dir = createMemo(() => decode64(params.dir))
+  const dir = createMemo(() => route.directory())
   const accepting = createMemo(() => {
     const value = dir()
     if (!value) return false
-    if (!params.id) return permission.isAutoAcceptingDirectory(value)
-    return permission.isAutoAccepting(params.id, value)
+    if (!route.sessionID()) return permission.isAutoAcceptingDirectory(value)
+    return permission.isAutoAccepting(route.sessionID()!, value)
   })
 
   const toggleAccept = (checked: boolean) => {
     const value = dir()
     if (!value) return
 
-    if (!params.id) {
+    if (!route.sessionID()) {
       if (permission.isAutoAcceptingDirectory(value) === checked) return
       permission.toggleAutoAcceptDirectory(value)
       return
     }
 
     if (checked) {
-      permission.enableAutoAccept(params.id, value)
+      permission.enableAutoAccept(route.sessionID()!, value)
       return
     }
 
-    permission.disableAutoAccept(params.id, value)
+    permission.disableAutoAccept(route.sessionID()!, value)
   }
   const desktop = createMemo(() => platform.platform === "desktop")
 

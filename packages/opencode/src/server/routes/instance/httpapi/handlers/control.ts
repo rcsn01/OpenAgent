@@ -1,5 +1,7 @@
 import { Auth } from "@/auth"
+import { GeneralChat } from "@/general-chat/general-chat"
 import { ProviderID } from "@/provider/schema"
+import { SessionID } from "@/session/schema"
 import * as Log from "@opencode-ai/core/util/log"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
@@ -9,6 +11,7 @@ import { LogInput } from "../groups/control"
 export const controlHandlers = HttpApiBuilder.group(RootHttpApi, "control", (handlers) =>
   Effect.gen(function* () {
     const auth = yield* Auth.Service
+    const generalChat = yield* GeneralChat.Service
 
     const authSet = Effect.fn("ControlHttpApi.authSet")(function* (ctx: {
       params: { providerID: ProviderID }
@@ -29,6 +32,34 @@ export const controlHandlers = HttpApiBuilder.group(RootHttpApi, "control", (han
       return true
     })
 
-    return handlers.handle("authSet", authSet).handle("authRemove", authRemove).handle("log", log)
+    const experimentalChatList = Effect.fn("ControlHttpApi.experimentalChatList")(function* () {
+      return yield* generalChat.list()
+    })
+
+    const experimentalChatCreate = Effect.fn("ControlHttpApi.experimentalChatCreate")(function* () {
+      return yield* generalChat.create()
+    })
+
+    const experimentalChatGet = Effect.fn("ControlHttpApi.experimentalChatGet")(function* (ctx: {
+      params: { sessionID: SessionID }
+    }) {
+      return yield* generalChat.get(ctx.params.sessionID)
+    })
+
+    const experimentalChatDelete = Effect.fn("ControlHttpApi.experimentalChatDelete")(function* (ctx: {
+      params: { sessionID: SessionID }
+    }) {
+      yield* generalChat.delete(ctx.params.sessionID)
+      return true
+    })
+
+    return handlers
+      .handle("authSet", authSet)
+      .handle("authRemove", authRemove)
+      .handle("log", log)
+      .handle("experimentalChatList", experimentalChatList)
+      .handle("experimentalChatCreate", experimentalChatCreate)
+      .handle("experimentalChatGet", experimentalChatGet)
+      .handle("experimentalChatDelete", experimentalChatDelete)
   }),
 )

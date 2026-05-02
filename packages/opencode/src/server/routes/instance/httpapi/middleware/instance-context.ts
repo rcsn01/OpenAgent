@@ -3,6 +3,7 @@ import { AppRuntime } from "@/effect/app-runtime"
 import { InstanceBootstrap } from "@/project/bootstrap"
 import { Instance } from "@/project/instance"
 import type { InstanceContext } from "@/project/instance"
+import { resolveGeneralChatDirectory } from "@/general-chat/shared"
 import { Filesystem } from "@/util/filesystem"
 import { Effect, Layer } from "effect"
 import { HttpRouter, HttpServerResponse } from "effect/unstable/http"
@@ -25,9 +26,9 @@ function decode(input: string): string {
 }
 
 function makeInstanceContext(directory: string): Effect.Effect<InstanceContext> {
-  return Effect.promise(() =>
+  return Effect.promise(async () =>
     Instance.provide({
-      directory: Filesystem.resolve(decode(directory)),
+      directory: Filesystem.resolve(await resolveGeneralChatDirectory(decode(directory))),
       init: () => AppRuntime.runPromise(InstanceBootstrap),
       fn: () => Instance.current,
     }),

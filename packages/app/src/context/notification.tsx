@@ -1,15 +1,14 @@
 import { createStore, reconcile } from "solid-js/store"
 import { batch, createEffect, createMemo, onCleanup } from "solid-js"
-import { useParams } from "@solidjs/router"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { useGlobalSDK } from "./global-sdk"
 import { useGlobalSync } from "./global-sync"
 import { usePlatform } from "@/context/platform"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
+import { useAppRoute } from "./app-route"
 import { Binary } from "@opencode-ai/core/util/binary"
 import { base64Encode } from "@opencode-ai/core/util/encode"
-import { decode64 } from "@/utils/base64"
 import { EventSessionError } from "@opencode-ai/sdk/v2"
 import { Persist, persisted } from "@/utils/persist"
 import { playSoundById } from "@/utils/sound"
@@ -108,7 +107,7 @@ function buildNotificationIndex(list: Notification[]) {
 export const { use: useNotification, provider: NotificationProvider } = createSimpleContext({
   name: "Notification",
   init: () => {
-    const params = useParams()
+    const route = useAppRoute()
     const globalSDK = useGlobalSDK()
     const globalSync = useGlobalSync()
     const platform = usePlatform()
@@ -117,11 +116,8 @@ export const { use: useNotification, provider: NotificationProvider } = createSi
 
     const empty: Notification[] = []
 
-    const currentDirectory = createMemo(() => {
-      return decode64(params.dir)
-    })
-
-    const currentSession = createMemo(() => params.id)
+    const currentDirectory = createMemo(() => route.directory() || undefined)
+    const currentSession = createMemo(() => route.sessionID())
 
     const [store, setStore, _, ready] = persisted(
       Persist.global("notification", ["notification.v1"]),

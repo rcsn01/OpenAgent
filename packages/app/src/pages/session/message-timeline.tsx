@@ -239,7 +239,7 @@ export function MessageTimeline(props: {
   const settings = useSettings()
   const dialog = useDialog()
   const language = useLanguage()
-  const { params, sessionKey } = useSessionKey()
+  const { params, sessionKey, href } = useSessionKey()
   const platform = usePlatform()
 
   const rendered = createMemo(() => props.renderedUserMessages.map((message) => message.id))
@@ -503,14 +503,14 @@ export function MessageTimeline(props: {
   const navigateAfterSessionRemoval = (sessionID: string, parentID?: string, nextSessionID?: string) => {
     if (params.id !== sessionID) return
     if (parentID) {
-      navigate(`/${params.dir}/session/${parentID}`)
+      navigate(href(parentID))
       return
     }
     if (nextSessionID) {
-      navigate(`/${params.dir}/session/${nextSessionID}`)
+      navigate(href(nextSessionID))
       return
     }
-    navigate(`/${params.dir}/session`)
+    navigate(href())
   }
 
   const archiveSession = async (sessionID: string) => {
@@ -603,7 +603,7 @@ export function MessageTimeline(props: {
   const navigateParent = () => {
     const id = parentID()
     if (!id) return
-    navigate(`/${params.dir}/session/${id}`)
+    navigate(href(id))
   }
 
   function DialogDeleteSession(props: { sessionID: string }) {

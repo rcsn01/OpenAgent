@@ -1,10 +1,10 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { checksum } from "@opencode-ai/core/util/encode"
-import { useParams } from "@solidjs/router"
 import { batch, createMemo, createRoot, getOwner, onCleanup } from "solid-js"
 import { createStore, type SetStoreFunction } from "solid-js/store"
 import type { FileSelection } from "@/context/file"
 import { Persist, persisted } from "@/utils/persist"
+import { useAppRoute } from "./app-route"
 
 interface PartBase {
   content: string
@@ -228,7 +228,7 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
   name: "Prompt",
   gate: false,
   init: () => {
-    const params = useParams()
+    const route = useAppRoute()
     const cache = new Map<string, PromptCacheEntry>()
 
     const disposeAll = () => {
@@ -273,7 +273,7 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
       return entry.value
     }
 
-    const session = createMemo(() => load(params.dir!, params.id))
+    const session = createMemo(() => load(route.params().dir, route.sessionID()))
     const pick = (scope?: Scope) => (scope ? load(scope.dir, scope.id) : session())
 
     return {

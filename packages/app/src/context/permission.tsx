@@ -5,8 +5,7 @@ import type { PermissionRequest } from "@opencode-ai/sdk/v2/client"
 import { Persist, persisted } from "@/utils/persist"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "./global-sync"
-import { useParams } from "@solidjs/router"
-import { decode64 } from "@/utils/base64"
+import { useAppRoute } from "./app-route"
 import {
   acceptKey,
   directoryAcceptKey,
@@ -47,12 +46,12 @@ function hasPermissionPromptRules(permission: unknown) {
 export const { use: usePermission, provider: PermissionProvider } = createSimpleContext({
   name: "Permission",
   init: () => {
-    const params = useParams()
+    const route = useAppRoute()
     const globalSDK = useGlobalSDK()
     const globalSync = useGlobalSync()
 
     const permissionsEnabled = createMemo(() => {
-      const directory = decode64(params.dir)
+      const directory = route.directory()
       if (!directory) return false
       const [store] = globalSync.child(directory)
       return hasPermissionPromptRules(store.config.permission)
@@ -84,7 +83,7 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     // When config has permission: "allow", auto-enable directory-level auto-accept
     createEffect(() => {
       if (!ready()) return
-      const directory = decode64(params.dir)
+      const directory = route.directory()
       if (!directory) return
       const [childStore] = globalSync.child(directory)
       const perm = childStore.config.permission

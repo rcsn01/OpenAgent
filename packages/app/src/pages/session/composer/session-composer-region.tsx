@@ -124,7 +124,7 @@ export function SessionComposerRegion(props: {
   const openParent = () => {
     const id = parentID()
     if (!id) return
-    navigate(`/${route.params.dir}/session/${id}`)
+    navigate(route.href(id))
   }
 
   createEffect(() => {

@@ -18,6 +18,7 @@ import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { zod } from "@/util/effect-zod"
 import { NonNegativeInt, optionalOmitUndefined, withStatics } from "@/util/schema"
 import { serviceUse } from "@/effect/service-use"
+import { isGeneralChatDirectory } from "@/general-chat/shared"
 
 const log = Log.create({ service: "project" })
 
@@ -186,6 +187,21 @@ export const layer: Layer.Layer<
 
     const fromDirectory = Effect.fn("Project.fromDirectory")(function* (directory: string) {
       log.info("fromDirectory", { directory })
+
+      if (isGeneralChatDirectory(directory)) {
+        const now = Date.now()
+        const vcs = (yield* fs.exists(pathSvc.join(directory, ".git")).pipe(Effect.orDie)) ? ("git" as const) : fakeVcs
+        return {
+          project: {
+            id: ProjectID.global,
+            worktree: directory,
+            vcs,
+            sandboxes: [],
+            time: { created: now, updated: now },
+          },
+          sandbox: directory,
+        }
+      }
 
       // Phase 1: discover git info
       type DiscoveryResult = { id: ProjectID; worktree: string; sandbox: string; vcs: Info["vcs"] }

@@ -1,11 +1,11 @@
 import { batch, createMemo, createRoot, onCleanup } from "solid-js"
 import { createStore, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import { createSimpleContext } from "@opencode-ai/ui/context"
-import { useParams } from "@solidjs/router"
 import { Persist, persisted } from "@/utils/persist"
 import { createScopedCache } from "@/utils/scoped-cache"
 import { uuid } from "@/utils/uuid"
 import type { SelectedLineRange } from "@/context/file"
+import { useAppRoute } from "./app-route"
 
 export type LineComment = {
   id: string
@@ -199,7 +199,7 @@ export const { use: useComments, provider: CommentsProvider } = createSimpleCont
   name: "Comments",
   gate: false,
   init: () => {
-    const params = useParams()
+    const route = useAppRoute()
     const cache = createScopedCache(
       (key) => {
         const decoded = decodeSessionKey(key)
@@ -221,7 +221,7 @@ export const { use: useComments, provider: CommentsProvider } = createSimpleCont
       return cache.get(key).value
     }
 
-    const session = createMemo(() => load(params.dir!, params.id))
+    const session = createMemo(() => load(route.params().dir, route.sessionID()))
 
     return {
       ready: () => session().ready(),

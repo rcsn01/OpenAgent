@@ -1,8 +1,10 @@
 import { Auth } from "@/auth"
 import { AppRuntime } from "@/effect/app-runtime"
+import { GeneralChat } from "@/general-chat/general-chat"
 import * as Log from "@opencode-ai/core/util/log"
 import { Effect } from "effect"
 import { ProviderID } from "@/provider/schema"
+import { SessionID } from "@/session/schema"
 import { Hono } from "hono"
 import { describeRoute, resolver, validator, openAPIRouteHandler } from "hono-openapi"
 import z from "zod"
@@ -154,6 +156,95 @@ export function ControlPlaneRoutes(): Hono {
             break
         }
 
+        return c.json(true)
+      },
+    )
+    .get(
+      "/experimental/chat",
+      describeRoute({
+        summary: "List general chats",
+        description: "List standalone general chats backed by hidden workspaces.",
+        operationId: "experimental.chat.list",
+        responses: {
+          200: {
+            description: "List of general chats",
+            content: {
+              "application/json": {
+                schema: resolver(GeneralChat.Info.zod.array()),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      async (c) => c.json(await AppRuntime.runPromise(GeneralChat.Service.use((svc) => svc.list()))),
+    )
+    .post(
+      "/experimental/chat",
+      describeRoute({
+        summary: "Create general chat",
+        description: "Create a standalone general chat backed by a hidden workspace.",
+        operationId: "experimental.chat.create",
+        responses: {
+          200: {
+            description: "General chat created",
+            content: {
+              "application/json": {
+                schema: resolver(GeneralChat.Info.zod),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      async (c) => c.json(await AppRuntime.runPromise(GeneralChat.Service.use((svc) => svc.create()))),
+    )
+    .get(
+      "/experimental/chat/:sessionID",
+      describeRoute({
+        summary: "Get general chat",
+        description: "Resolve a general chat session to its hidden backing workspace.",
+        operationId: "experimental.chat.get",
+        responses: {
+          200: {
+            description: "General chat",
+            content: {
+              "application/json": {
+                schema: resolver(GeneralChat.Info.zod),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("param", z.object({ sessionID: SessionID.zod })),
+      async (c) => {
+        const { sessionID } = c.req.valid("param")
+        return c.json(await AppRuntime.runPromise(GeneralChat.Service.use((svc) => svc.get(sessionID))))
+      },
+    )
+    .delete(
+      "/experimental/chat/:sessionID",
+      describeRoute({
+        summary: "Delete general chat",
+        description: "Delete a general chat session and remove its hidden workspace.",
+        operationId: "experimental.chat.delete",
+        responses: {
+          200: {
+            description: "General chat deleted",
+            content: {
+              "application/json": {
+                schema: resolver(z.boolean()),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("param", z.object({ sessionID: SessionID.zod })),
+      async (c) => {
+        const { sessionID } = c.req.valid("param")
+        await AppRuntime.runPromise(GeneralChat.Service.use((svc) => svc.delete(sessionID)))
         return c.json(true)
       },
     )

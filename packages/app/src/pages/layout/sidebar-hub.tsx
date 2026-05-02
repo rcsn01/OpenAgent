@@ -7,6 +7,7 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
+import { type GeneralChatInfo } from "@/context/general-chat"
 import { useLanguage } from "@/context/language"
 import { type LocalProject } from "@/context/layout"
 import { pathKey } from "@/utils/path-key"
@@ -62,6 +63,91 @@ const SidebarAction = (props: {
     <span class="type-prose-md truncate text-text-strong">{props.label}</span>
   </button>
 )
+
+const ChatSection = (props: {
+  chats: Accessor<GeneralChatInfo[]>
+  currentChatID: Accessor<string | undefined>
+  onOpenChat: (chat: GeneralChatInfo) => void
+  onArchiveChat: (chat: GeneralChatInfo) => void
+  onNewChat: () => void
+}) => {
+  const language = useLanguage()
+  const touch = createMediaQuery("(hover: none)")
+
+  return (
+    <div class="space-y-3">
+      <div class="flex items-center justify-between gap-2 px-2">
+        <div class="type-prose-md text-text-weaker">{language.t("sidebar.chat.section")}</div>
+        <Tooltip value={language.t("command.session.new")} placement="top">
+          <IconButton
+            icon="new-session"
+            variant="ghost"
+            class="size-7 rounded-lg text-text-weak hover:text-text-strong"
+            aria-label={language.t("command.session.new")}
+            onClick={props.onNewChat}
+          />
+        </Tooltip>
+      </div>
+      <Show
+        when={props.chats().length > 0}
+        fallback={<div class="type-prose-md px-2 text-text-weaker">{language.t("sidebar.chat.empty")}</div>}
+      >
+        <div class="max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+          <div class="space-y-0.5">
+            <For each={props.chats()}>
+              {(chat) => {
+                const active = () => props.currentChatID() === chat.rootSessionID
+                const title = () => sessionTitle(chat.session.title) || language.t("command.session.new")
+
+                return (
+                  <div
+                    class="group/chat flex items-center gap-2 rounded-2xl px-2 py-1.5 transition-colors hover:bg-surface-base-hover"
+                    classList={{ "bg-surface-base-active": active() }}
+                  >
+                    <button
+                      type="button"
+                      class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      onClick={() => props.onOpenChat(chat)}
+                    >
+                      <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">{title()}</span>
+                      <span class="type-prose-md shrink-0 text-text-weak">
+                        {compactRelativeTime(updatedAt(chat.session))}
+                      </span>
+                    </button>
+                    <div
+                      class="shrink-0 overflow-hidden transition-[width,opacity]"
+                      classList={{
+                        "w-7 opacity-100 pointer-events-auto": !!touch(),
+                        "w-0 opacity-0 pointer-events-none": !touch(),
+                        "group-hover/chat:w-7 group-hover/chat:opacity-100 group-hover/chat:pointer-events-auto": true,
+                        "group-focus-within/chat:w-7 group-focus-within/chat:opacity-100 group-focus-within/chat:pointer-events-auto":
+                          true,
+                      }}
+                    >
+                      <Tooltip value={language.t("common.archive")} placement="top">
+                        <IconButton
+                          icon="archive"
+                          variant="ghost"
+                          class="size-7 rounded-lg text-text-weak hover:text-text-strong"
+                          aria-label={language.t("common.archive")}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            props.onArchiveChat(chat)
+                          }}
+                        />
+                      </Tooltip>
+                    </div>
+                  </div>
+                )
+              }}
+            </For>
+          </div>
+        </div>
+      </Show>
+    </div>
+  )
+}
 
 const ProjectSection = (props: {
   label: string
@@ -135,14 +221,14 @@ const ProjectSection = (props: {
                         icon="new-session"
                         variant="ghost"
                         class="size-7 rounded-lg text-text-weak hover:text-text-strong"
-                          aria-label={language.t("command.session.new")}
-                          onClick={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            props.onOpenProjectNewChat(project)
-                          }}
-                        />
-                      </Tooltip>
+                        aria-label={language.t("command.session.new")}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          props.onOpenProjectNewChat(project)
+                        }}
+                      />
+                    </Tooltip>
                   </div>
                 </div>
 
@@ -195,9 +281,14 @@ const ProjectSection = (props: {
 }
 
 export const SidebarHub = (props: {
+  chats: Accessor<GeneralChatInfo[]>
+  currentChatID: Accessor<string | undefined>
   projects: Accessor<LocalProject[]>
   currentDir: Accessor<string>
   currentSessionID: Accessor<string | undefined>
+  onOpenChat: (chat: GeneralChatInfo) => void
+  onArchiveChat: (chat: GeneralChatInfo) => void
+  onNewGeneralChat: () => void
   getProjectSessions: (project: LocalProject) => Session[]
   onOpenProject: (project: LocalProject) => void
   onOpenProjectNewChat: (project: LocalProject) => void
@@ -232,7 +323,14 @@ export const SidebarHub = (props: {
       </div>
 
       <div class="mt-4 flex-1 min-h-0 overflow-y-auto pr-1 no-scrollbar">
-        <div class="pb-4">
+        <div class="space-y-4 pb-4">
+          <ChatSection
+            chats={props.chats}
+            currentChatID={props.currentChatID}
+            onOpenChat={props.onOpenChat}
+            onArchiveChat={props.onArchiveChat}
+            onNewChat={props.onNewGeneralChat}
+          />
           <Show
             when={props.projects().length > 0}
             fallback={
@@ -290,11 +388,6 @@ export const SidebarHub = (props: {
               />
             </div>
           </Show>
-        </div>
-
-        <div class="border-t border-border-weaker-base pt-4">
-          <div class="type-prose-md px-2 pb-2 text-text-weaker">Chats</div>
-          <div class="type-prose-md px-2 text-text-weaker">No chats</div>
         </div>
       </div>
 

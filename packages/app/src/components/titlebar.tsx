@@ -1,12 +1,13 @@
 import { createEffect, createMemo, Show, untrack } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useLocation, useNavigate, useParams } from "@solidjs/router"
+import { useLocation, useNavigate } from "@solidjs/router"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Button } from "@opencode-ai/ui/button"
 import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { useTheme } from "@opencode-ai/ui/theme/context"
 
+import { useAppRoute } from "@/context/app-route"
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useCommand } from "@/context/command"
@@ -36,20 +37,21 @@ const tauriApi = () => (window as unknown as { __TAURI__?: TauriApi }).__TAURI__
 const currentDesktopWindow = () => tauriApi()?.window?.getCurrentWindow?.()
 const currentThemeWindow = () => tauriApi()?.webviewWindow?.getCurrentWebviewWindow?.()
 
-export function Titlebar() {
+export function Titlebar(props: { embedded?: boolean } = {}) {
   const layout = useLayout()
   const platform = usePlatform()
   const command = useCommand()
   const language = useLanguage()
   const settings = useSettings()
   const theme = useTheme()
+  const route = useAppRoute()
   const navigate = useNavigate()
   const location = useLocation()
-  const params = useParams()
 
   const mac = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   const windows = createMemo(() => platform.platform === "desktop" && platform.os === "windows")
   const web = createMemo(() => platform.platform === "web")
+  const embedded = () => props.embedded ?? false
   const zoom = () => platform.webviewZoom?.() ?? 1
   const minHeight = () => (mac() ? `${40 / zoom()}px` : undefined)
 
@@ -61,11 +63,13 @@ export function Titlebar() {
 
   const path = () => `${location.pathname}${location.search}${location.hash}`
   const creating = createMemo(() => {
-    if (!params.dir) return false
-    if (params.id) return false
+    if (route.kind() === "chat") return !route.sessionID()
+    if (route.kind() !== "workspace") return false
+    if (route.sessionID()) return false
     const parts = location.pathname.replace(/\/+$/, "").split("/")
     return parts.at(-1) === "session"
   })
+  const hasSessionContext = createMemo(() => route.kind() !== "none")
 
   createEffect(() => {
     const current = path()
@@ -178,7 +182,9 @@ export function Titlebar() {
         }}
       >
         <Show when={mac()}>
-          <div class="h-full shrink-0" style={{ width: `${72 / zoom()}px` }} />
+          <Show when={!embedded()}>
+            <div class="h-full shrink-0" style={{ width: `${72 / zoom()}px` }} />
+          </Show>
           <div class="xl:hidden w-10 shrink-0 flex items-center justify-center">
             <IconButton
               icon="menu"
@@ -204,7 +210,7 @@ export function Titlebar() {
         </Show>
         <div class="flex items-center gap-1 shrink-0">
           <TooltipKeybind
-            class={web() ? "hidden xl:flex shrink-0 ml-14" : "hidden xl:flex shrink-0 ml-2"}
+            class={web() && !embedded() ? "hidden xl:flex shrink-0 ml-14" : "hidden xl:flex shrink-0 ml-2"}
             placement="bottom"
             title={language.t("command.sidebar.toggle")}
             keybind={command.keybind("sidebar.toggle")}
@@ -220,7 +226,7 @@ export function Titlebar() {
             </Button>
           </TooltipKeybind>
           <div class="hidden xl:flex items-center shrink-0">
-            <Show when={params.dir}>
+            <Show when={hasSessionContext()}>
               <div
                 class="flex items-center shrink-0 w-8 mr-1"
                 aria-hidden={layout.sidebar.opened() ? "true" : undefined}
@@ -244,10 +250,7 @@ export function Titlebar() {
                       class="titlebar-icon w-8 h-6 p-0 box-border"
                       disabled={layout.sidebar.opened()}
                       tabIndex={layout.sidebar.opened() ? -1 : undefined}
-                      onClick={() => {
-                        if (!params.dir) return
-                        navigate(`/${params.dir}/session`)
-                      }}
+                      onClick={() => navigate(route.href())}
                       aria-label={language.t("command.session.new")}
                       aria-current={creating() ? "page" : undefined}
                     />
@@ -258,7 +261,7 @@ export function Titlebar() {
             <div
               class="flex items-center shrink-0"
               classList={{
-                "-translate-x-[36px]": layout.sidebar.opened() && !!params.dir,
+                "-translate-x-[36px]": layout.sidebar.opened() && hasSessionContext(),
                 "duration-180 ease-out": !layout.sidebar.opened(),
                 "duration-180 ease-in": layout.sidebar.opened(),
               }}

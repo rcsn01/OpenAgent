@@ -30,6 +30,8 @@ import { Dynamic } from "solid-js/web"
 import { CommandProvider } from "@/context/command"
 import { CommentsProvider } from "@/context/comments"
 import { FileProvider } from "@/context/file"
+import { AppRouteProvider } from "@/context/app-route"
+import { GeneralChatProvider } from "@/context/general-chat"
 import { GlobalSDKProvider } from "@/context/global-sdk"
 import { GlobalSyncProvider } from "@/context/global-sync"
 import { HighlightsProvider } from "@/context/highlights"
@@ -42,6 +44,7 @@ import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider } from "@/context/settings"
 import { TerminalProvider } from "@/context/terminal"
+import ChatLayout from "@/pages/chat-layout"
 import DirectoryLayout from "@/pages/directory-layout"
 import Layout from "@/pages/layout"
 import { ErrorPage } from "./pages/error"
@@ -60,6 +63,12 @@ const SessionRoute = () => (
   <SessionProviders>
     <Session />
   </SessionProviders>
+)
+
+const ChatRoute = () => (
+  <ChatLayout>
+    <SessionRoute />
+  </ChatLayout>
 )
 
 const SessionIndexRoute = () => <Navigate href="session" />
@@ -100,15 +109,17 @@ function AppShellProviders(props: ParentProps) {
     <SettingsProvider>
       <PermissionProvider>
         <LayoutProvider>
-          <NotificationProvider>
-            <ModelsProvider>
-              <CommandProvider>
-                <HighlightsProvider>
-                  <Layout>{props.children}</Layout>
-                </HighlightsProvider>
-              </CommandProvider>
-            </ModelsProvider>
-          </NotificationProvider>
+          <GeneralChatProvider>
+            <NotificationProvider>
+              <ModelsProvider>
+                <CommandProvider>
+                  <HighlightsProvider>
+                    <Layout>{props.children}</Layout>
+                  </HighlightsProvider>
+                </CommandProvider>
+              </ModelsProvider>
+            </NotificationProvider>
+          </GeneralChatProvider>
         </LayoutProvider>
       </PermissionProvider>
     </SettingsProvider>
@@ -129,12 +140,14 @@ function SessionProviders(props: ParentProps) {
 
 function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
   return (
-    <AppShellProviders>
-      {/*<Suspense fallback={<Loading />}>*/}
-      {props.appChildren}
-      {props.children}
-      {/*</Suspense>*/}
-    </AppShellProviders>
+    <AppRouteProvider>
+      <AppShellProviders>
+        {/*<Suspense fallback={<Loading />}>*/}
+        {props.appChildren}
+        {props.children}
+        {/*</Suspense>*/}
+      </AppShellProviders>
+    </AppRouteProvider>
   )
 }
 
@@ -315,6 +328,7 @@ export function AppInterface(props: {
                   root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
                 >
                   <Route path="/" component={HomeRoute} />
+                  <Route path="/chat/:id?" component={ChatRoute} />
                   <Route path="/:dir" component={DirectoryLayout}>
                     <Route path="/" component={SessionIndexRoute} />
                     <Route path="/session/:id?" component={SessionRoute} />

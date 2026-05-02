@@ -16,6 +16,12 @@ import {
   BackgroundTaskGetTool,
   BackgroundTaskListTool,
 } from "../../src/tool/background_task_manage"
+import { BackgroundTaskGraphTool } from "../../src/tool/background_task_graph"
+import {
+  BackgroundTaskGraphCancelTool,
+  BackgroundTaskGraphGetTool,
+  BackgroundTaskGraphListTool,
+} from "../../src/tool/background_task_graph_manage"
 import { BackgroundTaskTool } from "../../src/tool/background_task"
 import { TaskTool, type TaskPromptOps } from "../../src/tool/task"
 import { Truncate } from "@/tool/truncate"
@@ -216,6 +222,37 @@ describe("tool.task", () => {
           },
         },
       },
+    ),
+  )
+
+  it.live("build agent does not receive graph tools while assistant does", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const agent = yield* Agent.Service
+        const build = yield* agent.get("build")
+        const assistant = yield* agent.get("assistant")
+        const registry = yield* ToolRegistry.Service
+        const buildIDs = new Set((yield* registry.tools({ ...ref, agent: build })).map((tool) => tool.id))
+        const assistantIDs = new Set((yield* registry.tools({ ...ref, agent: assistant })).map((tool) => tool.id))
+
+        expect(buildIDs.has(BackgroundTaskTool.id)).toBe(false)
+        expect(buildIDs.has(BackgroundTaskGraphTool.id)).toBe(false)
+        expect(buildIDs.has(BackgroundTaskListTool.id)).toBe(false)
+        expect(buildIDs.has(BackgroundTaskGetTool.id)).toBe(false)
+        expect(buildIDs.has(BackgroundTaskCancelTool.id)).toBe(false)
+        expect(buildIDs.has(BackgroundTaskGraphListTool.id)).toBe(false)
+        expect(buildIDs.has(BackgroundTaskGraphGetTool.id)).toBe(false)
+        expect(buildIDs.has(BackgroundTaskGraphCancelTool.id)).toBe(false)
+
+        expect(assistantIDs.has(BackgroundTaskTool.id)).toBe(true)
+        expect(assistantIDs.has(BackgroundTaskGraphTool.id)).toBe(true)
+        expect(assistantIDs.has(BackgroundTaskListTool.id)).toBe(true)
+        expect(assistantIDs.has(BackgroundTaskGetTool.id)).toBe(true)
+        expect(assistantIDs.has(BackgroundTaskCancelTool.id)).toBe(true)
+        expect(assistantIDs.has(BackgroundTaskGraphListTool.id)).toBe(true)
+        expect(assistantIDs.has(BackgroundTaskGraphGetTool.id)).toBe(true)
+        expect(assistantIDs.has(BackgroundTaskGraphCancelTool.id)).toBe(true)
+      }),
     ),
   )
 

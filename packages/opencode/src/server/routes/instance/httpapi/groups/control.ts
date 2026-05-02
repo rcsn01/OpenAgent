@@ -1,5 +1,7 @@
 import { Auth } from "@/auth"
+import { GeneralChat } from "@/general-chat/general-chat"
 import { ProviderID } from "@/provider/schema"
+import { SessionID } from "@/session/schema"
 import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { described } from "./metadata"
@@ -30,6 +32,8 @@ export const LogInput = Schema.Struct({
 export const ControlPaths = {
   auth: "/auth/:providerID",
   log: "/log",
+  experimentalChat: "/experimental/chat",
+  experimentalChatByID: "/experimental/chat/:sessionID",
 } as const
 
 export const ControlApi = HttpApi.make("control").add(
@@ -68,6 +72,46 @@ export const ControlApi = HttpApi.make("control").add(
           identifier: "app.log",
           summary: "Write log",
           description: "Write a log entry to the server logs with specified level and metadata.",
+        }),
+      ),
+      HttpApiEndpoint.get("experimentalChatList", ControlPaths.experimentalChat, {
+        success: described(Schema.Array(GeneralChat.Info), "List of general chats"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.chat.list",
+          summary: "List general chats",
+          description: "List standalone general chats backed by hidden workspaces.",
+        }),
+      ),
+      HttpApiEndpoint.post("experimentalChatCreate", ControlPaths.experimentalChat, {
+        success: described(GeneralChat.Info, "General chat created"),
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.chat.create",
+          summary: "Create general chat",
+          description: "Create a standalone general chat backed by a hidden workspace.",
+        }),
+      ),
+      HttpApiEndpoint.get("experimentalChatGet", ControlPaths.experimentalChatByID, {
+        params: Schema.Struct({ sessionID: SessionID }),
+        success: described(GeneralChat.Info, "General chat"),
+        error: HttpApiError.BadRequest,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.chat.get",
+          summary: "Get general chat",
+          description: "Resolve a general chat session to its hidden backing workspace.",
+        }),
+      ),
+      HttpApiEndpoint.delete("experimentalChatDelete", ControlPaths.experimentalChatByID, {
+        params: Schema.Struct({ sessionID: SessionID }),
+        success: described(Schema.Boolean, "General chat deleted"),
+        error: HttpApiError.BadRequest,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "experimental.chat.delete",
+          summary: "Delete general chat",
+          description: "Delete a general chat session and remove its hidden workspace.",
         }),
       ),
     )

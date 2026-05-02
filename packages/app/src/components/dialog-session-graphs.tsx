@@ -6,14 +6,18 @@ import { base64Encode } from "@opencode-ai/core/util/encode"
 import { useNavigate } from "@solidjs/router"
 import { useQuery } from "@tanstack/solid-query"
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js"
+import { useAppRoute } from "@/context/app-route"
 import { useSDK } from "@/context/sdk"
+import { pathKey } from "@/utils/path-key"
 
 export function DialogSessionGraphs(props: { sessionID: string; directory?: string }) {
   const dialog = useDialog()
   const navigate = useNavigate()
+  const route = useAppRoute()
   const sdk = useSDK()
   const [graphID, setGraphID] = createSignal<string>()
   const [nodeID, setNodeID] = createSignal<string>()
+  const directory = createMemo(() => props.directory ?? sdk.directory)
 
   const query = useQuery(() => ({
     queryKey: [props.directory ?? sdk.directory, props.sessionID, "session", "graphs"],
@@ -51,7 +55,11 @@ export function DialogSessionGraphs(props: { sessionID: string; directory?: stri
       })
       return
     }
-    navigate(`/${base64Encode(props.directory ?? sdk.directory)}/session/${sessionID}`)
+    if (route.isChat() && pathKey(route.directory()) === pathKey(directory())) {
+      navigate(route.href(sessionID))
+    } else {
+      navigate(`/${base64Encode(directory())}/session/${sessionID}`)
+    }
     dialog.close()
   }
 

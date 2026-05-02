@@ -13,6 +13,7 @@ import * as Observability from "@opencode-ai/core/effect/observability"
 import { File } from "@/file"
 import { Ripgrep } from "@/file/ripgrep"
 import { Format } from "@/format"
+import { GeneralChat } from "@/general-chat/general-chat"
 import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
 import { Permission } from "@/permission"
@@ -143,6 +144,7 @@ export function createRoutes(corsOptions?: CorsOptions) {
       Config.defaultLayer,
       File.defaultLayer,
       Format.defaultLayer,
+      GeneralChat.defaultLayer,
       LSP.defaultLayer,
       Installation.defaultLayer,
       MCP.defaultLayer,
