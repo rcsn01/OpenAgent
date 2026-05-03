@@ -3097,3 +3097,10 @@ INFO  2026-05-03T01:48:00 +0ms service=bus type=file.watcher.updated publishing
 INFO  2026-05-03T01:48:01 +1588ms service=bus type=file.watcher.updated publishing
 INFO  2026-05-03T01:48:01 +90ms service=bus type=file.watcher.updated publishing
 INFO  2026-05-03T01:48:10 +8721ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T01:48:10 +134ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T01:48:10 +0ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T01:48:10 +0ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T01:48:10 +0ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T01:48:45 +34986ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T01:48:45 +87ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T01:48:56 +10964ms service=bus type=file.watcher.updated publishing

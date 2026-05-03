@@ -242,7 +242,7 @@ const ProjectSection = (props: {
                   >
                     <For each={visible()}>
                       {(session) => {
-                        const active =
+                        const active = () =>
                           props.currentSessionID() === session.id &&
                           pathKey(props.currentDir()) === pathKey(session.directory)
 
@@ -250,7 +250,7 @@ const ProjectSection = (props: {
                           <button
                             type="button"
                             class="flex w-full items-center gap-2 rounded-2xl px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover"
-                            classList={{ "bg-surface-base-active": active }}
+                            classList={{ "bg-surface-base-active": active() }}
                             onClick={() => props.onOpenSession(session)}
                           >
                             <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
