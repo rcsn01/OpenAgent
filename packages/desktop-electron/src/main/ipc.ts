@@ -23,6 +23,7 @@ import type {
 import {
   appendSpeechCaptureSamples,
   beginSpeechCaptureChunk,
+  beginSpeechCaptureTurn,
   installSpeechModel,
   listSpeechModels,
   prepareSpeechTranscription,
@@ -30,6 +31,7 @@ import {
   stopSpeechCaptureSession,
   transcribeSpeech,
   transcribeSpeechCaptureChunk,
+  transcribeSpeechCaptureTurn,
 } from "./speech"
 import { getStore } from "./store"
 import { setTitlebar } from "./windows"
@@ -108,8 +110,14 @@ export function registerIpcHandlers(deps: Deps) {
   ipcMain.handle("begin-speech-capture-chunk", (_event: IpcMainInvokeEvent, sessionId: string) =>
     beginSpeechCaptureChunk(sessionId),
   )
+  ipcMain.handle("begin-speech-capture-turn", (_event: IpcMainInvokeEvent, sessionId: string) =>
+    beginSpeechCaptureTurn(sessionId),
+  )
   ipcMain.handle("transcribe-speech-capture-chunk", (_event: IpcMainInvokeEvent, input: SpeechCaptureChunkInput) =>
     transcribeSpeechCaptureChunk(input) as Promise<SpeechTranscription>,
+  )
+  ipcMain.handle("transcribe-speech-capture-turn", (_event: IpcMainInvokeEvent, input: SpeechCaptureChunkInput) =>
+    transcribeSpeechCaptureTurn(input) as Promise<SpeechTranscription>,
   )
   ipcMain.handle("stop-speech-capture-session", (_event: IpcMainInvokeEvent, sessionId: string) =>
     stopSpeechCaptureSession(sessionId),

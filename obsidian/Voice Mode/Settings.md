@@ -27,10 +27,12 @@ Both qualities require downloading the model files first.
 |--------|---------------|--------------|-------------|
 | Short | 800 ms | 2200 ms | Quick back-and-forth |
 | Normal | 1200 ms | 3200 ms | Natural speech pauses |
-| Long | 1600 ms | 4200 ms | Thinking out loud |
+| Long | 2600 ms | 8000 ms | Dictating multi-part requests with long thinking pauses |
 
 `baseSilenceMs` = soft flush threshold (when to finalize a chunk for transcription)
 `maxSilenceMs` = hard cutoff (when to consider the turn complete)
+
+Older `Long` settings of `1600 / 4200 ms` are migrated to `2600 / 8000 ms`.
 
 ## Audio Settings
 

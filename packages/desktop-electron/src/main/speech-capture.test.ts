@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test"
 import {
   appendSpeechCaptureSamples,
   beginSpeechCaptureChunk,
+  beginSpeechCaptureTurn,
   createSpeechCaptureSessionState,
   SPEECH_CAPTURE_SAMPLE_RATE,
   takeSpeechCaptureChunk,
+  takeSpeechCaptureTurn,
 } from "./speech-capture"
 
 const constantSamples = (durationMs: number, sampleRate: number, value: number) =>
@@ -31,6 +33,23 @@ describe("speech capture", () => {
     const chunk = takeSpeechCaptureChunk(state)
     expect(chunk?.originalDurationMs).toBe(450)
     expect(chunk?.audio.byteLength).toBe(44 + SPEECH_CAPTURE_SAMPLE_RATE * 2)
+  })
+
+  test("keeps a full turn across multiple chunk transcriptions", () => {
+    const state = createSpeechCaptureSessionState()
+    appendSpeechCaptureSamples(state, constantSamples(150, 48000, 0.25), 48000)
+    beginSpeechCaptureTurn(state)
+    beginSpeechCaptureChunk(state)
+    appendSpeechCaptureSamples(state, constantSamples(300, 48000, 0.5), 48000)
+    expect(takeSpeechCaptureChunk(state)?.originalDurationMs).toBe(450)
+
+    beginSpeechCaptureChunk(state)
+    appendSpeechCaptureSamples(state, constantSamples(500, 48000, 0.75), 48000)
+    expect(takeSpeechCaptureChunk(state)?.originalDurationMs).toBe(750)
+
+    const turn = takeSpeechCaptureTurn(state)
+    expect(turn?.originalDurationMs).toBe(950)
+    expect(turn?.audio.byteLength).toBe(44 + SPEECH_CAPTURE_SAMPLE_RATE * 2)
   })
 
   test("drops clips that are still too short before padding", () => {

@@ -4,10 +4,12 @@ function clamp(value: number, min: number, max: number) {
 
 const fillerPattern = /\b(?:uh|uhh+|um|umm+|er|err+|ah|ahh+|hmm+|mm+)\s*[.?!…]*$/i
 const connectorPattern = /\b(?:and|but|so|because|or|if|then|well)\s*[.?!…]*$/i
-const completePattern = /(?:[.!?]["')\]]?\s*$|\b(?:done|finished|that's it|that is it|thank you|thanks)\s*$)/i
+const punctuationPattern = /[.!?]["')\]]?\s*$/i
+const explicitCompletePattern = /\b(?:done|finished|that's it|that is it|thank you|thanks)\s*[.?!…]*$/i
 const MIN_TRANSCRIPT_STABLE_MS = 700
 const MIN_AUTO_SUBMIT_SILENCE_MS = 1800
 const DEFAULT_EXTRA_HOLD_MS = 450
+const PUNCTUATION_EXTRA_HOLD_MS = 700
 
 export type VoiceEndpointInput = {
   transcript: string
@@ -19,13 +21,14 @@ export type VoiceEndpointInput = {
 
 export function computeVoiceEndpointHoldMs(input: Omit<VoiceEndpointInput, "silenceMs">) {
   const transcript = input.transcript.trim()
-  const complete = completePattern.test(transcript)
-  let holdMs = input.baseSilenceMs + DEFAULT_EXTRA_HOLD_MS
+  const explicitlyComplete = explicitCompletePattern.test(transcript)
+  let holdMs = Math.max(input.baseSilenceMs + DEFAULT_EXTRA_HOLD_MS, input.baseSilenceMs * 2)
 
   if (fillerPattern.test(transcript)) holdMs += 1000
   else if (connectorPattern.test(transcript)) holdMs += 700
+  else if (!explicitlyComplete && punctuationPattern.test(transcript)) holdMs += PUNCTUATION_EXTRA_HOLD_MS
 
-  if (!complete && input.transcriptStableMs < 1100) holdMs += 250
+  if (!explicitlyComplete && input.transcriptStableMs < 1100) holdMs += 250
   if (input.transcriptStableMs < MIN_TRANSCRIPT_STABLE_MS) holdMs += 200
 
   return clamp(holdMs, MIN_AUTO_SUBMIT_SILENCE_MS, input.maxSilenceMs)

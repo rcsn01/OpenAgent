@@ -19,8 +19,10 @@ import type {
 import {
   appendSpeechCaptureSamples as appendCaptureSamples,
   beginSpeechCaptureChunk as beginCaptureChunk,
+  beginSpeechCaptureTurn as beginCaptureTurn,
   createSpeechCaptureSessionState,
   takeSpeechCaptureChunk,
+  takeSpeechCaptureTurn,
   type SpeechCaptureSessionState,
 } from "./speech-capture"
 import { emitSpeechCaptureLevel, startMacOSSpeechCapture, transcribeWithAppleSpeech } from "./speech-macos"
@@ -572,10 +574,31 @@ export function beginSpeechCaptureChunk(sessionId: string) {
   beginCaptureChunk(session.state)
 }
 
+export function beginSpeechCaptureTurn(sessionId: string) {
+  const session = speechCaptureSessions.get(sessionId)
+  if (!session) return
+  beginCaptureTurn(session.state)
+}
+
 export async function transcribeSpeechCaptureChunk(input: SpeechCaptureChunkInput) {
   const session = speechCaptureSessions.get(input.sessionId)
   if (!session) return { text: "" }
   const clip = takeSpeechCaptureChunk(session.state)
+  if (!clip) return { text: "" }
+  return transcribeSpeech({
+    audio: clip.audio,
+    mimeType: "audio/wav",
+    model: input.model,
+    quality: input.quality,
+    originalDurationMs: clip.originalDurationMs,
+    promptTerms: input.promptTerms,
+  })
+}
+
+export async function transcribeSpeechCaptureTurn(input: SpeechCaptureChunkInput) {
+  const session = speechCaptureSessions.get(input.sessionId)
+  if (!session) return { text: "" }
+  const clip = takeSpeechCaptureTurn(session.state)
   if (!clip) return { text: "" }
   return transcribeSpeech({
     audio: clip.audio,

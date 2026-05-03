@@ -229,6 +229,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       setStore("voice", "maxSilenceMs", defaultVoiceMaxSilenceMs)
     })
 
+    createEffect(() => {
+      if ((store.voice?.baseSilenceMs ?? defaultVoiceBaseSilenceMs) !== 1600) return
+      if ((store.voice?.maxSilenceMs ?? defaultVoiceMaxSilenceMs) !== 4200) return
+      setStore("voice", "baseSilenceMs", 2600)
+      setStore("voice", "maxSilenceMs", 8000)
+    })
+
     return {
       ready,
       get current() {

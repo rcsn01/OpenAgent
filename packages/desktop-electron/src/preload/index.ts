@@ -78,7 +78,9 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener("speech-capture-level", handler)
   },
   beginSpeechCaptureChunk: (sessionId) => ipcRenderer.invoke("begin-speech-capture-chunk", sessionId),
+  beginSpeechCaptureTurn: (sessionId) => ipcRenderer.invoke("begin-speech-capture-turn", sessionId),
   transcribeSpeechCaptureChunk: (input) => ipcRenderer.invoke("transcribe-speech-capture-chunk", input),
+  transcribeSpeechCaptureTurn: (input) => ipcRenderer.invoke("transcribe-speech-capture-turn", input),
   stopSpeechCaptureSession: (sessionId) => ipcRenderer.invoke("stop-speech-capture-session", sessionId),
   transcribeSpeech: (input) => ipcRenderer.invoke("transcribe-speech", input),
 }

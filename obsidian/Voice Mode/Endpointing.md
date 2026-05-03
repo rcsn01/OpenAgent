@@ -9,18 +9,19 @@ The system tries to distinguish a mid-sentence pause from a completed thought, s
 Core formula from `voice-endpoint.ts`:
 
 ```ts
-holdMs = baseSilenceMs + DEFAULT_EXTRA_HOLD_MS
-  + (filler ? 1000 : connector ? 700 : 0)
-  + (!complete && stableMs < 1100 ? 250 : 0)
+holdMs = max(baseSilenceMs + DEFAULT_EXTRA_HOLD_MS, baseSilenceMs * 2)
+  + (filler ? 1000 : connector ? 700 : punctuation ? 700 : 0)
+  + (!explicitlyComplete && stableMs < 1100 ? 250 : 0)
   + (stableMs < MIN_TRANSCRIPT_STABLE_MS ? 200 : 0)
 
 autoSubmit = silenceMs >= holdMs && stableMs >= MIN_TRANSCRIPT_STABLE_MS
 ```
 
 Where:
-- `baseSilenceMs` = user setting (800–1600 ms)
+- `baseSilenceMs` = user setting (800–2600 ms)
 - `DEFAULT_EXTRA_HOLD_MS` = 450 ms
 - `MIN_TRANSCRIPT_STABLE_MS` = 700 ms
+- punctuation is treated as suspicious ASR output, not proof that the user is done
 
 ## Clamping
 
@@ -49,19 +50,27 @@ Examples ending with these trigger a longer wait because the user is likely stil
 
 These suggest the sentence is incomplete — more words likely follow.
 
-### Completion Signals (reduce hold time)
+### Punctuation (add 700 ms)
 
 ```ts
-/(?:[.!?]["')\]]?\s*$|\b(?:done|finished|that\'s it|that is it|thank you|thanks)\s*$)/i
+/[.!?]["')\]]?\s*$/i
 ```
 
-Punctuation or explicit completion words suggest the user is done speaking.
+ASR often inserts punctuation mid-thought. A period therefore increases the hold window instead of shortening it.
+
+### Explicit Completion Signals
+
+```ts
+/\b(?:done|finished|that\'s it|that is it|thank you|thanks)\s*[.?!…]*$/i
+```
+
+Only explicit completion words count as the user saying they are done.
 
 ## Transcript Stability
 
 The transcript is considered "stable" when no new transcription result has arrived recently (`transcriptStableMs`). Two stability gates:
 
-- If stable for less than 1100 ms and not complete → +250 ms
+- If stable for less than 1100 ms and not explicitly complete → +250 ms
 - If stable for less than 700 ms → +200 ms
 
 Both conditions can stack.
@@ -72,23 +81,24 @@ Both conditions can stack.
 |--------|---------------|--------------|-----------|
 | Short | 800 ms | 2200 ms | Quick back-and-forth |
 | Normal | 1200 ms | 3200 ms | Natural pauses |
-| Long | 1600 ms | 4200 ms | Thinking out loud |
+| Long | 2600 ms | 8000 ms | Long thinking pauses / multi-part dictation |
 
 ## Example Scenarios
 
 | Input ending | Complete? | Filler? | Connector? | Hold time (base=1200) |
 |-------------|-----------|---------|------------|----------------------|
-| "open the file." | yes | no | no | ~1650 ms |
-| "open the file and" | no | no | yes | ~2350 ms |
-| "open the file ummm" | no | yes | no | ~2650 ms |
-| "that works" | no | no | no | ~1900 ms |
-| "done" | yes | no | no | ~1650 ms |
+| "open the file." | no | no | no | ~3100 ms |
+| "open the file and" | no | no | yes | ~3100 ms |
+| "open the file ummm" | no | yes | no | ~3400 ms |
+| "that works" | no | no | no | ~2400 ms |
+| "done" | yes | no | no | ~2400 ms |
 
 ## Testing
 
 See `voice-endpoint.test.ts` for coverage of:
 - Filler words increase hold time over normal endings
-- Complete utterances submit faster than connectors
+- ASR punctuation does not cause early submit
+- Explicit completion phrases are distinct from punctuation
 - Both transcript stability and silence are required
 - Mid-sentence pauses are held open
 

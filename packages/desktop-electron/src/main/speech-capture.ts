@@ -14,6 +14,9 @@ export type SpeechCaptureSessionState = {
   active_chunk_buffers: Float32Array[]
   active_chunk_frames: number
   capturing: boolean
+  active_turn_buffers: Float32Array[]
+  active_turn_frames: number
+  capturing_turn: boolean
 }
 
 const writeAscii = (view: DataView, offset: number, value: string) => {
@@ -111,6 +114,9 @@ export function createSpeechCaptureSessionState() {
     active_chunk_buffers: [],
     active_chunk_frames: 0,
     capturing: false,
+    active_turn_buffers: [],
+    active_turn_frames: 0,
+    capturing_turn: false,
   } satisfies SpeechCaptureSessionState
 }
 
@@ -118,9 +124,27 @@ export function appendSpeechCaptureSamples(state: SpeechCaptureSessionState, sam
   const normalized = resampleMonoBuffer(samples, inputSampleRate)
   if (normalized.length === 0) return
   appendRingBuffer(state, normalized)
+  if (state.capturing_turn) {
+    state.active_turn_buffers.push(normalized)
+    state.active_turn_frames += normalized.length
+  }
   if (!state.capturing) return
   state.active_chunk_buffers.push(normalized)
   state.active_chunk_frames += normalized.length
+}
+
+export function beginSpeechCaptureTurn(state: SpeechCaptureSessionState) {
+  if (state.capturing_turn) return
+  const preRoll = sliceLastFrames(state, state.pre_roll_frames)
+  state.active_turn_buffers = preRoll.length ? [preRoll] : []
+  state.active_turn_frames = preRoll.length
+  state.capturing_turn = true
+}
+
+export function clearSpeechCaptureTurn(state: SpeechCaptureSessionState) {
+  state.active_turn_buffers = []
+  state.active_turn_frames = 0
+  state.capturing_turn = false
 }
 
 export function beginSpeechCaptureChunk(state: SpeechCaptureSessionState) {
@@ -146,6 +170,22 @@ export function takeSpeechCaptureChunk(state: SpeechCaptureSessionState) {
     offset += buffer.length
   }
   clearSpeechCaptureChunk(state)
+  if (samples.length === 0 || originalDurationMs < MIN_SPEECH_CAPTURE_MS) return
+  return {
+    audio: encodeWave(ensureMinimumChunkDuration(samples), SPEECH_CAPTURE_SAMPLE_RATE),
+    originalDurationMs,
+  }
+}
+
+export function takeSpeechCaptureTurn(state: SpeechCaptureSessionState) {
+  const originalDurationMs = Math.round((state.active_turn_frames * 1000) / SPEECH_CAPTURE_SAMPLE_RATE)
+  const samples = new Float32Array(state.active_turn_frames)
+  let offset = 0
+  for (const buffer of state.active_turn_buffers) {
+    samples.set(buffer, offset)
+    offset += buffer.length
+  }
+  clearSpeechCaptureTurn(state)
   if (samples.length === 0 || originalDurationMs < MIN_SPEECH_CAPTURE_MS) return
   return {
     audio: encodeWave(ensureMinimumChunkDuration(samples), SPEECH_CAPTURE_SAMPLE_RATE),

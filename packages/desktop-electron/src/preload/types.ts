@@ -151,7 +151,9 @@ export type ElectronAPI = {
   appendSpeechCaptureSamples: (input: SpeechCaptureSamplesInput) => void
   onSpeechCaptureLevel: (cb: (event: SpeechCaptureLevelEvent) => void) => () => void
   beginSpeechCaptureChunk: (sessionId: string) => Promise<void>
+  beginSpeechCaptureTurn: (sessionId: string) => Promise<void>
   transcribeSpeechCaptureChunk: (input: SpeechCaptureChunkInput) => Promise<SpeechTranscription>
+  transcribeSpeechCaptureTurn: (input: SpeechCaptureChunkInput) => Promise<SpeechTranscription>
   stopSpeechCaptureSession: (sessionId: string) => Promise<void>
   transcribeSpeech: (input: SpeechTranscriptionInput) => Promise<SpeechTranscription>
 }

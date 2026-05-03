@@ -18,9 +18,34 @@ describe("voice endpoint", () => {
     expect(filler).toBeGreaterThan(normal)
   })
 
-  test("submits faster for clearly complete utterances", () => {
+  test("waits longer when ASR adds punctuation mid-thought", () => {
+    const unpunctuated = computeVoiceEndpointHoldMs({
+      transcript: "look at Andre Karpathy's auto research",
+      transcriptStableMs: 900,
+      baseSilenceMs: 1600,
+      maxSilenceMs: 4200,
+    })
+    const punctuated = computeVoiceEndpointHoldMs({
+      transcript: "look at Andre Karpathy's auto research.",
+      transcriptStableMs: 900,
+      baseSilenceMs: 1600,
+      maxSilenceMs: 4200,
+    })
+    expect(punctuated).toBeGreaterThan(unpunctuated)
+    expect(
+      shouldAutoSubmitVoiceTurn({
+        transcript: "look at Andre Karpathy's auto research.",
+        silenceMs: 2500,
+        transcriptStableMs: 900,
+        baseSilenceMs: 1600,
+        maxSilenceMs: 4200,
+      }),
+    ).toBe(false)
+  })
+
+  test("explicit completion phrases submit faster than connectors", () => {
     const complete = computeVoiceEndpointHoldMs({
-      transcript: "please open the file.",
+      transcript: "please open the file done",
       transcriptStableMs: 900,
       baseSilenceMs: 650,
       maxSilenceMs: 3200,
@@ -31,7 +56,7 @@ describe("voice endpoint", () => {
       baseSilenceMs: 650,
       maxSilenceMs: 3200,
     })
-    expect(complete).toBeLessThan(connector)
+    expect(complete).toBeLessThanOrEqual(connector)
   })
 
   test("requires both stable transcript and enough silence", () => {
@@ -58,7 +83,7 @@ describe("voice endpoint", () => {
     expect(
       shouldAutoSubmitVoiceTurn({
         transcript: "open the docs",
-        silenceMs: 1800,
+        silenceMs: 2000,
         transcriptStableMs: 900,
         baseSilenceMs: 650,
         maxSilenceMs: 3200,

@@ -152,9 +152,9 @@ const autoSendDelayOptions = [
   {
     id: "long",
     label: "Long",
-    description: "Waits the longest before sending. Best if you think out loud.",
-    baseSilenceMs: 1600,
-    maxSilenceMs: 4200,
+    description: "Waits through long thinking pauses before sending. Best for dictating multi-part requests.",
+    baseSilenceMs: 2600,
+    maxSilenceMs: 8000,
   },
 ] satisfies Array<{
   id: "short" | "normal" | "long"

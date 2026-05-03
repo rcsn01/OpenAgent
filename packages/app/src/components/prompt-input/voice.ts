@@ -42,7 +42,9 @@ type PromptVoiceInput = {
   appendSpeechCaptureSamples?: (input: SpeechCaptureSamplesInput) => Promise<void> | void
   onSpeechCaptureLevel?: (cb: (event: SpeechCaptureLevelEvent) => void) => () => void
   beginSpeechCaptureChunk?: (sessionId: string) => Promise<void> | void
+  beginSpeechCaptureTurn?: (sessionId: string) => Promise<void> | void
   transcribeSpeechCaptureChunk?: (input: SpeechCaptureChunkInput) => Promise<SpeechTranscription>
+  transcribeSpeechCaptureTurn?: (input: SpeechCaptureChunkInput) => Promise<SpeechTranscription>
   stopSpeechCaptureSession?: (sessionId: string) => Promise<void> | void
   transcribeSpeech?: (input: SpeechTranscriptionInput) => Promise<SpeechTranscription>
   onAutoSubmit?: () => void
@@ -75,6 +77,8 @@ const inputGainValue = (value: VoiceInputGain) => {
 
 const promptLength = (prompt: Prompt) =>
   prompt.reduce((total, part) => total + ("content" in part ? part.content.length : 0), 0)
+
+const clonePrompt = (prompt: Prompt) => prompt.map((part) => ({ ...part }))
 
 const writeAscii = (view: DataView, offset: number, value: string) => {
   for (let index = 0; index < value.length; index += 1) {
@@ -195,7 +199,11 @@ export function createPromptVoice(input: PromptVoiceInput) {
   let preRollChunks: Float32Array[] = []
   let activeChunkFrames = 0
   let activeChunkBuffers: Float32Array[] = []
+  let activeTurnFrames = 0
+  let activeTurnBuffers: Float32Array[] = []
   let capturingChunk = false
+  let capturingTurn = false
+  let finalizingTurn = false
   let sessionRuntime: SpeechRuntimeConfig | undefined
   let speechCaptureSession: SpeechCaptureSessionInfo | undefined
   let disposeSpeechCaptureLevel: (() => void) | undefined
@@ -205,6 +213,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
   let flushPending = false
   let turnTranscript = ""
   let turnTranscriptUpdatedAt = 0
+  let turnBasePrompt: Prompt | undefined
 
   const shouldRunSession = () =>
     supported() && input.mode() === "normal" && (state.manualMicEnabled || state.pressToTalkActive)
@@ -237,12 +246,11 @@ export function createPromptVoice(input: PromptVoiceInput) {
   const resetTurn = () => {
     turnTranscript = ""
     turnTranscriptUpdatedAt = 0
-  }
-
-  const finalizeTurn = () => {
-    resetTurn()
-    if (state.manualMicEnabled) input.onAutoSubmit?.()
-    return true
+    turnBasePrompt = undefined
+    activeTurnFrames = 0
+    activeTurnBuffers = []
+    capturingTurn = false
+    finalizingTurn = false
   }
 
   const resetChunkCapture = () => {
@@ -289,8 +297,22 @@ export function createPromptVoice(input: PromptVoiceInput) {
     trimPreRoll()
   }
 
+  const beginTurnCapture = () => {
+    if (capturingTurn) return
+    capturingTurn = true
+    finalizingTurn = false
+    turnBasePrompt = clonePrompt(input.prompt.current())
+    if (speechCaptureSession && input.beginSpeechCaptureTurn) {
+      Promise.resolve(input.beginSpeechCaptureTurn(speechCaptureSession.id)).catch(() => undefined)
+      return
+    }
+    activeTurnBuffers = [...preRollChunks]
+    activeTurnFrames = preRollFrames
+  }
+
   const startChunkCapture = () => {
     if (capturingChunk) return
+    beginTurnCapture()
     capturingChunk = true
     if (speechCaptureSession && input.beginSpeechCaptureChunk) {
       Promise.resolve(input.beginSpeechCaptureChunk(speechCaptureSession.id)).catch(() => undefined)
@@ -309,12 +331,34 @@ export function createPromptVoice(input: PromptVoiceInput) {
     activeChunkFrames += buffer.length
   }
 
+  const appendActiveTurn = (buffer: Float32Array) => {
+    if (speechCaptureSession) return
+    if (!capturingTurn || !buffer.length) return
+    activeTurnBuffers.push(buffer)
+    activeTurnFrames += buffer.length
+  }
+
   const takeActiveChunk = () => {
     const durationMs = recordedSampleRate > 0 ? (activeChunkFrames / recordedSampleRate) * 1000 : 0
     const chunks = activeChunkBuffers
     const sampleRate = recordedSampleRate
     const frames = activeChunkFrames
     resetChunkCapture()
+    if (!sampleRate || chunks.length === 0 || durationMs < MIN_TRANSCRIBE_MS) return
+    return {
+      audio: encodeWave(ensureMinimumChunkDuration(chunks, sampleRate, frames), sampleRate),
+      originalDurationMs: Math.round(durationMs),
+    }
+  }
+
+  const takeActiveTurn = () => {
+    const durationMs = recordedSampleRate > 0 ? (activeTurnFrames / recordedSampleRate) * 1000 : 0
+    const chunks = activeTurnBuffers
+    const sampleRate = recordedSampleRate
+    const frames = activeTurnFrames
+    activeTurnFrames = 0
+    activeTurnBuffers = []
+    capturingTurn = false
     if (!sampleRate || chunks.length === 0 || durationMs < MIN_TRANSCRIBE_MS) return
     return {
       audio: encodeWave(ensureMinimumChunkDuration(chunks, sampleRate, frames), sampleRate),
@@ -398,7 +442,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
   }
 
   const maybeFinalizeTurn = (now = performance.now()) => {
-    if (!turnTranscript || capturingChunk || pendingTranscriptions > 0) return false
+    if (!turnTranscript || capturingChunk || finalizingTurn || pendingTranscriptions > 0) return false
     const silenceMs = now - lastSpeechAt
     if (silenceMs >= input.maxSilenceMs()) return finalizeTurn()
     const transcriptStableMs = turnTranscriptUpdatedAt ? now - turnTranscriptUpdatedAt : 0
@@ -416,9 +460,14 @@ export function createPromptVoice(input: PromptVoiceInput) {
     return finalizeTurn()
   }
 
-  const queueTranscriptionTask = (task: () => Promise<SpeechTranscription | undefined>, run: number) => {
+  const queueTranscriptionTask = (
+    task: () => Promise<SpeechTranscription | undefined>,
+    run: number,
+    options?: { final?: boolean; submit?: boolean; basePrompt?: Prompt },
+  ) => {
     pendingTranscriptions += 1
     setState("transcribing", true)
+    let failed = false
 
     const next = transcriptionQueue
       .catch(() => undefined)
@@ -429,23 +478,76 @@ export function createPromptVoice(input: PromptVoiceInput) {
           corrections: input.corrections(),
         })
         if (!transcript) return
-        const nextPrompt = applyVoiceTranscript(input.prompt.current(), transcript)
+        const nextPrompt = applyVoiceTranscript(options?.basePrompt ?? input.prompt.current(), transcript)
         input.prompt.set(nextPrompt, promptLength(nextPrompt))
         if (run !== sessionRun) return
-        turnTranscript = turnTranscript ? `${turnTranscript} ${transcript}` : transcript
+        turnTranscript = options?.final || !turnTranscript ? transcript : `${turnTranscript} ${transcript}`
         turnTranscriptUpdatedAt = performance.now()
       })
       .catch((error) => {
+        failed = true
         setState("error", error instanceof Error ? error.message : "Voice transcription failed")
       })
       .finally(() => {
         pendingTranscriptions = Math.max(0, pendingTranscriptions - 1)
         setState("transcribing", pendingTranscriptions > 0)
+        if (options?.final) {
+          resetTurn()
+          if (!failed && options.submit && run === sessionRun && state.manualMicEnabled) input.onAutoSubmit?.()
+          return
+        }
         if (run === sessionRun) maybeFinalizeTurn()
       })
 
     transcriptionQueue = next
     return next
+  }
+
+  const finalizeTurn = () => {
+    if (finalizingTurn) return true
+    finalizingTurn = true
+    const run = sessionRun
+    const runtime = currentRuntime()
+    const basePrompt = turnBasePrompt ? clonePrompt(turnBasePrompt) : clonePrompt(input.prompt.current())
+    if (speechCaptureSession && input.transcribeSpeechCaptureTurn) {
+      const sessionId = speechCaptureSession.id
+      const transcribeSpeechCaptureTurn = input.transcribeSpeechCaptureTurn
+      void queueTranscriptionTask(
+        () =>
+          transcribeSpeechCaptureTurn({
+            sessionId,
+            model: runtime.model,
+            quality: runtime.quality,
+            promptTerms: promptTerms(),
+          }),
+        run,
+        { final: true, submit: true, basePrompt },
+      )
+      return true
+    }
+    if (input.transcribeSpeech) {
+      const transcribeSpeech = input.transcribeSpeech
+      const clip = takeActiveTurn()
+      if (clip) {
+        void queueTranscriptionTask(
+          () =>
+            transcribeSpeech({
+              audio: clip.audio,
+              mimeType: TRANSCRIPTION_MIME,
+              model: runtime.model,
+              quality: runtime.quality,
+              originalDurationMs: clip.originalDurationMs,
+              promptTerms: promptTerms(),
+            }),
+          run,
+          { final: true, submit: true, basePrompt },
+        )
+        return true
+      }
+    }
+    resetTurn()
+    if (state.manualMicEnabled) input.onAutoSubmit?.()
+    return true
   }
 
   const queueTranscription = (clip: { audio: ArrayBuffer; originalDurationMs: number }, runtime: SpeechRuntimeConfig, run: number) => {
@@ -503,6 +605,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
     const run = sessionRun
     const runtime = currentRuntime()
     const currentCaptureSession = speechCaptureSession
+    const basePrompt = turnBasePrompt ? clonePrompt(turnBasePrompt) : clonePrompt(input.prompt.current())
     speechCaptureSession = undefined
     sessionRun += 1
     stopAudio()
@@ -514,20 +617,60 @@ export function createPromptVoice(input: PromptVoiceInput) {
 
     preRollFrames = 0
     preRollChunks = []
-    resetTurn()
     sessionRuntime = undefined
     if (currentCaptureSession) {
       resetChunkCapture()
       if (!options?.transcribe) {
         void Promise.resolve(input.stopSpeechCaptureSession?.(currentCaptureSession.id))
+        resetTurn()
+        return
+      }
+      if (input.transcribeSpeechCaptureTurn) {
+        const transcribeSpeechCaptureTurn = input.transcribeSpeechCaptureTurn
+        void queueTranscriptionTask(
+          async () => {
+            try {
+              return await transcribeSpeechCaptureTurn({
+                sessionId: currentCaptureSession.id,
+                model: runtime.model,
+                quality: runtime.quality,
+                promptTerms: promptTerms(),
+              })
+            } finally {
+              await Promise.resolve(input.stopSpeechCaptureSession?.(currentCaptureSession.id))
+            }
+          },
+          run,
+          { final: true, basePrompt },
+        )
         return
       }
       void queueDesktopCaptureTranscription(currentCaptureSession.id, runtime, run, true)
       return
     }
-    const clip = takeActiveChunk()
-    if (!options?.transcribe || !clip) return
-    void queueTranscription(clip, runtime, run)
+    const clip = takeActiveTurn() ?? takeActiveChunk()
+    const transcribeSpeech = input.transcribeSpeech
+    if (!options?.transcribe || !clip) {
+      resetTurn()
+      return
+    }
+    if (!transcribeSpeech) {
+      resetTurn()
+      return
+    }
+    void queueTranscriptionTask(
+      () =>
+        transcribeSpeech({
+          audio: clip.audio,
+          mimeType: TRANSCRIPTION_MIME,
+          model: runtime.model,
+          quality: runtime.quality,
+          originalDurationMs: clip.originalDurationMs,
+          promptTerms: promptTerms(),
+        }),
+      run,
+      { final: true, basePrompt },
+    )
   }
 
   const turnOffMicrophone = (options?: { discard?: boolean }) => {
@@ -644,6 +787,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
         }
         if (state.pressToTalkActive && !state.manualMicEnabled && !capturingChunk) startChunkCapture()
         if (speechCaptureSession) return
+        appendActiveTurn(channel)
         appendActiveChunk(channel)
         appendPreRoll(channel)
       }

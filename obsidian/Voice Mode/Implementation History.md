@@ -88,6 +88,35 @@ What was implemented:
 - `packages/desktop-electron/native/apple-speech-transcribe.swift`
 - `packages/desktop-electron/src/main/speech.ts` (fallback logic)
 
+## Phase 6: Full-Turn Finalization and Safer Endpointing
+
+**Goal**: Stop always-on dictation from sending while the user is still mid-sentence.
+
+This phase was prompted by real dictation failures where the app sent too early:
+
+- Intended: "Show me your complex node dependencies and capabilities."
+- Captured/sent: "Show me your complex node dependencies and case."
+- Intended: "Look at Andre Karpathy's Auto Research GitHub repo and include his skill into the current repo and make it your skill."
+- Captured/sent: "Look at Andre Karpathy's auto research."
+
+What was implemented:
+
+- A full-turn audio buffer that survives across multiple live chunk transcriptions
+- Final whole-utterance transcription before auto-submit
+- Interim text is replaced by the final full-turn transcript instead of duplicated
+- Desktop IPC APIs for beginning and transcribing a complete speech turn
+- Longer `Long` pause preset: `2600 / 8000 ms`
+- Migration from legacy `Long` timing of `1600 / 4200 ms`
+- Endpointing no longer treats ASR punctuation as a completion signal
+- Punctuation now adds hold time because ASR can insert periods mid-thought
+- Only explicit phrases like "done" or "that's it" count as completion signals
+
+**Key source files**:
+- `packages/app/src/components/prompt-input/voice.ts`
+- `packages/app/src/components/prompt-input/voice-endpoint.ts`
+- `packages/desktop-electron/src/main/speech-capture.ts`
+- `packages/desktop-electron/src/main/speech.ts`
+
 ## What's Next
 
 The original plan also outlined:
@@ -95,4 +124,4 @@ The original plan also outlined:
 - Vocabulary rescoring with a secondary CTC model
 - WhisperKit evaluation
 
-Some of these remain future work. The core improvements covered today are in Phases 1–5.
+Some of these remain future work. The core improvements covered today are in Phases 1–6.

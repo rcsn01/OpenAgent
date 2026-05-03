@@ -177,8 +177,14 @@ export type Platform = {
   /** Start a chunk inside the desktop speech capture session (desktop only) */
   beginSpeechCaptureChunk?(sessionId: string): Promise<void> | void
 
+  /** Start a full utterance turn inside the desktop speech capture session (desktop only) */
+  beginSpeechCaptureTurn?(sessionId: string): Promise<void> | void
+
   /** Transcribe the current desktop-owned chunk (desktop only) */
   transcribeSpeechCaptureChunk?(input: SpeechCaptureChunkInput): Promise<SpeechTranscription>
+
+  /** Transcribe the current desktop-owned full utterance turn (desktop only) */
+  transcribeSpeechCaptureTurn?(input: SpeechCaptureChunkInput): Promise<SpeechTranscription>
 
   /** Stop a desktop-owned speech capture session (desktop only) */
   stopSpeechCaptureSession?(sessionId: string): Promise<void> | void

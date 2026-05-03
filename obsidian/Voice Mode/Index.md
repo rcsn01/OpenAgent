@@ -13,7 +13,7 @@ A hands-free dictation system that lets you speak to OpenAgent instead of typing
 - [[Voice Mode/Native Capture]] — macOS AVAudioEngine bypassing browser audio
 - [[Voice Mode/Post-Processing]] — dictionary, corrections, and prompt application
 - [[Voice Mode/Settings]] — all user-configurable options
-- [[Voice Mode/Implementation History]] — the 5 phases of development
+- [[Voice Mode/Implementation History]] — the 6 phases of development
 - [[Voice Mode/Testing]] — test coverage and what each suite verifies
 
 ## Key Source Files
