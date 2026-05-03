@@ -28,6 +28,13 @@ Goal: Remove all public-project artifacts (branding, upstream release plumbing, 
 | `packages/enterprise/` | **Delete** | Enterprise web UI. Nothing depends on it. Safe for personal use. |
 | `packages/console/app/`, `core/`, `function/`, `mail/`, `resource/` | **Delete** | Hosted cloud console with billing/auth. Nothing in the local CLI depends on these. Safe. |
 | `packages/web/` | **Delete** | Landing/docs website. Nothing depends on it. Safe. |
+| `packages/identity/` | **Delete** | Only contains branding logos/icons (`mark.svg`, `mark-*.png`). No package.json, no code, nothing references it. Purely upstream branding assets. Safe. |
+| `packages/extensions/` | **Delete** | Zed editor extension. If you do not use Zed, delete the entire directory. If you use Zed, keep it but strip upstream branding inside. |
+| `packages/function/` | **Delete** | Cloudflare-hosted functions with `@cloudflare/workers-types`, `@octokit/auth-app`, `hono`. Zero references in `packages/opencode/`. Not used by local CLI. Safe. |
+| `sst-env.d.ts` | **Delete** | SST type stub. Safe only if you deleted `infra/` and all console packages. |
+| `default.profraw` | **Delete** | Profiling dump artifact. Add `*.profraw` to `.gitignore`. |
+| `.DS_Store` | **Delete** | macOS metadata. Already in `.gitignore`; remove the file. |
+| `.turbo/` | **Delete** | Stale Turborepo cache. Regenerate after cleanup. |
 
 ---
 
@@ -52,6 +59,13 @@ Goal: Remove all public-project artifacts (branding, upstream release plumbing, 
 "sst": "3.18.10",
 ```
 (These are only needed for public CI/CD and SST infrastructure.)
+
+### Review and remove from `dependencies` if orphaned:
+```json
+"@aws-sdk/client-s3": "3.933.0",
+"heap-snapshot-toolkit": "1.1.3",
+```
+These were likely used by `infra/` or `packages/console/*`. Verify no remaining code imports them, then remove.
 
 ### Update:
 - `"name"`: change from `"openagent"` to your project name.
@@ -123,6 +137,8 @@ The root `script/` directory is for **public release automation**.
 | `.opencode/tui.json` | **Keep** | Local TUI config. |
 | `.opencode/skills/` | **Keep** | `effect` and `implementation-testing` skills are project-agnostic. |
 
+> **Review criteria for ambiguous items:** Delete if the command references GitHub APIs, public release workflows, or upstream-specific project structure.
+
 ---
 
 ## 6. Package-Level Files to Review
@@ -137,20 +153,19 @@ The root `script/` directory is for **public release automation**.
 | `packages/app/` | Web UI. `desktop` and `desktop-electron` depend on it. |
 | `packages/desktop/` | Tauri desktop app. |
 | `packages/desktop-electron/` | Electron desktop app. |
-| `packages/plugin/` | Plugin system. Likely used by core. |
-| `packages/function/` | Functions. Likely used by core. |
+| `packages/plugin/` | Plugin system. Used by core. |
 | `packages/storybook/` | UI dev storybook. Depends on `ui`. Keep if you do UI work. |
-| `packages/sdk/js/` | JavaScript SDK. Core might use it. Review if you don't publish SDKs. |
-| `packages/identity/` | Likely auth-related. Review before deleting. |
+| `packages/sdk/js/` | JavaScript SDK. Core uses it. Keep if you use SDK features. |
+| `packages/script/` | **Build tooling package.** `packages/opencode/script/build.ts` imports `@opencode-ai/script`. **DO NOT DELETE.** |
 | `packages/containers/` | Docker definitions. Keep if you use containers. |
-| `sdks/vscode/` | VSCode extension. Keep if you use VSCode. |
 | `packages/slack/` | Slack integration. Keep if you use Slack. |
+| `sdks/vscode/` | VSCode extension. Keep if you use VSCode. |
 | `patches/` | Dependency patches. **Keep.** |
-| `bun.lock` / `bunfig.toml` | Bun workspace files. **Keep.** |
+| `bun.lock` / `bunfig.toml` | Bun workspace files. **Keep** (regenerate lockfile after cleanup). |
 
 ### What to Delete (Already listed in Section 1)
 
-- `packages/docs/`, `packages/web/`, `packages/enterprise/`, all `packages/console/*`.
+- `packages/docs/`, `packages/web/`, `packages/enterprise/`, all `packages/console/*`, `packages/identity/`, `packages/function/`, `packages/extensions/` (if not using Zed).
 
 ---
 
@@ -174,27 +189,27 @@ After deletions, search remaining source code for these and update/remove:
 
 | File | Reason |
 |------|--------|
-| `AGENTS.md` | Coding style guide. Keep the rules, remove any upstream branding. |
-| `.gitignore` | Still needed. |
+| `AGENTS.md` | Coding style guide. **Keep the architectural rules** (Effect patterns, Drizzle naming, etc.). Only remove upstream branding references. |
+| `.gitignore` | Still needed. Add `*.profraw` if not present. |
 | `.vscode/` / `.zed/` | Editor settings. Keep if you use those editors. |
 | `.husky/` | Git hooks. Keep. |
 | `.editorconfig` | Editor config. Keep. |
 | `.prettierignore` / `.oxlintrc.json` | Lint/format configs. Keep. |
 | `turbo.json` | Turborepo config. Keep, but review for deleted package task references. |
-| `sst-env.d.ts` | SST type definitions. **Delete only if** you deleted `infra/` and all console packages AND removed SST from devDependencies. |
 
 ---
 
 ## 9. Suggested Execution Order
 
-1. **Commit everything** so you can revert if needed.
-2. **Stop.** Read `packages/opencode/package.json` and confirm it does **not** reference any package you're about to delete.
+1. **Create a backup branch:** `git checkout -b cleanup-backup` (or commit everything to `main` first). This is your revert point.
+2. **Stop.** Read `packages/opencode/package.json` and confirm it does **not** reference any package you're about to delete via `workspace:*`.
 3. Delete files/dirs from **Sections 1, 3, 4 (root script/), 5**.
-4. **Edit root `package.json`** per Section 2 (remove workspaces, scripts, devDependencies, update repo URL).
+4. **Edit root `package.json`** per Section 2 (remove workspaces, scripts, devDependencies, review dependencies, update repo URL).
 5. Search-and-replace upstream brand names (Section 7).
-6. Run `bun install` to regenerate lockfile/workspace state.
-7. Run `bun dev` (which launches `packages/opencode`) to verify the CLI still works.
-8. Run `bun typecheck` from `packages/opencode/` to verify types.
+6. **Purge stale state:** `rm -rf node_modules .turbo bun.lock`
+7. **Regenerate lockfile:** `bun install`
+8. Run `bun dev` (which launches `packages/opencode`) to verify the CLI still works.
+9. Run `bun typecheck` from `packages/opencode/` to verify types.
 
 ---
 
@@ -207,4 +222,7 @@ After deletions, search remaining source code for these and update/remove:
 | `packages/docs/`, `packages/web/`, `packages/enterprise/` | `packages/core/`, `packages/ui/`, `packages/app/` |
 | `infra/`, `github/`, `.github/`, `nix/` | `patches/`, `bun.lock`, `bunfig.toml` |
 | Root `install`, `flake.nix`, `flake.lock` | `turbo.json` (review first) |
-
+| `packages/identity/` (branding assets only) | `packages/script/` (build tooling package) |
+| `packages/function/` (cloud functions, no local refs) | `packages/plugin/` (used by core) |
+| `packages/extensions/` (if you don't use Zed) | `packages/sdk/js/` (used by core) |
+| `default.profraw`, `.DS_Store`, `.turbo/` | `AGENTS.md` (keep architecture rules) |
