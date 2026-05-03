@@ -2,6 +2,7 @@ import { createMediaQuery } from "@solid-primitives/media"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { type Session } from "@opencode-ai/sdk/v2/client"
+import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
@@ -28,6 +29,9 @@ type InlineEditorComponent = (props: {
 
 const updatedAt = (session: Session) => session.time.updated ?? session.time.created
 const projectEditorId = (project: LocalProject) => `project:${pathKey(project.worktree)}`
+type ProjectOrganizeMode = "project" | "recent" | "chronological"
+type ProjectSortMode = "created" | "updated"
+type ProjectShowMode = "all" | "relevant"
 
 const compactRelativeTime = (value: number) => {
   const diff = Math.max(0, Date.now() - value)
@@ -62,6 +66,30 @@ const SidebarAction = (props: {
     </span>
     <span class="type-prose-md truncate text-text-strong">{props.label}</span>
   </button>
+)
+
+const ProjectHeaderMenuItem = (props: {
+  icon: Parameters<typeof Icon>[0]["name"]
+  label: string
+  selected?: boolean
+  disabled?: boolean
+  onSelect: () => void
+}) => (
+  <DropdownMenu.Item disabled={props.disabled} onSelect={props.onSelect} class="flex items-center gap-2.5">
+    <span class="flex size-4 shrink-0 items-center justify-center text-icon-base">
+      <Icon name={props.icon} size="small" />
+    </span>
+    <DropdownMenu.ItemLabel>{props.label}</DropdownMenu.ItemLabel>
+    <Show when={props.selected}>
+      <span class="ml-auto flex size-4 shrink-0 items-center justify-center text-icon-base">
+        <Icon name="check" size="small" />
+      </span>
+    </Show>
+  </DropdownMenu.Item>
+)
+
+const ProjectHeaderMenuLabel = (props: { label: string }) => (
+  <DropdownMenu.GroupLabel class="px-2 py-1 text-12-medium text-text-weaker">{props.label}</DropdownMenu.GroupLabel>
 )
 
 const ChatSection = (props: {
@@ -153,7 +181,7 @@ const ChatSection = (props: {
 }
 
 const ProjectSection = (props: {
-  label: string
+  label?: string
   projects: Accessor<LocalProject[]>
   currentDir: Accessor<string>
   currentSessionID: Accessor<string | undefined>
@@ -168,6 +196,8 @@ const ProjectSection = (props: {
   onArchiveProjectChats: (project: LocalProject) => void
   onRemoveProject: (project: LocalProject) => void
   onOpenSession: (session: Session) => void
+  showSessions: Accessor<boolean>
+  sortMode: Accessor<ProjectSortMode>
   editorOpen: (id: string) => boolean
   InlineEditor: InlineEditorComponent
 }) => {
@@ -178,10 +208,18 @@ const ProjectSection = (props: {
   return (
     <Show when={props.projects().length > 0}>
       <div class="space-y-3">
-        <div class="type-prose-md px-2 pb-2 text-text-weaker">{props.label}</div>
+        <Show when={props.label}>
+          {(label) => <div class="type-prose-md px-2 pb-2 text-text-weaker">{label()}</div>}
+        </Show>
         <For each={props.projects()}>
           {(project) => {
-            const sessions = () => props.getProjectSessions(project)
+            const sessions = createMemo(() =>
+              props
+                .getProjectSessions(project)
+                .toSorted((a, b) =>
+                  props.sortMode() === "created" ? b.time.created - a.time.created : updatedAt(b) - updatedAt(a),
+                ),
+            )
             const visible = () => (expanded[project.worktree] ? sessions() : sessions().slice(0, 5))
 
             return (
@@ -235,45 +273,47 @@ const ProjectSection = (props: {
                   </div>
                 </div>
 
-                <div class="space-y-0.5 pl-7">
-                  <Show
-                    when={sessions().length > 0}
-                    fallback={<div class="type-prose-md px-3 py-0.5 text-text-weaker">No chats yet</div>}
-                  >
-                    <For each={visible()}>
-                      {(session) => {
-                        const active = () =>
-                          props.currentSessionID() === session.id &&
-                          pathKey(props.currentDir()) === pathKey(session.directory)
-
-                        return (
-                          <button
-                            type="button"
-                            class="flex w-full items-center gap-2 rounded-2xl px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover"
-                            classList={{ "bg-surface-base-active": active() }}
-                            onClick={() => props.onOpenSession(session)}
-                          >
-                            <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
-                              {sessionTitle(session.title) || getFilename(session.directory)}
-                            </span>
-                            <span class="type-prose-md shrink-0 text-text-weak">
-                              {compactRelativeTime(updatedAt(session))}
-                            </span>
-                          </button>
-                        )
-                      }}
-                    </For>
-                  </Show>
-                  <Show when={sessions().length > 5}>
-                    <button
-                      type="button"
-                      class="type-prose-md px-3 py-0.5 text-text-weaker transition-colors hover:text-text-strong"
-                      onClick={() => setExpanded(project.worktree, (value) => !value)}
+                <Show when={props.showSessions()}>
+                  <div class="space-y-0.5 pl-7">
+                    <Show
+                      when={sessions().length > 0}
+                      fallback={<div class="type-prose-md px-3 py-0.5 text-text-weaker">No chats yet</div>}
                     >
-                      {expanded[project.worktree] ? "Show less" : "Show more"}
-                    </button>
-                  </Show>
-                </div>
+                      <For each={visible()}>
+                        {(session) => {
+                          const active = () =>
+                            props.currentSessionID() === session.id &&
+                            pathKey(props.currentDir()) === pathKey(session.directory)
+
+                          return (
+                            <button
+                              type="button"
+                              class="flex w-full items-center gap-2 rounded-2xl px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover"
+                              classList={{ "bg-surface-base-active": active() }}
+                              onClick={() => props.onOpenSession(session)}
+                            >
+                              <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
+                                {sessionTitle(session.title) || getFilename(session.directory)}
+                              </span>
+                              <span class="type-prose-md shrink-0 text-text-weak">
+                                {compactRelativeTime(updatedAt(session))}
+                              </span>
+                            </button>
+                          )
+                        }}
+                      </For>
+                    </Show>
+                    <Show when={sessions().length > 5}>
+                      <button
+                        type="button"
+                        class="type-prose-md px-3 py-0.5 text-text-weaker transition-colors hover:text-text-strong"
+                        onClick={() => setExpanded(project.worktree, (value) => !value)}
+                      >
+                        {expanded[project.worktree] ? "Show less" : "Show more"}
+                      </button>
+                    </Show>
+                  </div>
+                </Show>
               </section>
             )
           }}
@@ -309,13 +349,39 @@ export const SidebarHub = (props: {
   onPlugins: () => void
   onAutomations: () => void
   onSettings: () => void
+  onStartProject: () => void
   onOpenProjectChooser: () => void
   editorOpen: (id: string) => boolean
   InlineEditor: InlineEditorComponent
 }) => {
   const language = useLanguage()
-  const pinnedProjects = createMemo(() => props.projects().filter((project) => !!project.pinned))
-  const otherProjects = createMemo(() => props.projects().filter((project) => !project.pinned))
+  const [view, setView] = createStore({
+    showSessions: true,
+    organize: "project" as ProjectOrganizeMode,
+    sort: "updated" as ProjectSortMode,
+    show: "all" as ProjectShowMode,
+  })
+  const projectTime = (project: LocalProject, mode: ProjectSortMode) => {
+    const sessions = props.getProjectSessions(project)
+    if (sessions.length === 0) return 0
+    if (mode === "created") return Math.max(...sessions.map((session) => session.time.created))
+    return Math.max(...sessions.map(updatedAt))
+  }
+  const relevant = (project: LocalProject) =>
+    !!project.pinned ||
+    pathKey(props.currentDir()) === pathKey(project.worktree) ||
+    props.getProjectSessions(project).length > 0
+  const visibleProjects = createMemo(() =>
+    props
+      .projects()
+      .filter((project) => view.show === "all" || relevant(project))
+      .toSorted((a, b) => {
+        if (view.organize === "project") return 0
+        return projectTime(b, view.sort) - projectTime(a, view.sort)
+      }),
+  )
+  const pinnedProjects = createMemo(() => visibleProjects().filter((project) => !!project.pinned))
+  const otherProjects = createMemo(() => visibleProjects().filter((project) => !project.pinned))
 
   return (
     <div class="flex h-full min-h-0 w-full min-w-0 flex-col border-r border-border-weaker-base bg-background-base px-4 pb-3 pt-2">
@@ -353,44 +419,185 @@ export const SidebarHub = (props: {
             }
           >
             <div class="space-y-4">
-              <ProjectSection
-                label={language.t("sidebar.project.pinnedSection")}
-                projects={pinnedProjects}
-                currentDir={props.currentDir}
-                currentSessionID={props.currentSessionID}
-                getProjectSessions={props.getProjectSessions}
-                onOpenProject={props.onOpenProject}
-                onOpenProjectNewChat={props.onOpenProjectNewChat}
-                onToggleProjectPin={props.onToggleProjectPin}
-                onOpenProjectDirectory={props.onOpenProjectDirectory}
-                onCreateProjectWorktree={props.onCreateProjectWorktree}
-                onRequestProjectRename={props.onRequestProjectRename}
-                onRenameProject={props.onRenameProject}
-                onArchiveProjectChats={props.onArchiveProjectChats}
-                onRemoveProject={props.onRemoveProject}
-                onOpenSession={props.onOpenSession}
-                editorOpen={props.editorOpen}
-                InlineEditor={props.InlineEditor}
-              />
-              <ProjectSection
-                label={language.t("sidebar.project.projectsSection")}
-                projects={otherProjects}
-                currentDir={props.currentDir}
-                currentSessionID={props.currentSessionID}
-                getProjectSessions={props.getProjectSessions}
-                onOpenProject={props.onOpenProject}
-                onOpenProjectNewChat={props.onOpenProjectNewChat}
-                onToggleProjectPin={props.onToggleProjectPin}
-                onOpenProjectDirectory={props.onOpenProjectDirectory}
-                onCreateProjectWorktree={props.onCreateProjectWorktree}
-                onRequestProjectRename={props.onRequestProjectRename}
-                onRenameProject={props.onRenameProject}
-                onArchiveProjectChats={props.onArchiveProjectChats}
-                onRemoveProject={props.onRemoveProject}
-                onOpenSession={props.onOpenSession}
-                editorOpen={props.editorOpen}
-                InlineEditor={props.InlineEditor}
-              />
+              <div class="group/project-header flex items-center justify-between gap-2 px-2">
+                <div class="type-prose-md text-text-weaker">{language.t("sidebar.project.projectsSection")}</div>
+                <div class="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover/project-header:opacity-100 group-hover/project-header:pointer-events-auto group-focus-within/project-header:opacity-100 group-focus-within/project-header:pointer-events-auto">
+                  <Tooltip
+                    value={
+                      view.showSessions
+                        ? language.t("sidebar.project.compact")
+                        : language.t("sidebar.project.expand")
+                    }
+                    placement="top"
+                  >
+                    <IconButton
+                      icon={view.showSessions ? "collapse" : "expand"}
+                      variant="ghost"
+                      class="size-7 rounded-lg text-text-weak hover:text-text-strong"
+                      aria-label={
+                        view.showSessions
+                          ? language.t("sidebar.project.compact")
+                          : language.t("sidebar.project.expand")
+                      }
+                      aria-pressed={!view.showSessions}
+                      onClick={() => setView("showSessions", (value) => !value)}
+                    />
+                  </Tooltip>
+                  <DropdownMenu>
+                    <Tooltip value={language.t("sidebar.project.viewOptions")} placement="top">
+                      <DropdownMenu.Trigger
+                        as={IconButton}
+                        icon="menu"
+                        variant="ghost"
+                        class="size-7 rounded-lg text-text-weak hover:text-text-strong data-[expanded]:bg-surface-base-active"
+                        aria-label={language.t("sidebar.project.viewOptions")}
+                      />
+                    </Tooltip>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content>
+                        <ProjectHeaderMenuLabel label={language.t("sidebar.project.organize")} />
+                        <ProjectHeaderMenuItem
+                          icon="folder"
+                          label={language.t("sidebar.project.organize.byProject")}
+                          selected={view.organize === "project"}
+                          onSelect={() => setView("organize", "project")}
+                        />
+                        <ProjectHeaderMenuItem
+                          icon="folder"
+                          label={language.t("sidebar.project.organize.recent")}
+                          selected={view.organize === "recent"}
+                          onSelect={() => setView("organize", "recent")}
+                        />
+                        <ProjectHeaderMenuItem
+                          icon="status"
+                          label={language.t("sidebar.project.organize.chronological")}
+                          selected={view.organize === "chronological"}
+                          onSelect={() => setView("organize", "chronological")}
+                        />
+                        <DropdownMenu.Separator />
+                        <ProjectHeaderMenuLabel label={language.t("sidebar.project.sortBy")} />
+                        <ProjectHeaderMenuItem
+                          icon="plus-small"
+                          label={language.t("sidebar.project.sort.created")}
+                          selected={view.sort === "created"}
+                          onSelect={() => setView("sort", "created")}
+                        />
+                        <ProjectHeaderMenuItem
+                          icon="edit-small-2"
+                          label={language.t("sidebar.project.sort.updated")}
+                          selected={view.sort === "updated"}
+                          onSelect={() => setView("sort", "updated")}
+                        />
+                        <DropdownMenu.Separator />
+                        <ProjectHeaderMenuLabel label={language.t("sidebar.project.show")} />
+                        <ProjectHeaderMenuItem
+                          icon="speech-bubble"
+                          label={language.t("sidebar.project.show.all")}
+                          selected={view.show === "all"}
+                          onSelect={() => setView("show", "all")}
+                        />
+                        <ProjectHeaderMenuItem
+                          icon="star"
+                          label={language.t("sidebar.project.show.relevant")}
+                          selected={view.show === "relevant"}
+                          onSelect={() => setView("show", "relevant")}
+                        />
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu>
+                  <DropdownMenu>
+                    <Tooltip value={language.t("sidebar.project.add")} placement="top">
+                      <DropdownMenu.Trigger
+                        as={IconButton}
+                        icon="folder-add-left"
+                        variant="ghost"
+                        class="size-7 rounded-lg text-text-weak hover:text-text-strong data-[expanded]:bg-surface-base-active"
+                        aria-label={language.t("sidebar.project.add")}
+                      />
+                    </Tooltip>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content>
+                        <ProjectHeaderMenuItem
+                          icon="plus"
+                          label={language.t("sidebar.project.startFromScratch")}
+                          onSelect={props.onStartProject}
+                        />
+                        <ProjectHeaderMenuItem
+                          icon="folder"
+                          label={language.t("sidebar.project.useExistingFolder")}
+                          onSelect={props.onOpenProjectChooser}
+                        />
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <Show
+                when={view.organize === "project"}
+                fallback={
+                  <ProjectSection
+                    projects={visibleProjects}
+                    currentDir={props.currentDir}
+                    currentSessionID={props.currentSessionID}
+                    getProjectSessions={props.getProjectSessions}
+                    onOpenProject={props.onOpenProject}
+                    onOpenProjectNewChat={props.onOpenProjectNewChat}
+                    onToggleProjectPin={props.onToggleProjectPin}
+                    onOpenProjectDirectory={props.onOpenProjectDirectory}
+                    onCreateProjectWorktree={props.onCreateProjectWorktree}
+                    onRequestProjectRename={props.onRequestProjectRename}
+                    onRenameProject={props.onRenameProject}
+                    onArchiveProjectChats={props.onArchiveProjectChats}
+                    onRemoveProject={props.onRemoveProject}
+                    onOpenSession={props.onOpenSession}
+                    showSessions={() => view.showSessions}
+                    sortMode={() => view.sort}
+                    editorOpen={props.editorOpen}
+                    InlineEditor={props.InlineEditor}
+                  />
+                }
+              >
+                <ProjectSection
+                  projects={pinnedProjects}
+                  currentDir={props.currentDir}
+                  currentSessionID={props.currentSessionID}
+                  getProjectSessions={props.getProjectSessions}
+                  onOpenProject={props.onOpenProject}
+                  onOpenProjectNewChat={props.onOpenProjectNewChat}
+                  onToggleProjectPin={props.onToggleProjectPin}
+                  onOpenProjectDirectory={props.onOpenProjectDirectory}
+                  onCreateProjectWorktree={props.onCreateProjectWorktree}
+                  onRequestProjectRename={props.onRequestProjectRename}
+                  onRenameProject={props.onRenameProject}
+                  onArchiveProjectChats={props.onArchiveProjectChats}
+                  onRemoveProject={props.onRemoveProject}
+                  onOpenSession={props.onOpenSession}
+                  showSessions={() => view.showSessions}
+                  sortMode={() => view.sort}
+                  editorOpen={props.editorOpen}
+                  InlineEditor={props.InlineEditor}
+                />
+                <ProjectSection
+                  projects={otherProjects}
+                  currentDir={props.currentDir}
+                  currentSessionID={props.currentSessionID}
+                  getProjectSessions={props.getProjectSessions}
+                  onOpenProject={props.onOpenProject}
+                  onOpenProjectNewChat={props.onOpenProjectNewChat}
+                  onToggleProjectPin={props.onToggleProjectPin}
+                  onOpenProjectDirectory={props.onOpenProjectDirectory}
+                  onCreateProjectWorktree={props.onCreateProjectWorktree}
+                  onRequestProjectRename={props.onRequestProjectRename}
+                  onRenameProject={props.onRenameProject}
+                  onArchiveProjectChats={props.onArchiveProjectChats}
+                  onRemoveProject={props.onRemoveProject}
+                  onOpenSession={props.onOpenSession}
+                  showSessions={() => view.showSessions}
+                  sortMode={() => view.sort}
+                  editorOpen={props.editorOpen}
+                  InlineEditor={props.InlineEditor}
+                />
+              </Show>
             </div>
           </Show>
         </div>

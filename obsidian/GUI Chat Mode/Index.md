@@ -10,6 +10,7 @@ General chats are not truly directory-less. They are backed by hidden workspaces
 - [[GUI Chat Mode/Shared Chat Profile]] — the first-class shared config bundle for all GUI chats
 - [[GUI Chat Mode/Session Switching Performance Implementation]] — full implementation history for seamless project/chat session switching, persistent UI shell, sidebar highlighting, and audio-toggle visibility
 - [[GUI Chat Mode/Subagent Graph Panel and Prompt Updates]] — compact graph groups, completed graph retention, newest-first ordering, web tool guidance, and minimal subagent completion updates
+- [[GUI Chat Mode/Project Sidebar Controls]] — expanded-sidebar project controls for compact/expanded sessions, organize/sort/show, and add project actions
 
 ## Key Source Files
 
@@ -28,3 +29,4 @@ General chats are not truly directory-less. They are backed by hidden workspaces
 | `packages/app/src/pages/session/session-subagents-panel.tsx` | Renders compact/expandable subagent graph groups in the side panel |
 | `packages/app/src/pages/session/session-subagents-panel-model.ts` | Builds graph groups, newest-first ordering, and default selection for the panel |
 | `packages/opencode/src/session/task-graph.ts` | Retains completed graph records so child sessions keep their grouping |
+| `packages/app/src/pages/layout/sidebar-hub.tsx` | Renders expanded-sidebar project controls and project/session list views |

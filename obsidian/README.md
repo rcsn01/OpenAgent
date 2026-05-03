@@ -45,6 +45,7 @@ How the standalone `/chat` experience works in the GUI app.
 - [[GUI Chat Mode/Shared Chat Profile]] — the shared config bundle that applies across all GUI chats
 - [[GUI Chat Mode/Session Switching Performance Implementation]] — session-switching performance work, persistent shell architecture, sidebar highlighting fixes, and audio-toggle visibility notes
 - [[GUI Chat Mode/Subagent Graph Panel and Prompt Updates]] — compact subagent graph groups, completed graph retention, newest-first ordering, and prompt guidance for web/subagent updates
+- [[GUI Chat Mode/Project Sidebar Controls]] — project header controls for compact/expanded sessions, organize/sort/show menus, and project creation/opening actions
 
 ### Extensibility
 

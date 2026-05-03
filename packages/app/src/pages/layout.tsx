@@ -2675,6 +2675,7 @@ export default function Layout(props: ParentProps) {
           onPlugins={openPluginsManager}
           onAutomations={openAutomationPlaceholder}
           onSettings={openSettings}
+          onStartProject={() => void chooseProject()}
           onOpenProjectChooser={() => void chooseProject()}
           editorOpen={editor.editorOpen}
           InlineEditor={editor.InlineEditor}
