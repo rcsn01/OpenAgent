@@ -2635,10 +2635,14 @@ export default function Layout(props: ParentProps) {
           currentDir={currentDir}
           currentSessionID={() => (appRoute.isChat() ? undefined : currentSessionID())}
           onOpenChat={(chat) => {
+            generalChats.upsert(chat)
             prefetchSession(chat.session, "high")
             openGeneralChat(chat.rootSessionID)
           }}
-          onWarmChat={(chat) => prefetchSession(chat.session, "high")}
+          onWarmChat={(chat) => {
+            generalChats.upsert(chat)
+            prefetchSession(chat.session, "high")
+          }}
           onArchiveChat={(chat) =>
             void archiveGeneralChat(chat).catch((err) => {
               showToast({

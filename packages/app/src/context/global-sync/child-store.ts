@@ -39,6 +39,7 @@ export function createChildStoreManager(input: {
   const pins = new Map<string, number>()
   const ownerPins = new WeakMap<object, Set<string>>()
   const disposers = new Map<string, () => void>()
+  const [queryEnabled, setQueryEnabled] = createStore<Record<string, boolean>>({})
 
   const markKey = (key: DirectoryKey) => {
     if (!key) return
@@ -109,6 +110,7 @@ export function createChildStoreManager(input: {
     vcsCache.delete(key)
     metaCache.delete(key)
     iconCache.delete(key)
+    setQueryEnabled(key, false)
     lifecycle.delete(key)
     const dispose = disposers.get(key)
     if (dispose) {
@@ -178,10 +180,10 @@ export function createChildStoreManager(input: {
 
           const [pathQuery, mcpQuery, lspQuery, providerQuery] = useQueries(() => ({
             queries: [
-              loadPathQuery(key, sdk),
-              loadMcpQuery(key, sdk),
-              loadLspQuery(key, sdk),
-              loadProvidersQuery(key, sdk),
+              loadPathQuery(key, queryEnabled[key] ? sdk : undefined),
+              loadMcpQuery(key, queryEnabled[key] ? sdk : undefined),
+              loadLspQuery(key, queryEnabled[key] ? sdk : undefined),
+              loadProvidersQuery(key, queryEnabled[key] ? sdk : undefined),
             ],
           }))
 
@@ -195,6 +197,7 @@ export function createChildStoreManager(input: {
             get provider() {
               const EMPTY = { all: [], connected: [], default: {} }
               if (providerQuery.isLoading) return EMPTY
+              if (!queryEnabled[key] && input.global.provider.all.length > 0) return input.global.provider
               if (providerQuery.data?.all.length === 0 && input.global.provider.all.length > 0)
                 return input.global.provider
               return providerQuery.data ?? EMPTY
@@ -207,7 +210,7 @@ export function createChildStoreManager(input: {
             },
             get path() {
               if (pathQuery.isLoading || !pathQuery.data)
-                return { state: "", config: "", worktree: "", directory: "", home: "" }
+                return { state: "", config: "", worktree: directory, directory, home: "" }
               return pathQuery.data
             },
             status: "loading" as const,
@@ -280,6 +283,7 @@ export function createChildStoreManager(input: {
     pinForOwner(key)
     const shouldBootstrap = options.bootstrap ?? true
     if (shouldBootstrap && childStore[0].status === "loading") {
+      setQueryEnabled(key, true)
       input.onBootstrap(directory)
     }
     return childStore
@@ -290,6 +294,7 @@ export function createChildStoreManager(input: {
     const childStore = ensureChild(directory)
     const shouldBootstrap = options.bootstrap ?? true
     if (shouldBootstrap && childStore[0].status === "loading") {
+      setQueryEnabled(key, true)
       input.onBootstrap(directory)
     }
     return childStore

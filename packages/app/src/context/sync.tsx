@@ -175,13 +175,13 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
     type Child = ReturnType<(typeof globalSync)["child"]>
     type Setter = Child[1]
 
-    const current = createMemo(() => globalSync.child(sdk.directory))
+    const current = createMemo(() => globalSync.child(sdk.directory, { bootstrap: false }))
     const target = (directory?: string) => {
       if (!directory || directory === sdk.directory) return current()
-      return globalSync.child(directory)
+      return globalSync.child(directory, { bootstrap: false })
     }
     const absolute = (path: string) => (current()[0].path.directory + "/" + path).replace("//", "/")
-    const initialMessagePageSize = 80
+    const initialMessagePageSize = 20
     const historyMessagePageSize = 200
     const inflight = new Map<string, Promise<void>>()
     const inflightDiff = new Map<string, Promise<void>>()
@@ -427,10 +427,10 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             parts: input.parts,
           })
         },
-        async sync(sessionID: string, opts?: { force?: boolean }) {
+        async sync(sessionID: string, opts?: { force?: boolean; awaitPrefetch?: boolean }) {
           const directory = sdk.directory
           const client = sdk.client
-          const [store, setStore] = globalSync.child(directory)
+          const [store, setStore] = globalSync.child(directory, { bootstrap: false })
           const key = keyFor(directory, sessionID)
 
           touch(directory, setStore, sessionID)
@@ -447,7 +447,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
 
           return runInflight(inflight, key, async () => {
             const pending = getSessionPrefetchPromise(directory, sessionID)
-            if (pending) {
+            if (pending && opts?.awaitPrefetch) {
               await pending
               const seeded = getSessionPrefetch(directory, sessionID)
               if (seeded && store.message[sessionID] !== undefined && meta.limit[key] === undefined) {
@@ -502,7 +502,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         async diff(sessionID: string, opts?: { force?: boolean }) {
           const directory = sdk.directory
           const client = sdk.client
-          const [store, setStore] = globalSync.child(directory)
+          const [store, setStore] = globalSync.child(directory, { bootstrap: false })
           touch(directory, setStore, sessionID)
           if (store.session_diff[sessionID] !== undefined && !opts?.force) return
 
@@ -517,7 +517,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         async todo(sessionID: string, opts?: { force?: boolean }) {
           const directory = sdk.directory
           const client = sdk.client
-          const [store, setStore] = globalSync.child(directory)
+          const [store, setStore] = globalSync.child(directory, { bootstrap: false })
           touch(directory, setStore, sessionID)
           const existing = store.todo[sessionID]
           const cached = globalSync.data.session_todo[sessionID]
@@ -558,7 +558,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           async loadMore(sessionID: string, count?: number) {
             const directory = sdk.directory
             const client = sdk.client
-            const [, setStore] = globalSync.child(directory)
+            const [, setStore] = globalSync.child(directory, { bootstrap: false })
             touch(directory, setStore, sessionID)
             const key = keyFor(directory, sessionID)
             const step = count ?? historyMessagePageSize
@@ -579,14 +579,14 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           },
         },
         evict(sessionID: string, directory = sdk.directory) {
-          const [, setStore] = globalSync.child(directory)
+          const [, setStore] = globalSync.child(directory, { bootstrap: false })
           seenFor(directory).delete(sessionID)
           evict(directory, setStore, [sessionID])
         },
         fetch: async (count = 10) => {
           const directory = sdk.directory
           const client = sdk.client
-          const [store, setStore] = globalSync.child(directory)
+          const [store, setStore] = globalSync.child(directory, { bootstrap: false })
           setStore("limit", (x) => x + count)
           await client.session.list().then((x) => {
             const sessions = (x.data ?? [])
@@ -600,7 +600,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         archive: async (sessionID: string) => {
           const directory = sdk.directory
           const client = sdk.client
-          const [, setStore] = globalSync.child(directory)
+          const [, setStore] = globalSync.child(directory, { bootstrap: false })
           await client.session.update({ sessionID, time: { archived: Date.now() } })
           setStore(
             produce((draft) => {

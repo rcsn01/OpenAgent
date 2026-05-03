@@ -13,7 +13,6 @@ import {
   on,
   onMount,
   untrack,
-  createResource,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createMediaQuery } from "@solid-primitives/media"
@@ -586,6 +585,8 @@ export default function Page() {
   let todoTimer: number | undefined
   let diffFrame: number | undefined
   let diffTimer: number | undefined
+  let treeFrame: number | undefined
+  let treeTimer: number | undefined
 
   createComputed((prev) => {
     const open = desktopReviewOpen()
@@ -789,37 +790,42 @@ export default function Page() {
 
   const hasScrollGesture = () => Date.now() - ui.scrollGesture < scrollGestureWindowMs
 
-  const [sessionSync] = createResource(
-    () => [sdk.directory, params.id] as const,
-    ([directory, id]) => {
-      if (refreshFrame !== undefined) cancelAnimationFrame(refreshFrame)
-      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
-      refreshFrame = undefined
-      refreshTimer = undefined
-      if (!id) return
-
-      const cached = untrack(() => sync.data.message[id] !== undefined)
-      const stale = !cached
-        ? false
-        : (() => {
-            const info = getSessionPrefetch(directory, id)
-            if (!info) return true
-            return Date.now() - info.at > SESSION_PREFETCH_TTL
-          })()
-
-      refreshFrame = requestAnimationFrame(() => {
+  createEffect(
+    on(
+      () => [sdk.directory, params.id] as const,
+      ([directory, id]) => {
+        if (refreshFrame !== undefined) cancelAnimationFrame(refreshFrame)
+        if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
         refreshFrame = undefined
-        refreshTimer = window.setTimeout(() => {
-          refreshTimer = undefined
-          if (params.id !== id) return
-          untrack(() => {
-            if (stale) void sync.session.sync(id, { force: true })
-          })
-        }, 0)
-      })
+        refreshTimer = undefined
+        if (!id) return
 
-      return sync.session.sync(id)
-    },
+        const cached = untrack(() => sync.data.message[id] !== undefined)
+        const stale = !cached
+          ? false
+          : (() => {
+              const info = getSessionPrefetch(directory, id)
+              if (!info) return true
+              return Date.now() - info.at > SESSION_PREFETCH_TTL
+            })()
+
+        refreshFrame = requestAnimationFrame(() => {
+          refreshFrame = undefined
+          refreshTimer = window.setTimeout(() => {
+            refreshTimer = undefined
+            if (params.id !== id) return
+            untrack(() => {
+              if (stale) void sync.session.sync(id, { force: true })
+            })
+          }, 0)
+        })
+
+        untrack(() => {
+          void sync.session.sync(id)
+        })
+      },
+      { defer: true },
+    ),
   )
 
   createEffect(
@@ -1338,7 +1344,16 @@ export default function Page() {
     fileTreeTab()
     const refresh = treeDir !== dir
     treeDir = dir
-    void (refresh ? file.tree.refresh("") : file.tree.list(""))
+    if (treeFrame !== undefined) cancelAnimationFrame(treeFrame)
+    if (treeTimer !== undefined) window.clearTimeout(treeTimer)
+    treeFrame = requestAnimationFrame(() => {
+      treeFrame = undefined
+      treeTimer = window.setTimeout(() => {
+        treeTimer = undefined
+        if (sdk.directory !== dir) return
+        void (refresh ? file.tree.refresh("") : file.tree.list(""))
+      }, 0)
+    })
   })
 
   createEffect(
@@ -1822,13 +1837,14 @@ export default function Page() {
     if (todoTimer !== undefined) window.clearTimeout(todoTimer)
     if (diffFrame !== undefined) cancelAnimationFrame(diffFrame)
     if (diffTimer !== undefined) window.clearTimeout(diffTimer)
+    if (treeFrame !== undefined) cancelAnimationFrame(treeFrame)
+    if (treeTimer !== undefined) window.clearTimeout(treeTimer)
     if (scrollStateFrame !== undefined) cancelAnimationFrame(scrollStateFrame)
     if (fillFrame !== undefined) cancelAnimationFrame(fillFrame)
   })
 
   return (
     <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
-      {sessionSync() ?? ""}
       <SessionHeader />
       <div class="flex-1 min-h-0 flex flex-col md:flex-row">
         <Show when={!isDesktop() && !!params.id}>
@@ -1919,7 +1935,7 @@ export default function Page() {
 
           <SessionComposerRegion
             state={composer}
-            ready={!store.deferRender && messagesReady()}
+            ready={!store.deferRender}
             centered={centered()}
             inputRef={(el) => {
               inputRef = el
