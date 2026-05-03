@@ -63,7 +63,6 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
 
   const path = () => `${location.pathname}${location.search}${location.hash}`
   const creating = createMemo(() => {
-    if (route.kind() === "chat") return !route.sessionID()
     if (route.kind() !== "workspace") return false
     if (route.sessionID()) return false
     const parts = location.pathname.replace(/\/+$/, "").split("/")

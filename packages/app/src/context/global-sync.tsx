@@ -349,7 +349,9 @@ function createGlobalSync() {
       return
     }
 
-    const existing = children.children[key]
+    const existing =
+      children.children[key] ??
+      Object.values(children.children).find(([store]) => directoryKey(store.path.directory) === key)
     if (!existing) return
     children.mark(key)
     const [store, setStore] = existing

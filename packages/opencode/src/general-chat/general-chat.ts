@@ -3,6 +3,7 @@ import { Database } from "@/storage/db"
 import { NotFoundError } from "@/storage/storage"
 import { ProjectTable } from "@/project/project.sql"
 import { ProjectID } from "@/project/schema"
+import { Config } from "@/config/config"
 import { Session } from "@/session/session"
 import { SessionID } from "@/session/schema"
 import { SessionTable } from "@/session/session.sql"
@@ -10,7 +11,7 @@ import { InstanceRef } from "@/effect/instance-ref"
 import { which } from "@/util/which"
 import { serviceUse } from "@/effect/service-use"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
-import { Effect, Layer, Path, Context, Schema, Stream, Types } from "effect"
+import { Effect, Layer, Path, Context, Schema, Stream, Types, Option } from "effect"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { NodePath } from "@effect/platform-node"
@@ -24,6 +25,27 @@ type GitResult = { code: number; text: string; stderr: string }
 
 const db = <T>(fn: (d: Parameters<typeof Database.use>[0] extends (trx: infer D) => any ? D : never) => T) =>
   Effect.sync(() => Database.use(fn))
+
+function inheritedConfig(config: Config.Info) {
+  return {
+    provider: config.provider,
+    model: config.model,
+    small_model: config.small_model,
+    disabled_providers: config.disabled_providers,
+    enabled_providers: config.enabled_providers,
+    agent: config.agent,
+    default_agent: config.default_agent,
+  } satisfies Config.Info
+}
+
+function hasConfigValue(config: Config.Info) {
+  return Object.values(config).some((value) => {
+    if (value === undefined) return false
+    if (Array.isArray(value)) return value.length > 0
+    if (typeof value === "object" && value !== null) return Object.keys(value).length > 0
+    return true
+  })
+}
 
 export const Info = Schema.Struct({
   session: Session.Info,
@@ -46,7 +68,7 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Ge
 export const layer: Layer.Layer<
   Service,
   never,
-  AppFileSystem.Service | Session.Service | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+  AppFileSystem.Service | Config.Service | Session.Service | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -54,6 +76,7 @@ export const layer: Layer.Layer<
     const pathSvc = yield* Path.Path
     const sessions = yield* Session.Service
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const configSvc = yield* Config.Service
 
     const git = Effect.fnUntraced(
       function* (args: string[], cwd: string) {
@@ -146,7 +169,15 @@ export const layer: Layer.Layer<
     })
 
     const create = Effect.fn("GeneralChat.create")(function* () {
+      const ctx = yield* InstanceRef
+      const sourceConfig = ctx ? Option.getOrUndefined(yield* configSvc.get().pipe(Effect.option)) : undefined
       const directory = yield* allocateDirectory()
+      const config = sourceConfig ? inheritedConfig(sourceConfig) : undefined
+      if (config && hasConfigValue(config)) {
+        yield* fs
+          .writeWithDirs(pathSvc.join(directory, "opencode.json"), JSON.stringify(config, null, 2))
+          .pipe(Effect.orDie)
+      }
       const vcs = (yield* tryInitGit(directory)) ? ("git" as const) : undefined
       const now = Date.now()
       yield* ensureGlobalProject()
@@ -203,6 +234,7 @@ export const layer: Layer.Layer<
 export const defaultLayer = layer.pipe(
   Layer.provide(CrossSpawnSpawner.defaultLayer),
   Layer.provide(AppFileSystem.defaultLayer),
+  Layer.provide(Config.defaultLayer),
   Layer.provide(NodePath.layer),
   Layer.provide(Session.defaultLayer),
 )

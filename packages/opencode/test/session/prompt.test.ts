@@ -1,4 +1,4 @@
-import { NodeFileSystem } from "@effect/platform-node"
+import { NodeFileSystem, NodePath } from "@effect/platform-node"
 import { FetchHttpClient } from "effect/unstable/http"
 import { expect } from "bun:test"
 import { Cause, Effect, Exit, Fiber, Layer } from "effect"
@@ -40,11 +40,12 @@ import { Shell } from "../../src/shell/shell"
 import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "@/tool/registry"
 import { Truncate } from "@/tool/truncate"
+import { GeneralChat } from "@/general-chat/general-chat"
 import * as Log from "@opencode-ai/core/util/log"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Ripgrep } from "../../src/file/ripgrep"
 import { Format } from "../../src/format"
-import { provideTmpdirInstance, provideTmpdirServer } from "../fixture/fixture"
+import { provideInstance, provideTmpdirInstance, provideTmpdirServer } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { reply, TestLLMServer } from "../lib/llm-server"
 
@@ -154,7 +155,7 @@ const lsp = Layer.succeed(
 
 const status = SessionStatus.layer.pipe(Layer.provideMerge(Bus.layer))
 const run = SessionRunState.layer.pipe(Layer.provide(status))
-const infra = Layer.mergeAll(NodeFileSystem.layer, CrossSpawnSpawner.defaultLayer)
+const infra = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, CrossSpawnSpawner.defaultLayer)
 function makeHttp() {
   const deps = Layer.mergeAll(
     Session.defaultLayer,
@@ -192,8 +193,10 @@ function makeHttp() {
   const trunc = Truncate.layer.pipe(Layer.provideMerge(deps))
   const proc = SessionProcessor.layer.pipe(Layer.provide(summary), Layer.provideMerge(deps))
   const compact = SessionCompaction.layer.pipe(Layer.provideMerge(proc), Layer.provideMerge(deps))
+  const generalChat = GeneralChat.layer.pipe(Layer.provideMerge(deps))
   return Layer.mergeAll(
     TestLLMServer.layer,
+    generalChat,
     SessionPrompt.layer.pipe(
       Layer.provide(SessionRevert.defaultLayer),
       Layer.provide(summary),
@@ -377,6 +380,41 @@ it.live("loop calls LLM and returns assistant message", () =>
     }),
     { git: true, config: providerCfg },
   ),
+)
+
+it.live("general chat directory can prompt and return assistant message", () =>
+  provideTmpdirServer(
+    Effect.fnUntraced(function* ({ llm }) {
+      const prompt = yield* SessionPrompt.Service
+      const generalChat = yield* GeneralChat.Service
+      const chat = yield* generalChat.create()
+      yield* llm.text("pong")
+
+      const result = yield* prompt
+        .prompt({
+          sessionID: chat.rootSessionID,
+          agent: "assistant",
+          model: ref,
+          parts: [{ type: "text", text: "ping" }],
+        })
+        .pipe(provideInstance(chat.directory))
+
+      expect(result.info.role).toBe("assistant")
+      expect(result.parts.some((part) => part.type === "text" && part.text === "pong")).toBe(true)
+    }),
+    { git: true, config: providerCfg },
+  ),
+  20_000,
+)
+
+it.live("general chat can be created without an instance context", () =>
+  Effect.gen(function* () {
+    const generalChat = yield* GeneralChat.Service
+    const chat = yield* generalChat.create()
+
+    expect(chat.rootSessionID).toBe(chat.session.id)
+    expect(chat.directory.length).toBeGreaterThan(0)
+  }),
 )
 
 it.live("static loop returns assistant text through local provider", () =>

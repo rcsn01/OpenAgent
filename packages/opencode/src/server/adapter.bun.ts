@@ -3,19 +3,22 @@ import { createBunWebSocket } from "hono/bun"
 import type { Adapter, FetchApp, Opts } from "./adapter"
 
 function listen(app: FetchApp, opts: Opts, websocket?: ReturnType<typeof createBunWebSocket>["websocket"]) {
+  let lastError: unknown
   const start = (port: number) => {
     try {
       if (websocket) {
         return Bun.serve({ fetch: app.fetch, hostname: opts.hostname, idleTimeout: 0, websocket, port })
       }
       return Bun.serve({ fetch: app.fetch, hostname: opts.hostname, idleTimeout: 0, port })
-    } catch {
+    } catch (error) {
+      lastError = error
       return
     }
   }
   const server = opts.port === 0 ? (start(4096) ?? start(0)) : start(opts.port)
   if (!server) {
-    throw new Error(`Failed to start server on port ${opts.port}`)
+    if (lastError instanceof Error) throw lastError
+    throw new Error(`Failed to start server on port ${opts.port}`, { cause: lastError })
   }
   if (!server.port) {
     throw new Error(`Failed to resolve server address for port ${opts.port}`)

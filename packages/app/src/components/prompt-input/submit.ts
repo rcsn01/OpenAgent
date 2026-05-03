@@ -6,7 +6,6 @@ import { useNavigate } from "@solidjs/router"
 import { batch, type Accessor } from "solid-js"
 import { useAppRoute } from "@/context/app-route"
 import type { FileSelection } from "@/context/file"
-import { useGeneralChats } from "@/context/general-chat"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -219,7 +218,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const layout = useLayout()
   const language = useLanguage()
   const route = useAppRoute()
-  const generalChats = useGeneralChats()
 
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "data" in err) {
@@ -323,14 +321,13 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     const projectDirectory = sdk.directory
     const isNewSession = !route.sessionID()
-    const isGeneralChat = route.isChat()
     const shouldAutoAccept = isNewSession && input.autoAccept()
     const worktreeSelection = input.newSessionWorktree?.() || "main"
 
     let sessionDirectory = projectDirectory
     let client = sdk.client
 
-    if (isNewSession && !isGeneralChat) {
+    if (isNewSession) {
       if (worktreeSelection === "create") {
         const createdWorktree = await client.worktree
           .create({ directory: projectDirectory })
@@ -370,30 +367,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     }
 
     let session = input.info()
-    if (!session && isNewSession && isGeneralChat) {
-      const created = await generalChats.create().catch((err) => {
-        showToast({
-          title: language.t("prompt.toast.sessionCreateFailed.title"),
-          description: errorMessage(err),
-        })
-        return undefined
-      })
-      if (created) {
-        sessionDirectory = created.directory
-        client = sdk.createClient({
-          directory: sessionDirectory,
-          throwOnError: true,
-        })
-        globalSync.child(sessionDirectory)
-        seed(sessionDirectory, created.session)
-        session = created.session
-        if (shouldAutoAccept) permission.enableAutoAccept(session.id, sessionDirectory)
-        local.session.promote(sessionDirectory, session.id)
-        layout.handoff.setTabs(base64Encode(sessionDirectory), session.id)
-        navigate(route.href(session.id))
-      }
-    }
-    if (!session && isNewSession && !isGeneralChat) {
+    if (!session && isNewSession) {
       const created = await client.session
         .create()
         .then((x) => x.data ?? undefined)
@@ -474,9 +448,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           model,
           command: text,
         })
-        .then(() => {
-          if (route.isChat()) void generalChats.refresh()
-        })
+        .then(() => {})
         .catch((err) => {
           showToast({
             title: language.t("prompt.toast.shellSendFailed.title"),
@@ -509,9 +481,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
               filename: attachment.filename,
             })),
           })
-          .then(() => {
-            if (route.isChat()) void generalChats.refresh()
-          })
+          .then(() => {})
           .catch((err) => {
             showToast({
               title: language.t("prompt.toast.commandSendFailed.title"),
@@ -600,7 +570,6 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       messageID,
       optimisticBusy: sessionDirectory === projectDirectory,
       before: waitForWorktree,
-      afterSuccess: route.isChat() ? () => generalChats.refresh() : undefined,
     }).catch((err) => {
       pending.delete(session.id)
       if (sessionDirectory === projectDirectory) {

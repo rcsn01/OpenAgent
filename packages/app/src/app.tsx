@@ -31,7 +31,6 @@ import { CommandProvider } from "@/context/command"
 import { CommentsProvider } from "@/context/comments"
 import { FileProvider } from "@/context/file"
 import { AppRouteProvider, useAppRoute } from "@/context/app-route"
-import { GeneralChatProvider } from "@/context/general-chat"
 import { GlobalSDKProvider } from "@/context/global-sdk"
 import { GlobalSyncProvider } from "@/context/global-sync"
 import { HighlightsProvider } from "@/context/highlights"
@@ -65,11 +64,12 @@ const SessionRoute = () => (
 )
 
 const EmptyRoute = () => null
+const RedirectHomeRoute = () => <Navigate href="/" />
 
 const PersistentSessionRoute = () => {
   const route = useAppRoute()
   return (
-    <Show when={route.kind() === "chat" || route.kind() === "workspace"}>
+    <Show when={route.kind() === "workspace"}>
       <SessionRouteHost>
         <SessionRoute />
       </SessionRouteHost>
@@ -115,17 +115,15 @@ function AppShellProviders(props: ParentProps) {
     <SettingsProvider>
       <PermissionProvider>
         <LayoutProvider>
-          <GeneralChatProvider>
-            <NotificationProvider>
-              <ModelsProvider>
-                <CommandProvider>
-                  <HighlightsProvider>
-                    <Layout>{props.children}</Layout>
-                  </HighlightsProvider>
-                </CommandProvider>
-              </ModelsProvider>
-            </NotificationProvider>
-          </GeneralChatProvider>
+          <NotificationProvider>
+            <ModelsProvider>
+              <CommandProvider>
+                <HighlightsProvider>
+                  <Layout>{props.children}</Layout>
+                </HighlightsProvider>
+              </CommandProvider>
+            </ModelsProvider>
+          </NotificationProvider>
         </LayoutProvider>
       </PermissionProvider>
     </SettingsProvider>
@@ -335,7 +333,7 @@ export function AppInterface(props: {
                   root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
                 >
                   <Route path="/" component={HomeRoute} />
-                  <Route path="/chat/:id?" component={EmptyRoute} />
+                  <Route path="/chat/:id?" component={RedirectHomeRoute} />
                   <Route path="/:dir" component={SessionIndexRoute} />
                   <Route path="/:dir/session/:id?" component={EmptyRoute} />
                 </Dynamic>

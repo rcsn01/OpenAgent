@@ -72,6 +72,11 @@ export async function createProjectSession(input: { directory: string; prompt?: 
       agent: input.agent ?? defaultProjectAgent,
       model: input.model ?? defaultModel,
     })
+    await waitForProjectTurn({
+      directory: input.directory,
+      sessionID: created.data.id,
+      userText: input.prompt,
+    })
   }
 
   return created.data
@@ -107,6 +112,61 @@ export function messageText(message: { parts?: Array<{ type: string; text?: stri
     .map((part) => part.text as string)
     .join("\n")
     .trim()
+}
+
+export async function waitForProjectTurn(input: {
+  directory: string
+  sessionID: string
+  userText: string
+  assistantText?: RegExp
+  timeoutMs?: number
+}) {
+  const timeoutMs = input.timeoutMs ?? 30_000
+  const start = Date.now()
+  let lastMessages:
+    | Array<{
+        role: string
+        completed: unknown
+        text: string
+      }>
+    | undefined
+
+  while (Date.now() - start < timeoutMs) {
+    const messages = await getSessionMessages(input.directory, input.sessionID)
+    lastMessages = messages.map((message) => ({
+      role: message.info.role,
+      completed: message.info.time.completed,
+      text: messageText(message),
+    }))
+
+    const matchingUsers = messages.filter(
+      (message) => message.info.role === "user" && messageText(message).includes(input.userText),
+    )
+    const completedAssistants = messages.filter((message) => {
+      if (message.info.role !== "assistant") return false
+      if (typeof message.info.time.completed !== "number") return false
+      if (!input.assistantText) return true
+      return input.assistantText.test(messageText(message))
+    })
+
+    if (matchingUsers.length === 1 && completedAssistants.length > 0) {
+      return {
+        messages,
+        user: matchingUsers[0],
+        assistants: completedAssistants,
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+
+  throw new Error(
+    [
+      `Timed out waiting for project turn ${input.sessionID} to complete`,
+      `directory: ${input.directory}`,
+      `messages: ${JSON.stringify(lastMessages ?? [], null, 2)}`,
+    ].join("\n"),
+  )
 }
 
 export async function waitForGeneralChatTurn(input: {

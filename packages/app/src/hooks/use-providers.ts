@@ -19,23 +19,37 @@ export function useProviders() {
   const globalSync = useGlobalSync()
   const dir = createMemo(() => route.directory())
   const providers = () => {
-    if (dir()) {
-      const [projectStore] = globalSync.child(dir())
-      if (projectStore.provider_ready) return projectStore.provider
-    }
+    const directory = dir()
+    if (directory) return globalSync.child(directory)[0].provider
     return globalSync.data.provider
   }
+  const all = () => {
+    const list = providers().all
+    if (list.length > 0 || !dir() || globalSync.data.provider.all.length === 0) return list
+    return globalSync.data.provider.all
+  }
+  const defaults = () => {
+    const value = providers().default
+    if (Object.keys(value).length > 0 || !dir() || Object.keys(globalSync.data.provider.default).length === 0)
+      return value
+    return globalSync.data.provider.default
+  }
+  const connectedIDs = () => {
+    const list = providers().connected
+    if (list.length > 0 || !dir() || globalSync.data.provider.connected.length === 0) return list
+    return globalSync.data.provider.connected
+  }
   return {
-    all: () => providers().all,
-    default: () => providers().default,
-    popular: () => providers().all.filter((p) => popularProviderSet.has(p.id)),
+    all,
+    default: defaults,
+    popular: () => all().filter((p) => popularProviderSet.has(p.id)),
     connected: () => {
-      const connected = new Set(providers().connected)
-      return providers().all.filter((p) => connected.has(p.id))
+      const connected = new Set(connectedIDs())
+      return all().filter((p) => connected.has(p.id))
     },
     paid: () => {
-      const connected = new Set(providers().connected)
-      return providers().all.filter(
+      const connected = new Set(connectedIDs())
+      return all().filter(
         (p) => connected.has(p.id) && (p.id !== "opencode" || Object.values(p.models).some((m) => m.cost?.input)),
       )
     },

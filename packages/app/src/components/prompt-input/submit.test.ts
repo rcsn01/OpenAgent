@@ -22,12 +22,10 @@ const sentShell: string[] = []
 const syncedDirectories: string[] = []
 const promptAsyncCalls: Array<{ directory: string; sessionID: string }> = []
 const navigations: string[] = []
-const generalChatCreates: Array<{ directory: string; sessionID: string }> = []
 
 let params: { id?: string } = {}
 let selected = "/repo/worktree-a"
 let variant: string | undefined
-let routeIsChat = false
 
 const promptValue: Prompt = [{ type: "text", content: "ls", start: 0, end: 2 }]
 
@@ -203,28 +201,9 @@ beforeAll(async () => {
   mock.module("@/context/app-route", () => ({
     useAppRoute: () => ({
       sessionID: () => params.id,
-      isChat: () => routeIsChat,
+      isChat: () => false,
       href: (sessionID?: string) =>
-        routeIsChat ? (sessionID ? `/chat/${sessionID}` : "/chat") : sessionID ? `/repo/main/session/${sessionID}` : "/repo/main/session",
-    }),
-  }))
-
-  mock.module("@/context/general-chat", () => ({
-    useGeneralChats: () => ({
-      create: async () => {
-        const sessionID = `session-${generalChatCreates.length + 1}`
-        const directory = `/chat/${sessionID}`
-        generalChatCreates.push({ directory, sessionID })
-        return {
-          rootSessionID: sessionID,
-          directory,
-          session: {
-            id: sessionID,
-            title: `New chat ${generalChatCreates.length}`,
-          },
-        }
-      },
-      refresh: async () => undefined,
+        sessionID ? `/repo/main/session/${sessionID}` : "/repo/main/session",
     }),
   }))
 
@@ -250,10 +229,8 @@ beforeEach(() => {
   syncedDirectories.length = 0
   promptAsyncCalls.length = 0
   navigations.length = 0
-  generalChatCreates.length = 0
   selected = "/repo/worktree-a"
   variant = undefined
-  routeIsChat = false
   for (const key of Object.keys(storedSessions)) delete storedSessions[key]
 })
 
@@ -382,37 +359,5 @@ describe("prompt submit worktree selection", () => {
 
     expect(storedSessions["/repo/worktree-a"]).toEqual([{ id: "session-1", title: "New session 1" }])
     expect(optimisticSeeded).toEqual([true])
-  })
-
-  test("creates a general chat session, navigates to it, and sends the prompt once", async () => {
-    routeIsChat = true
-
-    const submit = createPromptSubmit({
-      info: () => undefined,
-      imageAttachments: () => [],
-      commentCount: () => 0,
-      autoAccept: () => false,
-      mode: () => "normal",
-      working: () => false,
-      editor: () => undefined,
-      queueScroll: () => undefined,
-      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
-      addToHistory: () => undefined,
-      resetHistoryNavigation: () => undefined,
-      setMode: () => undefined,
-      setPopover: () => undefined,
-      onSubmit: () => undefined,
-    })
-
-    const event = { preventDefault: () => undefined } as unknown as Event
-    await submit.handleSubmit(event)
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(generalChatCreates).toEqual([{ directory: "/chat/session-1", sessionID: "session-1" }])
-    expect(storedSessions["/chat/session-1"]).toEqual([{ id: "session-1", title: "New chat 1" }])
-    expect(optimisticSeeded).toEqual([true])
-    expect(promptAsyncCalls).toEqual([{ directory: "/chat/session-1", sessionID: "session-1" }])
-    expect(navigations).toEqual(["/chat/session-1"])
   })
 })

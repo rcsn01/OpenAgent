@@ -583,12 +583,34 @@ export default function Page() {
   let reviewFrame: number | undefined
   let refreshFrame: number | undefined
   let refreshTimer: number | undefined
+  let emptyMessageRetryTimers: number[] = []
   let todoFrame: number | undefined
   let todoTimer: number | undefined
   let diffFrame: number | undefined
   let diffTimer: number | undefined
   let treeFrame: number | undefined
   let treeTimer: number | undefined
+
+  const clearEmptyMessageRetries = () => {
+    for (const timer of emptyMessageRetryTimers) {
+      window.clearTimeout(timer)
+    }
+    emptyMessageRetryTimers = []
+  }
+
+  const scheduleEmptyMessageRetries = (directory: string, id: string) => {
+    clearEmptyMessageRetries()
+    for (const delay of [750, 2_000, 5_000]) {
+      emptyMessageRetryTimers.push(
+        window.setTimeout(() => {
+          if (params.id !== id) return
+          if (sdk.directory !== directory) return
+          if ((sync.data.message[id]?.length ?? 0) > 0) return
+          void sync.session.sync(id, { force: true })
+        }, delay),
+      )
+    }
+  }
 
   createComputed((prev) => {
     const open = desktopMainPanelOpen()
@@ -798,6 +820,7 @@ export default function Page() {
       ([directory, id]) => {
         if (refreshFrame !== undefined) cancelAnimationFrame(refreshFrame)
         if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+        clearEmptyMessageRetries()
         refreshFrame = undefined
         refreshTimer = undefined
         if (!id) return
@@ -823,10 +846,14 @@ export default function Page() {
         })
 
         untrack(() => {
-          void sync.session.sync(id)
+          void sync.session.sync(id).then(() => {
+            if (params.id !== id) return
+            if (sdk.directory !== directory) return
+            if ((sync.data.message[id]?.length ?? 0) > 0) return
+            scheduleEmptyMessageRetries(directory, id)
+          })
         })
       },
-      { defer: true },
     ),
   )
 
@@ -1835,6 +1862,7 @@ export default function Page() {
     if (reviewFrame !== undefined) cancelAnimationFrame(reviewFrame)
     if (refreshFrame !== undefined) cancelAnimationFrame(refreshFrame)
     if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
+    clearEmptyMessageRetries()
     if (todoFrame !== undefined) cancelAnimationFrame(todoFrame)
     if (todoTimer !== undefined) window.clearTimeout(todoTimer)
     if (diffFrame !== undefined) cancelAnimationFrame(diffFrame)

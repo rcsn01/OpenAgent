@@ -176,7 +176,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
     type Child = ReturnType<(typeof globalSync)["child"]>
     type Setter = Child[1]
 
-    const current = createMemo(() => globalSync.child(sdk.directory, { bootstrap: false }))
+    const current = createMemo(() => globalSync.child(sdk.directory))
     const target = (directory?: string) => {
       if (!directory || directory === sdk.directory) return current()
       return globalSync.child(directory, { bootstrap: false })

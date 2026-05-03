@@ -15,7 +15,6 @@ import {
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useNavigate } from "@solidjs/router"
 import { useAppRoute } from "@/context/app-route"
-import { type GeneralChatInfo, useGeneralChats } from "@/context/general-chat"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
@@ -113,7 +112,6 @@ export default function Layout(props: ParentProps) {
   let dialogDead = false
 
   const appRoute = useAppRoute()
-  const generalChats = useGeneralChats()
   const globalSDK = useGlobalSDK()
   const globalSync = useGlobalSync()
   const layout = useLayout()
@@ -145,9 +143,6 @@ export default function Layout(props: ParentProps) {
   const colorSchemeLabel = (scheme: ColorScheme) => language.t(colorSchemeKey[scheme])
   const currentDir = createMemo(() => appRoute.directory())
   const currentSessionID = createMemo(() => appRoute.sessionID())
-  const currentGeneralChatID = createMemo(() =>
-    appRoute.isChat() ? appRoute.rootSessionID() ?? currentSessionID() : undefined,
-  )
   const currentConsoleState = createMemo(() => {
     const directory = currentDir()
     if (!directory) return
@@ -1281,7 +1276,7 @@ export default function Layout(props: ParentProps) {
   }
 
   function sidebarDialogDirectory() {
-    if (!appRoute.isChat() && currentDir()) return currentDir()
+    if (currentDir()) return currentDir()
     return currentProject()?.worktree || layout.projects.list()[0]?.worktree
   }
 
@@ -1291,19 +1286,12 @@ export default function Layout(props: ParentProps) {
       if (dialogDead || dialogRun !== run) return
       dialog.show(() => (
         <x.DialogSessionList
-          title="Search chats"
-          placeholder="Search chats"
+          title="Search sessions"
+          placeholder="Search sessions"
           sessions={searchableSessions()}
           currentID={currentSessionID()}
           subtitle={sessionSearchSubtitle}
-          onSelect={(session) => {
-            const generalChat = generalChatForSession(session)
-            if (generalChat) {
-              openGeneralChat(generalChat.rootSessionID, generalChat.directory)
-              return
-            }
-            navigateToSession(session)
-          }}
+          onSelect={navigateToSession}
         />
       ))
     })
@@ -2179,40 +2167,14 @@ export default function Layout(props: ParentProps) {
     dialog.show(() => <DialogArchiveProjectChats project={project} sessions={sessions} />)
   }
 
-  const generalChatSessions = createMemo(() => generalChats.list())
   const searchableSessions = createMemo(() =>
-    [...generalChatSessions().map((chat) => chat.session), ...layout.projects.list().flatMap((project) => projectSessions(project))]
+    layout.projects
+      .list()
+      .flatMap((project) => projectSessions(project))
       .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created)),
   )
 
-  const openGeneralChat = (sessionID?: string, directory?: string) =>
-    navigateWithSidebarReset(
-      sessionID
-        ? `/chat/${encodeURIComponent(sessionID)}${directory ? `?d=${encodeURIComponent(base64Encode(directory))}` : ""}`
-        : "/chat",
-    )
-
-  const generalChatForSession = (session: Session) =>
-    generalChatSessions().find(
-      (chat) => chat.rootSessionID === session.id || pathKey(chat.directory) === pathKey(session.directory),
-    )
-
-  async function archiveGeneralChat(chat: GeneralChatInfo) {
-    await globalSDK.client.session.update({
-      sessionID: chat.rootSessionID,
-      directory: chat.directory,
-      time: { archived: Date.now() },
-    })
-    generalChats.remove(chat.rootSessionID)
-    if (currentGeneralChatID() === chat.rootSessionID) navigateWithSidebarReset("/chat")
-    showToast({
-      title: language.t("sidebar.chat.archiveSuccessTitle"),
-      description: language.t("sidebar.chat.archiveSuccessDescription"),
-    })
-  }
-
   const sessionSearchSubtitle = (session: Session) => {
-    if (generalChatForSession(session)) return language.t("sidebar.chat.section")
     const root = projectRoot(session.directory)
     const project = layout.projects.list().find((item) => pathKey(item.worktree) === pathKey(root))
     const projectName = project ? displayName(project) : getFilename(root)
@@ -2230,9 +2192,7 @@ export default function Layout(props: ParentProps) {
   })
 
   function openSidebarNewChat() {
-    const directory = appRoute.isChat()
-      ? currentProject()?.worktree || layout.projects.list()[0]?.worktree
-      : currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
+    const directory = currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
     if (!directory) {
       void chooseProject()
       return
@@ -2633,30 +2593,9 @@ export default function Layout(props: ParentProps) {
     if (mobile || layout.sidebar.opened()) {
       return (
         <SidebarHub
-          chats={generalChatSessions}
-          currentChatID={currentGeneralChatID}
           projects={projects}
           currentDir={currentDir}
-          currentSessionID={() => (appRoute.isChat() ? undefined : currentSessionID())}
-          onOpenChat={(chat) => {
-            generalChats.upsert(chat)
-            prefetchSession(chat.session, "high")
-            openGeneralChat(chat.rootSessionID, chat.directory)
-          }}
-          onWarmChat={(chat) => {
-            generalChats.upsert(chat)
-            prefetchSession(chat.session, "high")
-          }}
-          onArchiveChat={(chat) =>
-            void archiveGeneralChat(chat).catch((err) => {
-              showToast({
-                variant: "error",
-                title: language.t("common.requestFailed"),
-                description: errorMessage(err, language.t("common.requestFailed")),
-              })
-            })
-          }
-          onNewGeneralChat={() => openGeneralChat()}
+          currentSessionID={currentSessionID}
           getProjectSessions={projectSessions}
           onOpenProject={(project) => void navigateToProject(project.worktree)}
           onOpenProjectNewChat={openProjectNewChat}

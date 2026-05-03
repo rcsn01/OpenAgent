@@ -423,6 +423,32 @@ describe("applyDirectoryEvent", () => {
     expect(store.part[messageID]).toBeUndefined()
   })
 
+  test("clears busy state when a session error arrives", () => {
+    const sessionID = "ses_1"
+    const [store, setStore] = createStore(
+      baseState({
+        session_status: { [sessionID]: { type: "busy" } },
+      }),
+    )
+
+    applyDirectoryEvent({
+      event: {
+        type: "session.error",
+        properties: {
+          sessionID,
+          error: { name: "UnknownError", message: "boom" },
+        },
+      },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.session_status[sessionID]).toEqual({ type: "idle" })
+  })
+
   test("tracks permission and question request lifecycles", () => {
     const sessionID = "ses_1"
     const [store, setStore] = createStore(

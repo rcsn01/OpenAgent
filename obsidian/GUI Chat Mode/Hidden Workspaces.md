@@ -1,5 +1,17 @@
 # Hidden Workspaces
 
+## Status Update
+
+As of the current desktop GUI direction, standalone `/chat` session UX has been retired from the app shell and the user flow is now **project sessions only**.
+
+That means:
+
+- legacy `/chat` routes redirect back to home
+- session creation and prompt submission happen through project workspaces only
+- the sidebar no longer exposes separate chat-session browsing
+
+The rest of this note is kept as historical/backend context for how hidden general-chat workspaces were implemented before the UI was simplified around project sessions.
+
 ## Short Answer
 
 GUI general chats are **backed by hidden directories**. The GUI hides the path, but the backend still gives each chat a real workspace so existing file tools and session machinery continue to work.
@@ -46,6 +58,35 @@ chats/__draft__/
 ```
 
 This gives the fresh `/chat` screen a temporary workspace before the real chat is created.
+
+Once the first message creates a real general chat, the route must switch to the allocated hidden chat directory. If the URL keeps the draft token, the prompt can be sent to the real chat workspace while the GUI listens to the draft workspace, which makes the assistant reply look missing.
+
+The app now:
+
+- navigates new chats to `/chat/:sessionID?d=<hidden-chat-directory>`
+- ignores the draft token for already-created `/chat/:sessionID` routes and resolves the real directory from cached/server chat metadata
+- applies hidden-chat events even when the event directory matches the server-resolved path rather than the route/client path
+- schedules a few forced chat syncs after send so replies still appear if an event is missed
+- clears the busy state when a `session.error` event arrives, so failed hidden-chat prompts do not leave the composer looking permanently stuck
+
+## Prompt Regression Fix
+
+The remaining "user message appears, assistant never replies" failure was backend-side.
+
+General chats run in hidden workspaces. If the active model/provider came from the current instance config, the newly allocated hidden workspace could start without that provider config. The prompt would save the user message, then fail model lookup before producing the assistant message.
+
+The fix:
+
+- `GeneralChat.create()` now snapshots the active config fields needed for prompting into the hidden chat workspace:
+  - `provider`
+  - `model`
+  - `small_model`
+  - provider enable/disable lists
+  - agent/default-agent config
+- A regression test creates a real general chat, switches into its hidden directory, sends a prompt, and asserts the assistant text is returned.
+- A second regression test covers control-plane chat creation with no current instance context, so `/chat` can still create the session before any project/workspace context exists.
+
+This keeps standalone GUI chats from losing model/provider visibility just because they are backed by an invisible workspace.
 
 ## 2. Where is the directory?
 
