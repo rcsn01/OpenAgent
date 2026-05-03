@@ -43,6 +43,7 @@ How the standalone `/chat` experience works in the GUI app.
 - [[GUI Chat Mode/Index|GUI Chat Mode]] — overview and navigation
 - [[GUI Chat Mode/Hidden Workspaces]] — hidden directory structure, location, and whether chat-only `AGENTS.md` / skills are possible
 - [[GUI Chat Mode/Shared Chat Profile]] — the shared config bundle that applies across all GUI chats
+- [[GUI Chat Mode/Session Switching Performance Implementation]] — session-switching performance work, persistent shell architecture, sidebar highlighting fixes, and audio-toggle visibility notes
 
 ### Extensibility
 

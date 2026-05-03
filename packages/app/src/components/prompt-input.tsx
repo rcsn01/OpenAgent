@@ -1648,50 +1648,50 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                         </TooltipKeybind>
                       </div>
                     </Show>
-                    <div class="ml-auto flex items-center gap-1.5">
-                      <Tooltip placement="top" value={<span>{voice.status()}</span>}>
-                        <button
-                          type="button"
-                          data-component="prompt-microphone-toggle"
-                          data-enabled={voice.micEnabled()}
-                          data-speaking={voice.speaking()}
-                          role="switch"
-                          aria-checked={voice.micEnabled()}
-                          aria-label={voice.micEnabled() ? "Disable microphone" : "Enable microphone"}
-                          onClick={voice.toggleMic}
-                          disabled={store.mode !== "normal" || !voice.supported()}
-                        >
-                          <span data-slot="prompt-microphone-thumb">
-                            <Icon name="microphone" size="small" />
-                          </span>
-                        </button>
-                      </Tooltip>
-                      <VoiceSettingsPopover
-                        disabled={store.mode !== "normal" || !voice.supported()}
-                        model={settings.voice.model}
-                        onModelChange={settings.voice.setModel}
-                        quality={settings.voice.quality}
-                        onQualityChange={settings.voice.setQuality}
-                        baseSilenceMs={settings.voice.baseSilenceMs}
-                        onBaseSilenceMsChange={settings.voice.setBaseSilenceMs}
-                        maxSilenceMs={settings.voice.maxSilenceMs}
-                        onMaxSilenceMsChange={settings.voice.setMaxSilenceMs}
-                        inputGain={settings.voice.inputGain}
-                        onInputGainChange={settings.voice.setInputGain}
-                        dictionary={settings.voice.dictionary}
-                        onDictionaryChange={settings.voice.setDictionary}
-                        corrections={settings.voice.corrections}
-                        onCorrectionsChange={settings.voice.setCorrections}
-                        vadSensitivity={settings.voice.vadSensitivity}
-                        onVadSensitivityChange={settings.voice.setVadSensitivity}
-                        audioProcessing={settings.voice.audioProcessing}
-                        onAudioProcessingChange={settings.voice.setAudioProcessing}
-                        pressToTalkKeybind={settings.voice.pressToTalkKeybind}
-                        onPressToTalkKeybindChange={settings.voice.setPressToTalkKeybind}
-                      />
-                    </div>
                   </Show>
                 </Show>
+                <div class="ml-auto flex items-center gap-1.5">
+                  <Tooltip placement="top" value={<span>{voice.status()}</span>}>
+                    <button
+                      type="button"
+                      data-component="prompt-microphone-toggle"
+                      data-enabled={voice.micEnabled()}
+                      data-speaking={voice.speaking()}
+                      role="switch"
+                      aria-checked={voice.micEnabled()}
+                      aria-label={voice.micEnabled() ? "Disable microphone" : "Enable microphone"}
+                      onClick={voice.toggleMic}
+                      disabled={store.mode !== "normal" || !voice.supported()}
+                    >
+                      <span data-slot="prompt-microphone-thumb">
+                        <Icon name="microphone" size="small" />
+                      </span>
+                    </button>
+                  </Tooltip>
+                  <VoiceSettingsPopover
+                    disabled={store.mode !== "normal" || !voice.supported()}
+                    model={settings.voice.model}
+                    onModelChange={settings.voice.setModel}
+                    quality={settings.voice.quality}
+                    onQualityChange={settings.voice.setQuality}
+                    baseSilenceMs={settings.voice.baseSilenceMs}
+                    onBaseSilenceMsChange={settings.voice.setBaseSilenceMs}
+                    maxSilenceMs={settings.voice.maxSilenceMs}
+                    onMaxSilenceMsChange={settings.voice.setMaxSilenceMs}
+                    inputGain={settings.voice.inputGain}
+                    onInputGainChange={settings.voice.setInputGain}
+                    dictionary={settings.voice.dictionary}
+                    onDictionaryChange={settings.voice.setDictionary}
+                    corrections={settings.voice.corrections}
+                    onCorrectionsChange={settings.voice.setCorrections}
+                    vadSensitivity={settings.voice.vadSensitivity}
+                    onVadSensitivityChange={settings.voice.setVadSensitivity}
+                    audioProcessing={settings.voice.audioProcessing}
+                    onAudioProcessingChange={settings.voice.setAudioProcessing}
+                    pressToTalkKeybind={settings.voice.pressToTalkKeybind}
+                    onPressToTalkKeybindChange={settings.voice.setPressToTalkKeybind}
+                  />
+                </div>
               </div>
             </div>
           </div>
