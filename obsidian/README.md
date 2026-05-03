@@ -12,6 +12,7 @@ How the system prompt is assembled layer by layer.
 - [[Prompt System/Overview]] — the mental model and why the stack matters
 - [[Prompt System/Base Prompt]] — provider prompts (GPT, Claude, Gemini, Kimi, etc.)
 - [[Prompt System/Agent Prompts]] — built-in agents, custom agents, config-driven agents
+- [[Prompt System/Primary Agents]] — the 4 main user-facing agents: `build`, `assistant`, `chat`, and `plan`
 - [[Prompt System/Instructions]] — AGENTS.md, remote instructions, dynamic file-walk rules
 - [[Prompt System/Skills]] — skill discovery, loading, and the `skill` tool
 - [[Prompt System/Permission System]] — how permissions constrain behaviour outside prompts
@@ -41,3 +42,12 @@ How the standalone `/chat` experience works in the GUI app.
 
 - [[GUI Chat Mode/Index|GUI Chat Mode]] — overview and navigation
 - [[GUI Chat Mode/Hidden Workspaces]] — hidden directory structure, location, and whether chat-only `AGENTS.md` / skills are possible
+- [[GUI Chat Mode/Shared Chat Profile]] — the shared config bundle that applies across all GUI chats
+
+### Extensibility
+
+How to add new capabilities, tools, plugins, and chat-specific behaviors with less friction.
+
+- [[Extensibility/Index|Extensibility]] — overview and navigation
+- [[Extensibility/Implementing Features]] — choose between instructions, skills, tools, and plugins
+- [[Extensibility/Plugin Development]] — create a plugin and get chat to use it reliably

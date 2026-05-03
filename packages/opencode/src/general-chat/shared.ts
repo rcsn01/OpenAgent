@@ -9,7 +9,9 @@ export const draftDirectory = path.join(chatsRoot, "__draft__")
 
 export function isGeneralChatDirectory(input: string) {
   const directory = AppFileSystem.resolve(input)
-  return directory === draftDirectory || AppFileSystem.contains(chatsRoot, directory)
+  const draft = AppFileSystem.resolve(draftDirectory)
+  const root = AppFileSystem.resolve(chatsRoot)
+  return directory === draft || AppFileSystem.contains(root, directory)
 }
 
 export async function resolveGeneralChatDirectory(input: string) {
@@ -17,4 +19,3 @@ export async function resolveGeneralChatDirectory(input: string) {
   await mkdir(draftDirectory, { recursive: true })
   return draftDirectory
 }
-

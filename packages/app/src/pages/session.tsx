@@ -61,6 +61,7 @@ import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
 import { Persist, persisted } from "@/utils/persist"
+import { pathKey } from "@/utils/path-key"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { same } from "@/utils/same"
 import { formatServerError } from "@/utils/server-errors"
@@ -69,6 +70,22 @@ const emptyUserMessages: UserMessage[] = []
 type FollowupItem = FollowupDraft & { id: string }
 type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
 const emptyFollowups: FollowupItem[] = []
+type FollowupState = {
+  items: Record<string, FollowupItem[] | undefined>
+  failed: Record<string, string | undefined>
+  paused: Record<string, boolean | undefined>
+  edit: Record<string, FollowupEdit | undefined>
+}
+type FollowupByWorkspace = {
+  workspace: Record<string, FollowupState | undefined>
+}
+type FollowupValue<T> = T extends Record<string, infer V> ? V : never
+const emptyFollowupState = (): FollowupState => ({
+  items: {},
+  failed: {},
+  paused: {},
+  edit: {},
+})
 const COLLAPSED_SIDEBAR_WIDTH = 64
 const MIN_REVIEW_COLUMN_WIDTH = 200
 
@@ -527,31 +544,40 @@ export default function Page() {
     deferRender: false,
   })
 
-  const [followup, setFollowup] = persisted(
-    Persist.workspace(sdk.directory, "followup", ["followup.v1"]),
-    createStore<{
-      items: Record<string, FollowupItem[] | undefined>
-      failed: Record<string, string | undefined>
-      paused: Record<string, boolean | undefined>
-      edit: Record<string, FollowupEdit | undefined>
-    }>({
-      items: {},
-      failed: {},
-      paused: {},
-      edit: {},
+  const followupWorkspaceKey = createMemo(() => pathKey(sdk.directory))
+  const [followupStore, setFollowupStore] = persisted(
+    Persist.global("workspace-followup.v1"),
+    createStore<FollowupByWorkspace>({
+      workspace: {},
     }),
   )
-
-  createComputed((prev) => {
-    const key = sessionKey()
-    if (key !== prev) {
-      setStore("deferRender", true)
-      requestAnimationFrame(() => {
-        setTimeout(() => setStore("deferRender", false), 0)
-      })
-    }
+  const followupState = createMemo(() => followupStore.workspace[followupWorkspaceKey()] ?? emptyFollowupState())
+  const followup = {
+    get items() {
+      return followupState().items
+    },
+    get failed() {
+      return followupState().failed
+    },
+    get paused() {
+      return followupState().paused
+    },
+    get edit() {
+      return followupState().edit
+    },
+  }
+  const ensureFollowupWorkspace = () => {
+    const key = followupWorkspaceKey()
+    if (!followupStore.workspace[key]) setFollowupStore("workspace", key, emptyFollowupState())
     return key
-  }, sessionKey())
+  }
+  const setFollowup = <K extends keyof FollowupState>(
+    key: K,
+    sessionID: string,
+    value: FollowupValue<FollowupState[K]> | ((prev: FollowupValue<FollowupState[K]>) => FollowupValue<FollowupState[K]>),
+  ) => {
+    ;(setFollowupStore as (...args: unknown[]) => void)("workspace", ensureFollowupWorkspace(), key, sessionID, value)
+  }
 
   let reviewFrame: number | undefined
   let refreshFrame: number | undefined
@@ -1844,48 +1870,46 @@ export default function Page() {
           <div class="flex-1 min-h-0 overflow-hidden">
             <Switch>
               <Match when={params.id}>
-                <Show when={messagesReady()}>
-                  <MessageTimeline
-                    mobileChanges={mobileChanges()}
-                    mobileFallback={reviewContent({
-                      diffStyle: "unified",
-                      classes: {
-                        root: "pb-8",
-                        header: "px-4",
-                        container: "px-4",
-                      },
-                      loadingClass: "px-4 py-4 text-text-weak",
-                      emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
-                    })}
-                    actions={actions}
-                    scroll={ui.scroll}
-                    onResumeScroll={resumeScroll}
-                    setScrollRef={setScrollRef}
-                    onScheduleScrollState={scheduleScrollState}
-                    onAutoScrollHandleScroll={autoScroll.handleScroll}
-                    onMarkScrollGesture={markScrollGesture}
-                    hasScrollGesture={hasScrollGesture}
-                    onUserScroll={markUserScroll}
-                    onTurnBackfillScroll={historyWindow.onScrollerScroll}
-                    onAutoScrollInteraction={autoScroll.handleInteraction}
-                    centered={centered()}
-                    setContentRef={(el) => {
-                      content = el
-                      autoScroll.contentRef(el)
+                <MessageTimeline
+                  mobileChanges={mobileChanges()}
+                  mobileFallback={reviewContent({
+                    diffStyle: "unified",
+                    classes: {
+                      root: "pb-8",
+                      header: "px-4",
+                      container: "px-4",
+                    },
+                    loadingClass: "px-4 py-4 text-text-weak",
+                    emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
+                  })}
+                  actions={actions}
+                  scroll={ui.scroll}
+                  onResumeScroll={resumeScroll}
+                  setScrollRef={setScrollRef}
+                  onScheduleScrollState={scheduleScrollState}
+                  onAutoScrollHandleScroll={autoScroll.handleScroll}
+                  onMarkScrollGesture={markScrollGesture}
+                  hasScrollGesture={hasScrollGesture}
+                  onUserScroll={markUserScroll}
+                  onTurnBackfillScroll={historyWindow.onScrollerScroll}
+                  onAutoScrollInteraction={autoScroll.handleInteraction}
+                  centered={centered()}
+                  setContentRef={(el) => {
+                    content = el
+                    autoScroll.contentRef(el)
 
-                      const root = scroller
-                      if (root) scheduleScrollState(root)
-                    }}
-                    turnStart={historyWindow.turnStart()}
-                    historyMore={historyMore()}
-                    historyLoading={historyLoading()}
-                    onLoadEarlier={() => {
-                      void historyWindow.loadAndReveal()
-                    }}
-                    renderedUserMessages={historyWindow.renderedUserMessages()}
-                    anchor={anchor}
-                  />
-                </Show>
+                    const root = scroller
+                    if (root) scheduleScrollState(root)
+                  }}
+                  turnStart={historyWindow.turnStart()}
+                  historyMore={historyMore()}
+                  historyLoading={historyLoading()}
+                  onLoadEarlier={() => {
+                    void historyWindow.loadAndReveal()
+                  }}
+                  renderedUserMessages={historyWindow.renderedUserMessages()}
+                  anchor={anchor}
+                />
               </Match>
               <Match when={true}>
                 <NewSessionView worktree={newSessionWorktree()} />

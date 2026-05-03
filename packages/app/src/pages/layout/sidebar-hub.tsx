@@ -68,6 +68,7 @@ const ChatSection = (props: {
   chats: Accessor<GeneralChatInfo[]>
   currentChatID: Accessor<string | undefined>
   onOpenChat: (chat: GeneralChatInfo) => void
+  onWarmChat: (chat: GeneralChatInfo) => void
   onArchiveChat: (chat: GeneralChatInfo) => void
   onNewChat: () => void
 }) => {
@@ -107,6 +108,8 @@ const ChatSection = (props: {
                     <button
                       type="button"
                       class="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      onPointerDown={() => props.onWarmChat(chat)}
+                      onFocus={() => props.onWarmChat(chat)}
                       onClick={() => props.onOpenChat(chat)}
                     >
                       <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">{title()}</span>
@@ -287,6 +290,7 @@ export const SidebarHub = (props: {
   currentDir: Accessor<string>
   currentSessionID: Accessor<string | undefined>
   onOpenChat: (chat: GeneralChatInfo) => void
+  onWarmChat: (chat: GeneralChatInfo) => void
   onArchiveChat: (chat: GeneralChatInfo) => void
   onNewGeneralChat: () => void
   getProjectSessions: (project: LocalProject) => Session[]
@@ -328,6 +332,7 @@ export const SidebarHub = (props: {
             chats={props.chats}
             currentChatID={props.currentChatID}
             onOpenChat={props.onOpenChat}
+            onWarmChat={props.onWarmChat}
             onArchiveChat={props.onArchiveChat}
             onNewChat={props.onNewGeneralChat}
           />

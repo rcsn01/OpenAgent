@@ -132,37 +132,79 @@ and config-driven `skills.paths`.
 
 That means a hidden chat workspace can have skills that only apply to that chat workspace if the skill files live inside that hidden directory tree.
 
-## Important Limitation
+## 4. Is there a shared config area for all GUI chats?
 
-This is currently **per hidden chat workspace**, not “all GUI chats share one dedicated chat-only config area”.
+Yes. General chats now have a first-class shared chat profile in the global config area.
 
-So:
+The directory is:
 
-- Yes: one specific chat can have its own `AGENTS.md`, agents, and skills
-- No: there is not yet a first-class “all GUI chats use this separate chat config bundle” mechanism
+```text
+Global.Path.config/chat
+```
 
-## Practical Implication
+In code this comes from:
 
-If you want chat-only behavior across **all** GUI chats, the cleaner design is not hand-editing hidden folders. A better future implementation would be:
+- `packages/opencode/src/config/paths.ts`
+- `packages/opencode/src/general-chat/profile.ts`
 
-1. Create a shared chat template/config directory
-2. Seed each new general chat workspace from that template in `GeneralChat.create()`
-3. Optionally add a dedicated chat-mode agent default on `/chat`
+When the current directory is a general-chat workspace:
 
-That would give you:
+- `ConfigPaths.directories()` includes the shared `chat/` directory in config discovery
+- `Instruction.systemPaths()` adds `Global.Path.config/chat/AGENTS.md` to system instructions
+- normal config scanning then picks up shared chat `skills/`, `tools/`, `plugins/`, and `opencode.json`
 
-- consistent `AGENTS.md`
-- consistent local chat-only skills
-- optional chat-only custom agents
+So there are **two layers** now:
 
-without needing to modify each hidden workspace manually.
+- Per-chat hidden workspace customization
+- Shared GUI-chat customization for all chats
 
-## Mental Model
+## Managed vs User-Managed
+
+The shared chat directory can be either:
+
+- **Managed** — seeded and repaired automatically by `GeneralChatProfile.ensureWith()`
+- **User-managed** — if the directory exists without the management marker file, OpenAgent leaves it alone
+
+The marker file is:
+
+```text
+.opencode-chat-profile.json
+```
+
+This lets the app ship default chat behavior while still allowing power users to take full ownership of the shared chat config area.
+
+## Updated Practical Implication
+
+If you want chat-only behavior across **all** GUI chats, you do not need to modify each hidden workspace manually anymore.
+
+Use the shared chat profile instead.
+
+Use per-chat hidden workspace files only when you want one specific chat tree to behave differently from the global chat defaults.
+
+So the practical split is:
+
+- Yes: one specific chat can still have its own hidden-workspace `AGENTS.md`, agents, and skills
+- Yes: all GUI chats can now share one dedicated chat config bundle
+- No: hidden workspaces are still not the same thing as the shared chat profile; they are separate layers
+
+## Better Mental Model
 
 Think of GUI general chats as:
 
 ```text
-special route + hidden workspace + normal session engine
+special route
++ hidden workspace
++ shared chat profile
++ normal session engine
 ```
 
-They look directory-less in the app, but internally they are ordinary workspaces with an invisible path.
+They look directory-less in the app, but internally they now combine:
+
+- an invisible per-chat workspace
+- a shared GUI-chat config bundle
+- the ordinary session/config/tool/plugin engine
+
+## Related Notes
+
+- [[GUI Chat Mode/Shared Chat Profile]] — how the shared chat bundle is seeded and extended
+- [[Extensibility/Plugin Development]] — how to add plugins/tools that chat can actually use

@@ -1,0 +1,12 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	worktree = /Users/mac/Syncthing/Projects/OpenAgent/packages/app/e2e/test-results/todo-reopens-remembered-pr-6fd93-nd-persists-project-actions-chromium/beta-project
+	ignorecase = true
+	precomposeunicode = true
+	autocrlf = false
+	longpaths = true
+	symlinks = true
+	fsmonitor = false

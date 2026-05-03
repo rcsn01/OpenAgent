@@ -19,6 +19,8 @@ So the rule is:
 
 | Agent | Mode | Prompt File | What It Does |
 |-------|------|-------------|--------------|
+| `assistant` | `primary` | `packages/opencode/src/agent/prompt/assistant.txt` | Extends the provider prompt with delegation guidance and background-task workflows |
+| `chat` | `primary` | `packages/opencode/src/agent/prompt/chat.txt` | Extends the provider prompt for GUI chat sessions, artifact creation, and hidden-workspace chat flows |
 | `explore` | `subagent` | `packages/opencode/src/agent/prompt/explore.txt` | Fast codebase exploration: grep, glob, list, bash, web — quick/medium/very-thorough modes |
 | `compaction` | `primary` (hidden) | `packages/opencode/src/agent/prompt/compaction.txt` | Summarizes long tool outputs into compact form |
 | `title` | `primary` (hidden) | `packages/opencode/src/agent/prompt/title.txt` | Generates short conversation titles |
@@ -29,11 +31,12 @@ So the rule is:
 | Agent | Mode | Notable Options |
 |-------|------|-----------------|
 | `build` | `primary` | Most tools allowed, plan/question/enter allowed |
-| `assistant` | `primary` | `assistant_tools: true`, `extend_provider_prompt: true` |
 | `plan` | `primary` | All edits denied, plan_exit allowed |
 | `general` | `subagent` | `todowrite: deny` |
 
 These agents rely on provider prompts + permissions to define behavior.
+
+For a runtime-focused comparison of the 4 main primary agents, see [[Prompt System/Primary Agents]].
 
 ## Agent Definition Schema
 

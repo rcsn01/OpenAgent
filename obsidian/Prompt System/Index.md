@@ -20,6 +20,7 @@ final system text =
 - [[Prompt System/Overview]] — the mental model and why the stack matters
 - [[Prompt System/Base Prompt]] — provider prompts (GPT, Claude, Gemini, Kimi, etc.)
 - [[Prompt System/Agent Prompts]] — built-in agents, custom agents, config-driven agents
+- [[Prompt System/Primary Agents]] — the 4 main user-facing agents and how `build`, `assistant`, `chat`, and `plan` differ
 - [[Prompt System/Instructions]] — AGENTS.md, remote instructions, dynamic file-walk rules
 - [[Prompt System/Skills]] — skill discovery, loading, and the `skill` tool
 - [[Prompt System/Permission System]] — how permissions constrain behaviour outside prompts

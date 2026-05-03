@@ -1,10 +1,11 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import type { Session } from "@opencode-ai/sdk/v2/client"
-import { createMemo, createResource, onCleanup } from "solid-js"
+import { createEffect, createMemo, createResource, onCleanup } from "solid-js"
 import { useAppRoute } from "@/context/app-route"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useServer } from "@/context/server"
 import { pathKey } from "@/utils/path-key"
+import { removeCachedGeneralChat, setCachedGeneralChats, upsertCachedGeneralChat } from "./general-chat-route-cache"
 
 export type GeneralChatInfo = {
   session: Session
@@ -46,6 +47,10 @@ export const { use: useGeneralChats, provider: GeneralChatProvider } = createSim
       }, 150)
     }
 
+    createEffect(() => {
+      setCachedGeneralChats(list())
+    })
+
     const unsub = globalSDK.event.listen((event) => {
       if (event.name === "global") return
       if (
@@ -79,14 +84,19 @@ export const { use: useGeneralChats, provider: GeneralChatProvider } = createSim
       create: () =>
         globalSDK.client.experimental.chat.create().then((result) => {
           const data = result.data
-          if (data) mutate((items) => mergeChat(items ?? [], data))
+          if (data) {
+            mutate((items) => mergeChat(items ?? [], data))
+            upsertCachedGeneralChat(data)
+          }
           return data
         }),
       upsert(chat: GeneralChatInfo) {
         mutate((items) => mergeChat(items ?? [], chat))
+        upsertCachedGeneralChat(chat)
       },
       remove(sessionID: string) {
         mutate((items) => (items ?? []).filter((item) => item.rootSessionID !== sessionID))
+        removeCachedGeneralChat(sessionID)
       },
     }
   },

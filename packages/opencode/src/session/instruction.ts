@@ -3,6 +3,8 @@ import { Effect, Layer, Context } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
 import { Config } from "@/config/config"
 import { InstanceState } from "@/effect/instance-state"
+import * as GeneralChatProfile from "@/general-chat/profile"
+import { isGeneralChatDirectory } from "@/general-chat/shared"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { withTransientReadRetry } from "@/util/effect-http-client"
@@ -112,6 +114,14 @@ export const layer: Layer.Layer<
         if (yield* fs.existsSafe(file)) {
           paths.add(path.resolve(file))
           break
+        }
+      }
+
+      if (isGeneralChatDirectory(ctx.directory)) {
+        yield* GeneralChatProfile.ensureWith(fs)
+        const chatFile = path.join(global.config, "chat", "AGENTS.md")
+        if (yield* fs.existsSafe(chatFile)) {
+          paths.add(path.resolve(chatFile))
         }
       }
 

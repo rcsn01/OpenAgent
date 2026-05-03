@@ -2062,7 +2062,7 @@ export default function Layout(props: ParentProps) {
 
   function projectSessions(project: LocalProject) {
     return workspaceIds(project)
-      .flatMap((directory) => sortedRootSessions(globalSync.child(directory, { bootstrap: true })[0], sortNow()))
+      .flatMap((directory) => sortedRootSessions(globalSync.child(directory, { bootstrap: false })[0], sortNow()))
       .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
   }
 
@@ -2634,7 +2634,11 @@ export default function Layout(props: ParentProps) {
           projects={projects}
           currentDir={currentDir}
           currentSessionID={() => (appRoute.isChat() ? undefined : currentSessionID())}
-          onOpenChat={(chat) => openGeneralChat(chat.rootSessionID)}
+          onOpenChat={(chat) => {
+            prefetchSession(chat.session, "high")
+            openGeneralChat(chat.rootSessionID)
+          }}
+          onWarmChat={(chat) => prefetchSession(chat.session, "high")}
           onArchiveChat={(chat) =>
             void archiveGeneralChat(chat).catch((err) => {
               showToast({

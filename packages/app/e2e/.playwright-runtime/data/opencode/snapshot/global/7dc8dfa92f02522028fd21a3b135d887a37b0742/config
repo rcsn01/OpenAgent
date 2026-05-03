@@ -1,0 +1,12 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	worktree = /Users/mac/Syncthing/Projects/OpenAgent/packages/app/e2e/.playwright-runtime/data/opencode/chats/chat-mook08l2-r413uue2
+	ignorecase = true
+	precomposeunicode = true
+	autocrlf = false
+	longpaths = true
+	symlinks = true
+	fsmonitor = false

@@ -1,0 +1,12 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	worktree = /Users/mac/Syncthing/Projects/OpenAgent/packages/app/e2e/test-results/todo-opens-the-latest-proj-741d2-ject-draft-from-the-sidebar-chromium/resume-project
+	ignorecase = true
+	precomposeunicode = true
+	autocrlf = false
+	longpaths = true
+	symlinks = true
+	fsmonitor = false

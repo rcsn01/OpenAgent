@@ -30,7 +30,7 @@ import { Dynamic } from "solid-js/web"
 import { CommandProvider } from "@/context/command"
 import { CommentsProvider } from "@/context/comments"
 import { FileProvider } from "@/context/file"
-import { AppRouteProvider } from "@/context/app-route"
+import { AppRouteProvider, useAppRoute } from "@/context/app-route"
 import { GeneralChatProvider } from "@/context/general-chat"
 import { GlobalSDKProvider } from "@/context/global-sdk"
 import { GlobalSyncProvider } from "@/context/global-sync"
@@ -44,9 +44,8 @@ import { PromptProvider } from "@/context/prompt"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider } from "@/context/settings"
 import { TerminalProvider } from "@/context/terminal"
-import ChatLayout from "@/pages/chat-layout"
-import DirectoryLayout from "@/pages/directory-layout"
 import Layout from "@/pages/layout"
+import SessionRouteHost from "@/pages/session-route-host"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 
@@ -65,11 +64,18 @@ const SessionRoute = () => (
   </SessionProviders>
 )
 
-const ChatRoute = () => (
-  <ChatLayout>
-    <SessionRoute />
-  </ChatLayout>
-)
+const EmptyRoute = () => null
+
+const PersistentSessionRoute = () => {
+  const route = useAppRoute()
+  return (
+    <Show when={route.kind() === "chat" || route.kind() === "workspace"}>
+      <SessionRouteHost>
+        <SessionRoute />
+      </SessionRouteHost>
+    </Show>
+  )
+}
 
 const SessionIndexRoute = () => <Navigate href="session" />
 
@@ -144,6 +150,7 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
       <AppShellProviders>
         {/*<Suspense fallback={<Loading />}>*/}
         {props.appChildren}
+        <PersistentSessionRoute />
         {props.children}
         {/*</Suspense>*/}
       </AppShellProviders>
@@ -328,11 +335,9 @@ export function AppInterface(props: {
                   root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
                 >
                   <Route path="/" component={HomeRoute} />
-                  <Route path="/chat/:id?" component={ChatRoute} />
-                  <Route path="/:dir" component={DirectoryLayout}>
-                    <Route path="/" component={SessionIndexRoute} />
-                    <Route path="/session/:id?" component={SessionRoute} />
-                  </Route>
+                  <Route path="/chat/:id?" component={EmptyRoute} />
+                  <Route path="/:dir" component={SessionIndexRoute} />
+                  <Route path="/:dir/session/:id?" component={EmptyRoute} />
                 </Dynamic>
               </GlobalSyncProvider>
             </GlobalSDKProvider>

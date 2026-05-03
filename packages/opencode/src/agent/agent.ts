@@ -9,6 +9,7 @@ import { ProviderTransform } from "@/provider/transform"
 
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_ASSISTANT from "./prompt/assistant.txt"
+import PROMPT_CHAT from "./prompt/chat.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
@@ -19,6 +20,7 @@ import { Global } from "@opencode-ai/core/global"
 import path from "path"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
+import { isGeneralChatDirectory } from "@/general-chat/shared"
 import { Effect, Context, Layer, Schema } from "effect"
 import { InstanceState } from "@/effect/instance-state"
 import * as Option from "effect/Option"
@@ -108,6 +110,7 @@ export const layer = Layer.effect(
         })
 
         const user = Permission.fromConfig(cfg.permission ?? {})
+        const preferredPrimary = isGeneralChatDirectory(ctx.directory) ? "chat" : "build"
 
         const agents: Record<string, Info> = {
           build: {
@@ -144,6 +147,26 @@ export const layer = Layer.effect(
             mode: "primary",
             native: true,
             prompt: PROMPT_ASSISTANT,
+          },
+          chat: {
+            name: "chat",
+            description:
+              "Primary agent for GUI chat sessions. Use this for general-purpose conversations, artifact creation, and hidden-workspace chat flows.",
+            hidden: !isGeneralChatDirectory(ctx.directory),
+            options: {
+              extend_provider_prompt: true,
+            },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                question: "allow",
+                plan_enter: "allow",
+              }),
+              user,
+            ),
+            mode: "primary",
+            native: true,
+            prompt: PROMPT_CHAT,
           },
           plan: {
             name: "plan",
@@ -311,7 +334,7 @@ export const layer = Layer.effect(
             agents,
             values(),
             sortBy(
-              [(x) => (cfg.default_agent ? x.name === cfg.default_agent : x.name === "build"), "desc"],
+              [(x) => (cfg.default_agent ? x.name === cfg.default_agent : x.name === preferredPrimary), "desc"],
               [(x) => x.name, "asc"],
             ),
           )
@@ -325,6 +348,10 @@ export const layer = Layer.effect(
             if (agent.mode === "subagent") throw new Error(`default agent "${c.default_agent}" is a subagent`)
             if (agent.hidden === true) throw new Error(`default agent "${c.default_agent}" is hidden`)
             return agent.name
+          }
+          if (preferredPrimary === "chat") {
+            const chat = agents.chat
+            if (chat && chat.mode !== "subagent" && chat.hidden !== true) return chat.name
           }
           const visible = Object.values(agents).find((a) => a.mode !== "subagent" && a.hidden !== true)
           if (!visible) throw new Error("no primary visible agent found")

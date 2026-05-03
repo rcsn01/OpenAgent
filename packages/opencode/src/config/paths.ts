@@ -2,12 +2,18 @@ export * as ConfigPaths from "./paths"
 
 import path from "path"
 import { Filesystem } from "@/util/filesystem"
+import * as GeneralChatProfile from "@/general-chat/profile"
+import { isGeneralChatDirectory } from "@/general-chat/shared"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Global } from "@opencode-ai/core/global"
 import { unique } from "remeda"
 import { JsonError } from "./error"
 import * as Effect from "effect/Effect"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
+
+export function chatDirectory() {
+  return path.join(Flag.OPENCODE_CONFIG_DIR ?? Global.Path.config, "chat")
+}
 
 export const files = Effect.fn("ConfigPaths.projectFiles")(function* (
   name: string,
@@ -24,8 +30,11 @@ export const files = Effect.fn("ConfigPaths.projectFiles")(function* (
 
 export const directories = Effect.fn("ConfigPaths.directories")(function* (directory: string, worktree?: string) {
   const afs = yield* AppFileSystem.Service
+  const chat = chatDirectory()
+  if (isGeneralChatDirectory(directory)) yield* GeneralChatProfile.ensureWith(afs)
   return unique([
     Global.Path.config,
+    ...(isGeneralChatDirectory(directory) && (yield* afs.isDir(chat)) ? [chat] : []),
     ...(!Flag.OPENCODE_DISABLE_PROJECT_CONFIG
       ? yield* afs.up({
           targets: [".opencode"],

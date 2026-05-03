@@ -7,6 +7,7 @@ import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { Config } from "@/config/config"
 import { emptyConsoleState } from "@/config/console-state"
+import { chatsRoot } from "../../src/general-chat/shared"
 import { ModelID, ProviderID } from "../../src/provider/schema"
 import { Instruction } from "../../src/session/instruction"
 import type { MessageV2 } from "../../src/session/message-v2"
@@ -241,6 +242,27 @@ describe("Instruction.systemPaths global config", () => {
         const paths = yield* svc.systemPaths()
         expect(paths.has(path.join(globalTmp, "AGENTS.md"))).toBe(true)
       }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
+    }),
+  )
+
+  it.live("includes shared chat AGENTS.md for general chat directories", () =>
+    Effect.gen(function* () {
+      const globalTmp = yield* tmpWithFiles({
+        "AGENTS.md": "# Global Instructions",
+        "chat/AGENTS.md": "# Chat Instructions",
+      })
+      const chatDir = path.join(chatsRoot, `instruction-chat-${Math.random().toString(36).slice(2)}`)
+      yield* write(path.join(chatDir, ".keep"), "")
+
+      yield* Effect.gen(function* () {
+        const svc = yield* Instruction.Service
+        const paths = yield* svc.systemPaths()
+        expect(paths.has(path.join(globalTmp, "AGENTS.md"))).toBe(true)
+        expect(paths.has(path.join(globalTmp, "chat", "AGENTS.md"))).toBe(true)
+
+        const rules = yield* svc.system()
+        expect(rules).toContain(`Instructions from: ${path.join(globalTmp, "chat", "AGENTS.md")}\n# Chat Instructions`)
+      }).pipe(provideInstance(chatDir), provideInstruction({ home: globalTmp, config: globalTmp }))
     }),
   )
 })

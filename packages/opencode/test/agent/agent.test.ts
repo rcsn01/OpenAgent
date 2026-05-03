@@ -1,9 +1,12 @@
 import { afterEach, test, expect } from "bun:test"
 import { Effect } from "effect"
+import fs from "fs/promises"
 import path from "path"
+import { Global } from "@opencode-ai/core/global"
 import { provideInstance, tmpdir } from "../fixture/fixture"
 import { Instance } from "../../src/project/instance"
 import { Agent } from "../../src/agent/agent"
+import { chatsRoot } from "../../src/general-chat/shared"
 import { Permission } from "../../src/permission"
 
 // Helper to evaluate permission for a tool with wildcard pattern
@@ -608,6 +611,51 @@ test("defaultAgent returns build when no default_agent config", async () => {
   })
 })
 
+test("defaultAgent returns chat for general chat directories", async () => {
+  const directory = path.join(chatsRoot, `agent-default-chat-${Math.random().toString(36).slice(2)}`)
+  await fs.mkdir(directory, { recursive: true })
+
+  try {
+    await Instance.provide({
+      directory,
+      fn: async () => {
+        expect(await load(directory, (svc) => svc.defaultAgent())).toBe("chat")
+        expect((await load(directory, (svc) => svc.list())).map((agent) => agent.name)[0]).toBe("chat")
+      },
+    })
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+})
+
+test("defaultAgent in general chat respects shared chat profile config", async () => {
+  await using globalTmp = await tmpdir()
+  const directory = path.join(chatsRoot, `agent-shared-chat-profile-${Math.random().toString(36).slice(2)}`)
+  const prev = Global.Path.config
+  ;(Global.Path as { config: string }).config = globalTmp.path
+  await fs.mkdir(directory, { recursive: true })
+  await fs.mkdir(path.join(globalTmp.path, "chat"), { recursive: true })
+  await Bun.write(
+    path.join(globalTmp.path, "chat", "opencode.json"),
+    JSON.stringify({
+      $schema: "https://opencode.ai/config.json",
+      default_agent: "assistant",
+    }),
+  )
+
+  try {
+    await Instance.provide({
+      directory,
+      fn: async () => {
+        expect(await load(directory, (svc) => svc.defaultAgent())).toBe("assistant")
+      },
+    })
+  } finally {
+    ;(Global.Path as { config: string }).config = prev
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+})
+
 test("defaultAgent respects default_agent config set to plan", async () => {
   await using tmp = await tmpdir({
     config: {
@@ -699,13 +747,12 @@ test("defaultAgent returns plan when build is disabled and default_agent not set
     directory: tmp.path,
     fn: async () => {
       const agent = await load(tmp.path, (svc) => svc.defaultAgent())
-      // build is disabled, so it should return plan (next primary agent)
-      expect(agent).toBe("plan")
+      expect(agent).toBe("assistant")
     },
   })
 })
 
-test("defaultAgent throws when all primary agents are disabled", async () => {
+test("defaultAgent returns assistant when build and plan are disabled", async () => {
   await using tmp = await tmpdir({
     config: {
       agent: {
@@ -717,8 +764,7 @@ test("defaultAgent throws when all primary agents are disabled", async () => {
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      // build and plan are disabled, no primary-capable agents remain
-      await expect(load(tmp.path, (svc) => svc.defaultAgent())).rejects.toThrow("no primary visible agent found")
+      expect(await load(tmp.path, (svc) => svc.defaultAgent())).toBe("assistant")
     },
   })
 })

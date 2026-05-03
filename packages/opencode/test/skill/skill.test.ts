@@ -1,7 +1,9 @@
 import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
+import { Global } from "@opencode-ai/core/global"
 import { Skill } from "../../src/skill"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { chatsRoot } from "../../src/general-chat/shared"
 import { provideInstance, provideTmpdirInstance, tmpdir } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import path from "path"
@@ -291,6 +293,47 @@ This skill is loaded from the global home directory.
           }).pipe(provideInstance(tmp.path))
         }),
       )
+    }),
+  )
+
+  it.live("discovers skills from the shared chat profile for general chats", () =>
+    Effect.gen(function* () {
+      const globalTmp = yield* Effect.acquireRelease(
+        Effect.promise(() => tmpdir()),
+        (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+      )
+      const directory = path.join(chatsRoot, `skill-chat-${Math.random().toString(36).slice(2)}`)
+      const prev = Global.Path.config
+      ;(Global.Path as { config: string }).config = globalTmp.path
+      yield* Effect.addFinalizer(() =>
+        Effect.promise(async () => {
+          ;(Global.Path as { config: string }).config = prev
+          await fs.rm(directory, { recursive: true, force: true }).catch(() => {})
+        }),
+      )
+
+      yield* Effect.promise(() => fs.mkdir(directory, { recursive: true }))
+      yield* Effect.promise(() => fs.mkdir(path.join(globalTmp.path, "chat", "skills", "chat-profile-skill"), { recursive: true }))
+      yield* Effect.promise(() =>
+        Bun.write(
+          path.join(globalTmp.path, "chat", "skills", "chat-profile-skill", "SKILL.md"),
+          `---
+name: chat-profile-skill
+description: A skill shared by all GUI chats.
+---
+
+# Chat Profile Skill
+`,
+        ),
+      )
+
+      yield* Effect.gen(function* () {
+        const skill = yield* Skill.Service
+        const list = yield* skill.all()
+        expect(list.find((item) => item.name === "chat-profile-skill")?.location).toContain(
+          path.join("chat", "skills", "chat-profile-skill", "SKILL.md"),
+        )
+      }).pipe(provideInstance(directory))
     }),
   )
 

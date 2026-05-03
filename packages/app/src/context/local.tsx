@@ -1,10 +1,11 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { base64Encode } from "@opencode-ai/core/util/encode"
-import { useParams } from "@solidjs/router"
 import { batch, createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useAppRoute } from "@/context/app-route"
 import { useModels } from "@/context/models"
 import { useProviders } from "@/hooks/use-providers"
+import { pathKey } from "@/utils/path-key"
 import { Persist, persisted } from "@/utils/persist"
 import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } from "./model-variant"
 import { useSDK } from "./sdk"
@@ -22,26 +23,13 @@ type Saved = {
   session: Record<string, State | undefined>
 }
 
-const WORKSPACE_KEY = "__workspace__"
+type SavedByWorkspace = {
+  workspace: Record<string, Saved | undefined>
+}
+
 const handoff = new Map<string, State>()
 
 const handoffKey = (dir: string, id: string) => `${dir}\n${id}`
-
-const migrate = (value: unknown) => {
-  if (!value || typeof value !== "object") return { session: {} }
-
-  const item = value as {
-    session?: Record<string, State | undefined>
-    pick?: Record<string, State | undefined>
-  }
-
-  if (item.session && typeof item.session === "object") return { session: item.session }
-  if (!item.pick || typeof item.pick !== "object") return { session: {} }
-
-  return {
-    session: Object.fromEntries(Object.entries(item.pick).filter(([key]) => key !== WORKSPACE_KEY)),
-  }
-}
 
 const clone = (value: State | undefined) => {
   if (!value) return undefined
@@ -54,29 +42,36 @@ const clone = (value: State | undefined) => {
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   name: "Local",
   init: () => {
-    const params = useParams()
+    const route = useAppRoute()
     const sdk = useSDK()
     const sync = useSync()
     const providers = useProviders()
     const models = useModels()
 
-    const id = createMemo(() => params.id || undefined)
+    const id = createMemo(() => route.sessionID() || undefined)
+    const directory = createMemo(() => sdk.directory)
+    const directoryID = createMemo(() => pathKey(directory()))
     const list = createMemo(() => sync.data.agent.filter((item) => item.mode !== "subagent" && !item.hidden))
     const connected = createMemo(() => new Set(providers.connected().map((item) => item.id)))
 
     const [saved, setSaved] = persisted(
-      {
-        ...Persist.workspace(sdk.directory, "model-selection", ["model-selection.v1"]),
-        migrate,
-      },
-      createStore<Saved>({
-        session: {},
+      Persist.global("workspace-model-selection.v1"),
+      createStore<SavedByWorkspace>({
+        workspace: {},
       }),
     )
 
+    const savedWorkspace = createMemo(() => saved.workspace[directoryID()] ?? { session: {} })
+
+    const setSavedSession = (session: string, state: State) => {
+      const key = directoryID()
+      if (!saved.workspace[key]) setSaved("workspace", key, { session: {} })
+      setSaved("workspace", key, "session", session, state)
+    }
+
     const [store, setStore] = createStore<{
       current?: string
-      draft?: State
+      draft: Record<string, State | undefined>
       last?: {
         type: "agent" | "model" | "variant"
         agent?: string
@@ -85,7 +80,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }
     }>({
       current: list()[0]?.name,
-      draft: undefined,
+      draft: {},
       last: undefined,
     })
 
@@ -120,23 +115,23 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
     const scope = createMemo<State | undefined>(() => {
       const session = id()
-      if (!session) return store.draft
-      return saved.session[session] ?? handoff.get(handoffKey(sdk.directory, session))
+      if (!session) return store.draft[directoryID()]
+      return savedWorkspace().session[session] ?? handoff.get(handoffKey(directory(), session))
     })
 
     createEffect(() => {
       const session = id()
       if (!session) return
 
-      const key = handoffKey(sdk.directory, session)
+      const key = handoffKey(directory(), session)
       const next = handoff.get(key)
       if (!next) return
-      if (saved.session[session] !== undefined) {
+      if (savedWorkspace().session[session] !== undefined) {
         handoff.delete(key)
         return
       }
 
-      setSaved("session", session, clone(next))
+      setSavedSession(session, clone(next)!)
       handoff.delete(key)
     })
 
@@ -199,10 +194,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           } satisfies State
           const session = id()
           if (session) {
-            setSaved("session", session, next)
+            setSavedSession(session, next)
             return
           }
-          setStore("draft", next)
+          setStore("draft", directoryID(), next)
         })
       },
       move(direction: 1 | -1) {
@@ -260,10 +255,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
       const session = id()
       if (session) {
-        setSaved("session", session, state)
+        setSavedSession(session, state)
         return
       }
-      setStore("draft", state)
+      setStore("draft", directoryID(), state)
     }
 
     const recent = createMemo(() => models.recent.list().map(models.find).filter(Boolean))
@@ -352,34 +347,34 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     }
 
     const result = {
-      slug: createMemo(() => base64Encode(sdk.directory)),
+      slug: createMemo(() => base64Encode(directory())),
       model,
       agent,
       session: {
         reset() {
-          setStore("draft", undefined)
+          setStore("draft", directoryID(), undefined)
         },
         promote(dir: string, session: string) {
           const next = clone(snapshot())
           if (!next) return
 
-          if (dir === sdk.directory) {
-            setSaved("session", session, next)
-            setStore("draft", undefined)
+          if (pathKey(dir) === directoryID()) {
+            setSavedSession(session, next)
+            setStore("draft", directoryID(), undefined)
             return
           }
 
           handoff.set(handoffKey(dir, session), next)
-          setStore("draft", undefined)
+          setStore("draft", directoryID(), undefined)
         },
         restore(msg: { sessionID: string; agent: string; model: ModelKey }) {
           const session = id()
           if (!session) return
           if (msg.sessionID !== session) return
-          if (saved.session[session] !== undefined) return
-          if (handoff.has(handoffKey(sdk.directory, session))) return
+          if (savedWorkspace().session[session] !== undefined) return
+          if (handoff.has(handoffKey(directory(), session))) return
 
-          setSaved("session", session, {
+          setSavedSession(session, {
             agent: msg.agent,
             model: msg.model,
             variant: msg.model?.variant ?? null,
