@@ -8,7 +8,7 @@ import { SessionRevert } from "@/session/revert"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
 import { Todo } from "@/session/todo"
-import { MessageID, PartID, SessionID } from "@/session/schema"
+import { MessageID, PartID, SessionID, TaskGraphID } from "@/session/schema"
 import { Snapshot } from "@/snapshot"
 import { Schema, SchemaGetter, Struct } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
@@ -66,12 +66,44 @@ export const RevertPayload = Schema.Struct(Struct.omit(SessionRevert.RevertInput
 export const PermissionResponsePayload = Schema.Struct({
   response: Permission.Reply,
 })
+const SessionGraphNode = Schema.Struct({
+  graphID: TaskGraphID,
+  nodeID: Schema.String,
+  description: Schema.String,
+  agent: Schema.String,
+  dependencies: Schema.Array(Schema.String),
+  status: Schema.Literals(["pending", "running", "completed", "failed", "blocked", "cancelled"]),
+  sessionID: Schema.optional(SessionID),
+  title: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
+  blockedBy: Schema.optional(Schema.Array(Schema.String)),
+  createdAt: Schema.Number,
+  startedAt: Schema.optional(Schema.Number),
+  completedAt: Schema.optional(Schema.Number),
+}).annotate({ identifier: "SessionGraphNode" })
+const SessionGraph = Schema.Struct({
+  graphID: TaskGraphID,
+  parentSessionID: SessionID,
+  origin: Schema.Literals(["background_task", "background_task_graph"]),
+  status: Schema.Literals(["active", "completed", "failed", "cancelled"]),
+  createdAt: Schema.Number,
+  completedAt: Schema.optional(Schema.Number),
+  nodes: Schema.Array(SessionGraphNode),
+}).annotate({ identifier: "SessionGraph" })
+const SessionGraphsResponse = Schema.Struct({
+  sessionID: SessionID,
+  rootSessionID: SessionID,
+  focusGraphID: Schema.optional(TaskGraphID),
+  graphs: Schema.Array(SessionGraph),
+}).annotate({ identifier: "SessionGraphsResponse" })
 
 export const SessionPaths = {
   list: root,
   status: `${root}/status`,
   get: `${root}/:sessionID`,
   children: `${root}/:sessionID/children`,
+  graphs: `${root}/:sessionID/graphs`,
   todo: `${root}/:sessionID/todo`,
   diff: `${root}/:sessionID/diff`,
   messages: `${root}/:sessionID/message`,
@@ -140,6 +172,17 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.children",
             summary: "Get session children",
             description: "Retrieve all child sessions that were forked from the specified parent session.",
+          }),
+        ),
+        HttpApiEndpoint.get("graphs", SessionPaths.graphs, {
+          params: { sessionID: SessionID },
+          success: described(SessionGraphsResponse, "Task graphs for the session tree"),
+          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.graphs",
+            summary: "Get session task graphs",
+            description: "Retrieve live background task graph state for a session and its root session tree.",
           }),
         ),
         HttpApiEndpoint.get("todo", SessionPaths.todo, {

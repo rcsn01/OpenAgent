@@ -67,6 +67,7 @@ beforeAll(async () => {
     useNavigate: () => (href: string) => {
       navigations.push(href)
     },
+    useLocation: () => ({ pathname: "/", search: "", hash: "", query: {}, state: undefined, key: "test" }),
     useParams: () => params,
   }))
 

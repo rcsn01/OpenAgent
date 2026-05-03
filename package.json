@@ -9,8 +9,6 @@
     "dev": "bun run --cwd packages/opencode --conditions=browser src/index.ts",
     "dev:desktop": "bun --cwd packages/desktop-electron dev",
     "dev:web": "bun --cwd packages/app dev",
-    "dev:console": "ulimit -n 10240 2>/dev/null; bun run --cwd packages/console/app dev",
-    "dev:storybook": "bun --cwd packages/storybook storybook",
     "lint": "oxlint",
     "typecheck": "bun turbo typecheck",
     "postinstall": "bun run --cwd packages/opencode fix-node-pty",
@@ -22,7 +20,6 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "packages/console/*",
       "packages/sdk/js",
       "packages/slack"
     ],
@@ -85,7 +82,6 @@
     }
   },
   "devDependencies": {
-    "@actions/artifact": "5.0.1",
     "@tsconfig/bun": "catalog:",
     "@types/mime-types": "3.0.1",
     "@typescript/native-preview": "catalog:",
@@ -95,7 +91,6 @@
     "oxlint-tsgolint": "0.21.0",
     "prettier": "3.6.2",
     "semver": "^7.6.0",
-    "sst": "3.18.10",
     "turbo": "2.8.13"
   },
   "dependencies": {
@@ -108,7 +103,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/anomalyco/opencode"
+    "url": "https://github.com/rcsn01/OpenAgent.git"
   },
   "license": "MIT",
   "prettier": {

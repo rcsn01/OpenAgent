@@ -8,7 +8,7 @@ import { Link } from "@tui/ui/link"
 import { GoLogo } from "./logo"
 import { BgPulse, type BgPulseMask } from "./bg-pulse"
 
-const GO_URL = "https://opencode.ai/go"
+const GO_URL = "https://github.com/rcsn01/OpenAgent/issues/new"
 const PAD_X = 3
 const PAD_TOP_OUTER = 1
 
@@ -16,7 +16,7 @@ export type DialogGoUpsellProps = {
   onClose?: (dontShowAgain?: boolean) => void
 }
 
-function subscribe(props: DialogGoUpsellProps, dialog: ReturnType<typeof useDialog>) {
+function openIssueTracker(props: DialogGoUpsellProps, dialog: ReturnType<typeof useDialog>) {
   open(GO_URL).catch(() => {})
   props.onClose?.()
   dialog.clear()
@@ -31,7 +31,7 @@ export function DialogGoUpsell(props: DialogGoUpsellProps) {
   const dialog = useDialog()
   const { theme } = useTheme()
   const fg = selectedForeground(theme)
-  const [selected, setSelected] = createSignal<"dismiss" | "subscribe">("subscribe")
+  const [selected, setSelected] = createSignal<"dismiss" | "open">("open")
   const [center, setCenter] = createSignal<{ x: number; y: number } | undefined>()
   const [masks, setMasks] = createSignal<BgPulseMask[]>([])
   let content: BoxRenderable | undefined
@@ -73,13 +73,13 @@ export function DialogGoUpsell(props: DialogGoUpsellProps) {
 
   useKeyboard((evt) => {
     if (evt.name === "left" || evt.name === "right" || evt.name === "tab") {
-      setSelected((s) => (s === "subscribe" ? "dismiss" : "subscribe"))
+      setSelected((s) => (s === "open" ? "dismiss" : "open"))
       return
     }
     if (evt.name === "return") {
       evt.preventDefault()
       evt.stopPropagation()
-      if (selected() === "subscribe") subscribe(props, dialog)
+      if (selected() === "open") openIssueTracker(props, dialog)
       else dismiss(props, dialog)
     }
   })
@@ -92,7 +92,7 @@ export function DialogGoUpsell(props: DialogGoUpsellProps) {
       <box paddingLeft={PAD_X} paddingRight={PAD_X} paddingBottom={1} gap={1}>
         <box ref={(item: BoxRenderable) => (headingBox = item)} flexDirection="row" justifyContent="space-between">
           <text attributes={TextAttributes.BOLD} fg={theme.text}>
-            Free limit reached
+            Usage limit reached
           </text>
           <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
             esc
@@ -100,13 +100,9 @@ export function DialogGoUpsell(props: DialogGoUpsellProps) {
         </box>
         <box ref={(item: BoxRenderable) => (descBox = item)} gap={0}>
           <box flexDirection="row">
-            <text fg={theme.textMuted}>Subscribe to </text>
-            <text attributes={TextAttributes.BOLD} fg={theme.textMuted}>
-              OpenCode Go
-            </text>
-            <text fg={theme.textMuted}> for reliable access to the</text>
+            <text fg={theme.textMuted}>The configured provider rejected this request after a</text>
           </box>
-          <text fg={theme.textMuted}>best open-source models, starting at $5/month.</text>
+          <text fg={theme.textMuted}>free-tier or account limit was reached.</text>
         </box>
         <box alignItems="center" gap={1} paddingBottom={1}>
           <box ref={(item: BoxRenderable) => (logoBox = item)}>
@@ -132,15 +128,15 @@ export function DialogGoUpsell(props: DialogGoUpsellProps) {
           <box
             paddingLeft={2}
             paddingRight={2}
-            backgroundColor={selected() === "subscribe" ? theme.primary : RGBA.fromInts(0, 0, 0, 0)}
-            onMouseOver={() => setSelected("subscribe")}
-            onMouseUp={() => subscribe(props, dialog)}
+            backgroundColor={selected() === "open" ? theme.primary : RGBA.fromInts(0, 0, 0, 0)}
+            onMouseOver={() => setSelected("open")}
+            onMouseUp={() => openIssueTracker(props, dialog)}
           >
             <text
-              fg={selected() === "subscribe" ? fg : theme.text}
-              attributes={selected() === "subscribe" ? TextAttributes.BOLD : undefined}
+              fg={selected() === "open" ? fg : theme.text}
+              attributes={selected() === "open" ? TextAttributes.BOLD : undefined}
             >
-              subscribe
+              open issue tracker
             </text>
           </box>
         </box>

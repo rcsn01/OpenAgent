@@ -1,9 +1,14 @@
 import { Account } from "@/account/account"
 import { Agent } from "@/agent/agent"
 import { Config } from "@/config/config"
+import { ConfigPlugin } from "@/config/plugin"
 import { InstanceState } from "@/effect/instance-state"
+import { Filesystem } from "@/util/filesystem"
 import { MCP } from "@/mcp"
+import { installPlugin, patchPluginConfig, readPluginManifest, setPluginEnabledInFile } from "@/plugin/install"
+import { parsePluginSpecifier, pluginSource, resolvePathPluginTarget } from "@/plugin/shared"
 import { Project } from "@/project/project"
+import { Instance } from "@/project/instance"
 import { Session } from "@/session/session"
 import { ToolRegistry } from "@/tool/registry"
 import * as EffectZod from "@/util/effect-zod"
@@ -11,8 +16,56 @@ import { Worktree } from "@/worktree"
 import { Effect, Option } from "effect"
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse"
 import { HttpApiBuilder, HttpApiError } from "effect/unstable/httpapi"
+import { Global } from "@opencode-ai/core/global"
+import { Npm } from "@opencode-ai/core/npm"
+import npa from "npm-package-arg"
+import path from "path"
 import { InstanceHttpApi } from "../api"
-import { ConsoleSwitchPayload, SessionListQuery, ToolListQuery } from "../groups/experimental"
+import {
+  ConsoleSwitchPayload,
+  ExperimentalPluginInstallPayload,
+  ExperimentalPluginStatePayload,
+  SessionListQuery,
+  ToolListQuery,
+} from "../groups/experimental"
+
+function editablePluginSource(source: string) {
+  return (
+    !source.startsWith("http://") &&
+    !source.startsWith("https://") &&
+    source !== "OPENCODE_CONFIG_CONTENT" &&
+    !source.startsWith("file://")
+  )
+}
+
+function npmCacheTarget(spec: string) {
+  let key = spec
+  try {
+    const hit = npa(spec)
+    if (hit?.name && hit.raw === hit.name) key = `${hit.name}@latest`
+  } catch {}
+  return path.join(Global.Path.cache, "packages", Npm.sanitize(key))
+}
+
+async function pluginTarget(spec: string) {
+  if (pluginSource(spec) === "file") {
+    return resolvePathPluginTarget(spec).catch(() => undefined)
+  }
+
+  const target = npmCacheTarget(spec)
+  if (!(await Filesystem.exists(target))) return
+  return target
+}
+
+const pluginError = Effect.fn("ExperimentalHttpApi.pluginError")(function* (
+  result:
+    | Exclude<Awaited<ReturnType<typeof readPluginManifest>>, { ok: true }>
+    | Exclude<Awaited<ReturnType<typeof setPluginEnabledInFile>>, { ok: true }>
+    | Exclude<Awaited<ReturnType<typeof patchPluginConfig>>, { ok: true }>,
+) {
+  yield* Effect.logDebug("plugin request failed", { code: result.code })
+  return yield* Effect.fail(new HttpApiError.BadRequest({}))
+})
 
 export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "experimental", (handlers) =>
   Effect.gen(function* () {
@@ -66,6 +119,112 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       yield* account
         .use(ctx.payload.accountID, Option.some(ctx.payload.orgID))
         .pipe(Effect.catch(() => Effect.fail(new HttpApiError.BadRequest({}))))
+      return true
+    })
+
+    const plugins = Effect.fn("ExperimentalHttpApi.plugins")(function* () {
+      const config = yield* Config.Service
+      const current = yield* config.get()
+      const plugins = yield* Effect.promise(() =>
+        Promise.all(
+          (current.plugin_origins ?? []).map(async (origin) => {
+            const spec = ConfigPlugin.pluginSpecifier(origin.spec)
+            const target = await pluginTarget(spec)
+            const manifest = target ? await readPluginManifest(target) : undefined
+            const parsed = parsePluginSpecifier(spec)
+            return {
+              spec,
+              packageName: parsed.pkg,
+              version: parsed.version || undefined,
+              source: origin.source,
+              scope: origin.scope,
+              kind: pluginSource(spec),
+              enabled: ConfigPlugin.pluginOptions(origin.spec)?.enabled !== false,
+              editable: editablePluginSource(origin.source),
+              installed: !!target,
+              target,
+              targets: manifest?.ok ? manifest.targets.map((item: { kind: "server" | "tui" }) => item.kind) : [],
+            }
+          }),
+        ),
+      )
+      return { plugins }
+    })
+
+    const pluginsInstall = Effect.fn("ExperimentalHttpApi.pluginsInstall")(function* (ctx: {
+      payload: typeof ExperimentalPluginInstallPayload.Type
+    }) {
+      const config = yield* Config.Service
+      const target = yield* Effect.promise(() => installPlugin(ctx.payload.spec))
+      if (!target.ok) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+
+      const manifest = yield* Effect.promise(() => readPluginManifest(target.target))
+      if (!manifest.ok) return yield* pluginError(manifest)
+
+      const serverTargets = manifest.targets.filter((item) => item.kind === "server")
+      if (!serverTargets.length) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+
+      const patched = yield* Effect.promise(() =>
+        patchPluginConfig({
+          spec: ctx.payload.spec,
+          targets: serverTargets,
+          force: ctx.payload.force,
+          global: ctx.payload.global,
+          vcs: Instance.project.vcs,
+          worktree: Instance.worktree,
+          directory: Instance.directory,
+          config: Global.Path.config,
+        }),
+      )
+      if (!patched.ok) return yield* pluginError(patched)
+
+      yield* config.invalidate(true)
+      return true
+    })
+
+    const pluginsEnable = Effect.fn("ExperimentalHttpApi.pluginsEnable")(function* (ctx: {
+      payload: typeof ExperimentalPluginStatePayload.Type
+    }) {
+      const config = yield* Config.Service
+      const current = yield* config.get()
+      const hit = (current.plugin_origins ?? []).find(
+        (item) => item.source === ctx.payload.source && ConfigPlugin.pluginSpecifier(item.spec) === ctx.payload.spec,
+      )
+      if (!hit || !editablePluginSource(hit.source)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+
+      const result = yield* Effect.promise(() =>
+        setPluginEnabledInFile({
+          file: hit.source,
+          spec: ctx.payload.spec,
+          enabled: true,
+        }),
+      )
+      if (!result.ok) return yield* pluginError(result)
+
+      yield* config.invalidate(true)
+      return true
+    })
+
+    const pluginsDisable = Effect.fn("ExperimentalHttpApi.pluginsDisable")(function* (ctx: {
+      payload: typeof ExperimentalPluginStatePayload.Type
+    }) {
+      const config = yield* Config.Service
+      const current = yield* config.get()
+      const hit = (current.plugin_origins ?? []).find(
+        (item) => item.source === ctx.payload.source && ConfigPlugin.pluginSpecifier(item.spec) === ctx.payload.spec,
+      )
+      if (!hit || !editablePluginSource(hit.source)) return yield* Effect.fail(new HttpApiError.BadRequest({}))
+
+      const result = yield* Effect.promise(() =>
+        setPluginEnabledInFile({
+          file: hit.source,
+          spec: ctx.payload.spec,
+          enabled: false,
+        }),
+      )
+      if (!result.ok) return yield* pluginError(result)
+
+      yield* config.invalidate(true)
       return true
     })
 
@@ -143,6 +302,10 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       .handle("console", getConsole)
       .handle("consoleOrgs", listConsoleOrgs)
       .handle("consoleSwitch", switchConsole)
+      .handle("plugins", plugins)
+      .handle("pluginsInstall", pluginsInstall)
+      .handle("pluginsEnable", pluginsEnable)
+      .handle("pluginsDisable", pluginsDisable)
       .handle("tool", tool)
       .handle("toolIDs", toolIDs)
       .handle("worktree", worktree)

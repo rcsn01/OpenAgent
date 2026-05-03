@@ -515,7 +515,10 @@ export const layer = Layer.effect(
       const data = yield* InstanceState.get(state)
       return [...data.graphs.values()]
         .filter((graph) => !sessionID || graph.parentSessionID === sessionID)
-        .sort((left, right) => right.createdAt - left.createdAt)
+        .sort(
+          (left, right) =>
+            right.createdAt - left.createdAt || String(right.graphID).localeCompare(String(left.graphID)),
+        )
         .map(cloneGraph)
     })
 

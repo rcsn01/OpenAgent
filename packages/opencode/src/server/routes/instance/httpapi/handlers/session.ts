@@ -11,6 +11,7 @@ import { SessionCompaction } from "@/session/compaction"
 import { MessageV2 } from "@/session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { SessionRevert } from "@/session/revert"
+import * as SessionTaskGraph from "@/session/task-graph"
 import { SessionRunState } from "@/session/run-state"
 import { SessionStatus } from "@/session/status"
 import { SessionSummary } from "@/session/summary"
@@ -84,6 +85,29 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
 
     const children = Effect.fn("SessionHttpApi.children")(function* (ctx: { params: { sessionID: SessionID } }) {
       return yield* session.children(ctx.params.sessionID)
+    })
+
+    const graphs = Effect.fn("SessionHttpApi.graphs")(function* (ctx: { params: { sessionID: SessionID } }) {
+      return yield* mapNotFound(
+        Effect.gen(function* () {
+          const taskGraph = yield* SessionTaskGraph.Service
+
+          let current = yield* session.get(ctx.params.sessionID)
+          while (current.parentID) {
+            current = yield* session.get(current.parentID)
+          }
+
+          const graphs = yield* taskGraph.list(current.id)
+          const focusGraphID = (yield* taskGraph.findBySession(ctx.params.sessionID))?.graphID
+
+          return {
+            sessionID: ctx.params.sessionID,
+            rootSessionID: current.id,
+            focusGraphID,
+            graphs,
+          }
+        }),
+      )
     })
 
     const todo = Effect.fn("SessionHttpApi.todo")(function* (ctx: { params: { sessionID: SessionID } }) {
@@ -361,6 +385,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
       .handle("status", status)
       .handle("get", get)
       .handle("children", children)
+      .handle("graphs", graphs)
       .handle("todo", todo)
       .handle("diff", diff)
       .handle("messages", messages)

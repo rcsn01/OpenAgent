@@ -46,6 +46,32 @@ export const ToolListQuery = Schema.Struct({
   provider: ProviderID,
   model: ModelID,
 })
+const PluginTargetKind = Schema.Literals(["server", "tui"])
+const ExperimentalPlugin = Schema.Struct({
+  spec: Schema.String,
+  packageName: Schema.String,
+  version: Schema.optional(Schema.String),
+  source: Schema.String,
+  scope: Schema.Literals(["global", "local"]),
+  kind: Schema.Literals(["file", "npm"]),
+  enabled: Schema.Boolean,
+  editable: Schema.Boolean,
+  installed: Schema.Boolean,
+  target: Schema.optional(Schema.String),
+  targets: Schema.Array(PluginTargetKind),
+}).annotate({ identifier: "ExperimentalPlugin" })
+const ExperimentalPluginList = Schema.Struct({
+  plugins: Schema.Array(ExperimentalPlugin),
+}).annotate({ identifier: "ExperimentalPluginList" })
+export const ExperimentalPluginInstallPayload = Schema.Struct({
+  spec: Schema.String,
+  global: Schema.optional(Schema.Boolean),
+  force: Schema.optional(Schema.Boolean),
+})
+export const ExperimentalPluginStatePayload = Schema.Struct({
+  spec: Schema.String,
+  source: Schema.String,
+})
 
 const QueryBoolean = Schema.Literals(["true", "false"]).pipe(
   Schema.decodeTo(Schema.Boolean, {
@@ -68,6 +94,10 @@ export const ExperimentalPaths = {
   console: "/experimental/console",
   consoleOrgs: "/experimental/console/orgs",
   consoleSwitch: "/experimental/console/switch",
+  plugins: "/experimental/plugins",
+  pluginsInstall: "/experimental/plugins/install",
+  pluginsEnable: "/experimental/plugins/enable",
+  pluginsDisable: "/experimental/plugins/disable",
   tool: "/experimental/tool",
   toolIDs: "/experimental/tool/ids",
   worktree: "/experimental/worktree",
@@ -107,6 +137,49 @@ export const ExperimentalApi = HttpApi.make("experimental")
             identifier: "experimental.console.switchOrg",
             summary: "Switch active Console org",
             description: "Persist a new active Console account/org selection for the current local OpenCode state.",
+          }),
+        ),
+        HttpApiEndpoint.get("plugins", ExperimentalPaths.plugins, {
+          success: described(ExperimentalPluginList, "Configured plugins"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.plugins.list",
+            summary: "List configured plugins",
+            description:
+              "Get configured GUI-manageable plugin metadata, including source, scope, targets, and enabled state.",
+          }),
+        ),
+        HttpApiEndpoint.post("pluginsInstall", ExperimentalPaths.pluginsInstall, {
+          payload: ExperimentalPluginInstallPayload,
+          success: described(Schema.Boolean, "Install success"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.plugins.install",
+            summary: "Install and configure a plugin",
+            description: "Install a plugin package and update shared server plugin config for the current instance.",
+          }),
+        ),
+        HttpApiEndpoint.post("pluginsEnable", ExperimentalPaths.pluginsEnable, {
+          payload: ExperimentalPluginStatePayload,
+          success: described(Schema.Boolean, "Enable success"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.plugins.enable",
+            summary: "Enable a configured plugin",
+            description: "Enable a plugin entry in its source config file.",
+          }),
+        ),
+        HttpApiEndpoint.post("pluginsDisable", ExperimentalPaths.pluginsDisable, {
+          payload: ExperimentalPluginStatePayload,
+          success: described(Schema.Boolean, "Disable success"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.plugins.disable",
+            summary: "Disable a configured plugin",
+            description: "Disable a plugin entry in its source config file.",
           }),
         ),
         HttpApiEndpoint.get("tool", ExperimentalPaths.tool, {
@@ -198,7 +271,7 @@ export const ExperimentalApi = HttpApi.make("experimental")
       .annotateMerge(
         OpenApi.annotations({
           title: "experimental",
-          description: "Experimental HttpApi read-only routes.",
+          description: "Experimental HttpApi instance routes.",
         }),
       )
       .middleware(InstanceContextMiddleware)

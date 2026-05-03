@@ -7,6 +7,7 @@ let migrateTerminalState: (value: unknown) => unknown
 beforeAll(async () => {
   mock.module("@solidjs/router", () => ({
     useNavigate: () => () => undefined,
+    useLocation: () => ({ pathname: "/", search: "", hash: "", query: {}, state: undefined, key: "test" }),
     useParams: () => ({}),
   }))
   mock.module("@opencode-ai/ui/context", () => ({

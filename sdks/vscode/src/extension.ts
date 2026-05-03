@@ -3,15 +3,14 @@ export function deactivate() {}
 
 import * as vscode from "vscode"
 
-const TERMINAL_NAME = "opencode"
+const TERMINAL_NAME = "openagent"
 
 export function activate(context: vscode.ExtensionContext) {
-  const openNewTerminalDisposable = vscode.commands.registerCommand("opencode.openNewTerminal", async () => {
+  const openNewTerminalDisposable = vscode.commands.registerCommand("openagent.openNewTerminal", async () => {
     await openTerminal()
   })
 
-  const openTerminalDisposable = vscode.commands.registerCommand("opencode.openTerminal", async () => {
-    // An opencode terminal already exists => focus it
+  const openTerminalDisposable = vscode.commands.registerCommand("openagent.openTerminal", async () => {
     const existingTerminal = vscode.window.terminals.find((t) => t.name === TERMINAL_NAME)
     if (existingTerminal) {
       existingTerminal.show()
@@ -21,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
     await openTerminal()
   })
 
-  let addFilepathDisposable = vscode.commands.registerCommand("opencode.addFilepathToTerminal", async () => {
+  let addFilepathDisposable = vscode.commands.registerCommand("openagent.addFilepathToTerminal", async () => {
     const fileRef = getActiveFile()
     if (!fileRef) {
       return
@@ -34,7 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (terminal.name === TERMINAL_NAME) {
       // @ts-ignore
-      const port = terminal.creationOptions.env?.["_EXTENSION_OPENCODE_PORT"]
+      const port = terminal.creationOptions.env?.["_EXTENSION_OPENAGENT_PORT"]
       port ? await appendPrompt(parseInt(port), fileRef) : terminal.sendText(fileRef, false)
       terminal.show()
     }
@@ -56,13 +55,13 @@ export function activate(context: vscode.ExtensionContext) {
         preserveFocus: false,
       },
       env: {
-        _EXTENSION_OPENCODE_PORT: port.toString(),
+        _EXTENSION_OPENAGENT_PORT: port.toString(),
         OPENCODE_CALLER: "vscode",
       },
     })
 
     terminal.show()
-    terminal.sendText(`opencode --port ${port}`)
+    terminal.sendText(`openagent --port ${port}`)
 
     const fileRef = getActiveFile()
     if (!fileRef) {
@@ -112,22 +111,17 @@ export function activate(context: vscode.ExtensionContext) {
       return
     }
 
-    // Get the relative path from workspace root
     const relativePath = vscode.workspace.asRelativePath(document.uri)
     let filepathWithAt = `@${relativePath}`
 
-    // Check if there's a selection and add line numbers
     const selection = activeEditor.selection
     if (!selection.isEmpty) {
-      // Convert to 1-based line numbers
       const startLine = selection.start.line + 1
       const endLine = selection.end.line + 1
 
       if (startLine === endLine) {
-        // Single line selection
         filepathWithAt += `#L${startLine}`
       } else {
-        // Multi-line selection
         filepathWithAt += `#L${startLine}-${endLine}`
       }
     }

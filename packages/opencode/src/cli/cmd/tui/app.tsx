@@ -646,7 +646,7 @@ function App(props: { onSnapshot?: () => Promise<string[]> }) {
       title: "Open docs",
       value: "docs.open",
       onSelect: () => {
-        open("https://opencode.ai/docs").catch(() => {})
+        open("https://github.com/rcsn01/OpenAgent").catch(() => {})
         dialog.clear()
       },
       category: "System",
