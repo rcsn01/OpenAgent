@@ -2,13 +2,12 @@ import { eq } from "drizzle-orm"
 import { Effect, Layer, Option, Schema, Context } from "effect"
 
 import { Database } from "@/storage/db"
+import type { DbClient } from "@/util/db"
 import { AccountStateTable, AccountTable } from "./account.sql"
 import { AccessToken, AccountID, AccountRepoError, Info, OrgID, RefreshToken } from "./schema"
 import { normalizeServerUrl } from "./url"
 
 export type AccountRow = (typeof AccountTable)["$inferSelect"]
-
-type DbClient = Parameters<typeof Database.use>[0] extends (db: infer T) => unknown ? T : never
 type DbTransactionCallback<A> = Parameters<typeof Database.transaction<A>>[0]
 
 const ACCOUNT_STATE_ID = 1

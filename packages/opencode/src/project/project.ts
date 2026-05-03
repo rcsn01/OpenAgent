@@ -15,6 +15,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { NodePath } from "@effect/platform-node"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
+import { db } from "@/util/db"
 import { zod } from "@/util/effect-zod"
 import { NonNegativeInt, optionalOmitUndefined, withStatics } from "@/util/schema"
 import { serviceUse } from "@/effect/service-use"
@@ -151,9 +152,6 @@ export const layer: Layer.Layer<
       Effect.scoped,
       Effect.catch(() => Effect.succeed({ code: 1, text: "", stderr: "" } satisfies GitResult)),
     )
-
-    const db = <T>(fn: (d: Parameters<typeof Database.use>[0] extends (trx: infer D) => any ? D : never) => T) =>
-      Effect.sync(() => Database.use(fn))
 
     const emitUpdated = (data: Info) =>
       Effect.sync(() =>

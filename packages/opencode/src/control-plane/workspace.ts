@@ -22,6 +22,7 @@ import { WorkspaceID } from "./schema"
 import { Session } from "@/session/session"
 import { SessionTable } from "@/session/session.sql"
 import { SessionID } from "@/session/schema"
+import { db } from "@/util/db"
 import { errorData } from "@/util/error"
 import { waitEvent } from "./util"
 import { WorkspaceContext } from "./workspace-context"
@@ -72,9 +73,6 @@ function fromRow(row: typeof WorkspaceTable.$inferSelect): Info {
     projectID: row.project_id,
   }
 }
-
-const db = <T>(fn: (d: Parameters<typeof Database.use>[0] extends (trx: infer D) => any ? D : never) => T) =>
-  Effect.sync(() => Database.use(fn))
 
 const log = Log.create({ service: "workspace-sync" })
 

@@ -11,8 +11,21 @@ const TEAM = {
 
 const ASSIGNEES = [...new Set(Object.values(TEAM).flat())]
 
-function pick<T>(items: readonly T[]) {
-  return items[Math.floor(Math.random() * items.length)]!
+function enumValues<T extends string>(values: readonly T[]) {
+  const [first, ...rest] = values
+  if (!first) throw new Error("Expected at least one enum value")
+  return [first, ...rest] as [T, ...T[]]
+}
+
+function pick<T>(items: readonly [T, ...T[]]) {
+  return items[Math.floor(Math.random() * items.length)]
+}
+
+function headersToObject(headers: HeadersInit | undefined) {
+  if (!headers) return {}
+  if (headers instanceof Headers) return Object.fromEntries(headers.entries())
+  if (Array.isArray(headers)) return Object.fromEntries(headers)
+  return headers
 }
 
 function getIssueNumber(): number {
@@ -28,7 +41,7 @@ async function githubFetch(endpoint: string, options: RequestInit = {}) {
       Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
       Accept: "application/vnd.github+json",
       "Content-Type": "application/json",
-      ...(options.headers instanceof Headers ? Object.fromEntries(options.headers.entries()) : options.headers),
+      ...headersToObject(options.headers),
     },
   })
   if (!response.ok) {
@@ -46,7 +59,7 @@ Pick the most fitting labels for the issue and assign one owner.
 If unsure, choose the team/section with the most overlap with the issue and assign a member from that team at random.`,
   args: {
     assignee: tool.schema
-      .enum(ASSIGNEES as [string, ...string[]])
+      .enum(enumValues(ASSIGNEES))
       .describe("The username of the assignee")
       .default("rekram1-node"),
     labels: tool.schema

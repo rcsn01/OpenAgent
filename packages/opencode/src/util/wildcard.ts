@@ -1,5 +1,9 @@
 import { sortBy, pipe } from "remeda"
 
+function sortPatterns<T>(patterns: Record<string, T>) {
+  return pipe(patterns, Object.entries, sortBy([([key]) => key.length, "asc"], [([key]) => key, "asc"]))
+}
+
 export function match(str: string, pattern: string) {
   if (str) str = str.replaceAll("\\", "/")
   if (pattern) pattern = pattern.replaceAll("\\", "/")
@@ -19,7 +23,7 @@ export function match(str: string, pattern: string) {
 }
 
 export function all(input: string, patterns: Record<string, any>) {
-  const sorted = pipe(patterns, Object.entries, sortBy([([key]) => key.length, "asc"], [([key]) => key, "asc"]))
+  const sorted = sortPatterns(patterns)
   let result = undefined
   for (const [pattern, value] of sorted) {
     if (match(input, pattern)) {
@@ -31,7 +35,7 @@ export function all(input: string, patterns: Record<string, any>) {
 }
 
 export function allStructured(input: { head: string; tail: string[] }, patterns: Record<string, any>) {
-  const sorted = pipe(patterns, Object.entries, sortBy([([key]) => key.length, "asc"], [([key]) => key, "asc"]))
+  const sorted = sortPatterns(patterns)
   let result = undefined
   for (const [pattern, value] of sorted) {
     const parts = pattern.split(/\s+/)

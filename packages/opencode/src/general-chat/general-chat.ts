@@ -15,6 +15,7 @@ import { Effect, Layer, Path, Context, Schema, Stream, Types, Option } from "eff
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { NodePath } from "@effect/platform-node"
+import { db } from "@/util/db"
 import { zod } from "@/util/effect-zod"
 import { withStatics } from "@/util/schema"
 import { GeneralChatTable } from "./general-chat.sql"
@@ -22,9 +23,6 @@ import { chatsRoot } from "./shared"
 
 type Row = typeof GeneralChatTable.$inferSelect
 type GitResult = { code: number; text: string; stderr: string }
-
-const db = <T>(fn: (d: Parameters<typeof Database.use>[0] extends (trx: infer D) => any ? D : never) => T) =>
-  Effect.sync(() => Database.use(fn))
 
 function inheritedConfig(config: Config.Info) {
   return {

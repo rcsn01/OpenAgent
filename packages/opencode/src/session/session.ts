@@ -37,6 +37,7 @@ import type { Provider } from "@/provider/provider"
 import { Permission } from "@/permission"
 import { Global } from "@opencode-ai/core/global"
 import { Effect, Layer, Option, Context, Schema, Types } from "effect"
+import { db } from "@/util/db"
 import { zod } from "@/util/effect-zod"
 import { NonNegativeInt, optionalOmitUndefined, withStatics } from "@/util/schema"
 
@@ -450,9 +451,6 @@ export interface Interface {
 export class Service extends Context.Service<Service, Interface>()("@opencode/Session") {}
 
 export type Patch = Types.DeepMutable<SyncEvent.Event<typeof Event.Updated>["data"]["info"]>
-
-const db = <T>(fn: (d: Parameters<typeof Database.use>[0] extends (trx: infer D) => any ? D : never) => T) =>
-  Effect.sync(() => Database.use(fn))
 
 export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | SyncEvent.Service> = Layer.effect(
   Service,
