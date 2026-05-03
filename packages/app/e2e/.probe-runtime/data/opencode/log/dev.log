@@ -3117,3 +3117,15 @@ INFO  2026-05-03T01:58:46 +0ms service=bus type=file.watcher.updated publishing
 INFO  2026-05-03T02:08:19 +572442ms service=snapshot prune=7.days cleanup
 INFO  2026-05-03T02:20:48 +748737ms service=bus type=file.watcher.updated publishing
 INFO  2026-05-03T02:20:48 +101ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:25:53 +304824ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:25:53 +138ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:25:53 +0ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:25:53 +0ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:25:53 +0ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:25:54 +1428ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:25:54 +96ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:34:09 +495061ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:34:09 +0ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:38:15 +245327ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:38:15 +92ms service=bus type=file.watcher.updated publishing
+INFO  2026-05-03T02:38:25 +10175ms service=bus type=file.watcher.updated publishing

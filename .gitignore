@@ -8,7 +8,8 @@ node_modules
 .codex
 *~
 playground
-tmp
+tmp/*
+!tmp/.gitignore
 dist
 ts-dist
 .turbo

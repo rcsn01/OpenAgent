@@ -3,6 +3,7 @@
 - The default branch in this repo is `dev`.
 - Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
 - Prefer automation: execute requested actions without confirmation unless blocked by missing info or safety/irreversibility.
+- If temporary files are needed, keep them inside the current repository's `/tmp` directory so no extra filesystem permission is required, and delete them after the task is finished.
 
 ## Style Guide
 
