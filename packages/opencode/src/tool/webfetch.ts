@@ -155,35 +155,16 @@ export const WebFetchTool = Tool.define(
 )
 
 async function extractTextFromHTML(html: string) {
-  let text = ""
-  let skipContent = false
-
-  const rewriter = new HTMLRewriter()
-    .on("script, style, noscript, iframe, object, embed", {
-      element() {
-        skipContent = true
-      },
-      text() {
-        // Skip text content inside these elements
-      },
-    })
-    .on("*", {
-      element(element) {
-        // Reset skip flag when entering other elements
-        if (!["script", "style", "noscript", "iframe", "object", "embed"].includes(element.tagName)) {
-          skipContent = false
-        }
-      },
-      text(input) {
-        if (!skipContent) {
-          text += input.text
-        }
-      },
-    })
-    .transform(new Response(html))
-
-  await rewriter.text()
-  return text.trim()
+  return decodeHTMLEntities(
+    html
+      .replace(/<\s*(script|style|noscript|iframe|object|embed)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, " ")
+      .replace(/<\s*(br|p|div|section|article|header|footer|main|li|tr|h[1-6])\b[^>]*>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .replace(/[ \t\f\v\r]+/g, " ")
+    .replace(/ *\n+ */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
 }
 
 function convertHTMLToMarkdown(html: string): string {
@@ -196,4 +177,28 @@ function convertHTMLToMarkdown(html: string): string {
   })
   turndownService.remove(["script", "style", "meta", "link"])
   return turndownService.turndown(html)
+}
+
+function decodeHTMLEntities(text: string) {
+  const namedEntities: Record<string, string | undefined> = {
+    amp: "&",
+    apos: "'",
+    gt: ">",
+    lt: "<",
+    nbsp: " ",
+    quot: '"',
+  }
+
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]+);/gi, (match, entity: string) => {
+    const value = entity.toLowerCase()
+    if (value.startsWith("#x")) {
+      const codePoint = Number.parseInt(value.slice(2), 16)
+      return codePoint >= 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : match
+    }
+    if (value.startsWith("#")) {
+      const codePoint = Number.parseInt(value.slice(1), 10)
+      return codePoint >= 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : match
+    }
+    return namedEntities[value] ?? match
+  })
 }

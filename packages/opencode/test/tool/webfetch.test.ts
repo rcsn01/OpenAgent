@@ -100,4 +100,24 @@ describe("tool.webfetch", () => {
       },
     )
   })
+
+  test("extracts text from html without HTMLRewriter", async () => {
+    await withFetch(
+      () =>
+        new Response("<main><h1>Hello &amp; welcome</h1><script>ignore()</script><p>Useful text&nbsp;here.</p></main>", {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      async (url) => {
+        await Instance.provide({
+          directory: projectRoot,
+          fn: async () => {
+            const result = await exec({ url: new URL("/page.html", url).toString(), format: "text" })
+            expect(result.output).toBe("Hello & welcome\nUseful text here.")
+            expect(result.attachments).toBeUndefined()
+          },
+        })
+      },
+    )
+  })
 })

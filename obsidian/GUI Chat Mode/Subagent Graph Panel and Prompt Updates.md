@@ -69,6 +69,22 @@ Main files:
 - `packages/opencode/src/session/prompt/beast.txt`
 - `packages/opencode/src/session/prompt/copilot-gpt-5.txt`
 
+### WebFetch HTML Text Fix
+
+`WebFetch` was also failing at runtime with `HTMLRewriter is not defined` when fetching HTML as text. The tool was using a Cloudflare-style `HTMLRewriter` global that is not available in the local Bun runtime.
+
+The fix replaces that dependency with local HTML text extraction:
+
+- remove script/style-like content
+- convert common block tags to line breaks
+- strip remaining tags
+- decode common HTML entities
+
+Main files:
+
+- `packages/opencode/src/tool/webfetch.ts`
+- `packages/opencode/test/tool/webfetch.test.ts`
+
 ### Minimal Subagent Completion Updates
 
 Synthetic reminders delivered to the main assistant after background subagents finish now ask the assistant to think through next steps and avoid verbose user updates.
