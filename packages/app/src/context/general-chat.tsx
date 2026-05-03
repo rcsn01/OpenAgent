@@ -48,7 +48,9 @@ export const { use: useGeneralChats, provider: GeneralChatProvider } = createSim
     }
 
     createEffect(() => {
-      setCachedGeneralChats(list())
+      const chats = resource.latest ?? resource()
+      if (!chats) return
+      setCachedGeneralChats(chats)
     })
 
     const unsub = globalSDK.event.listen((event) => {

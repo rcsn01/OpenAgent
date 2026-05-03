@@ -35,6 +35,12 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
     })
     const workspaceDirectory = createMemo(() => (params.dir ? decode64(params.dir) ?? "" : ""))
     const cachedChatInfo = useCachedGeneralChat(resolvedChatSessionID)
+    const chatDirectoryParam = createMemo(() => {
+      if (kind() !== "chat") return ""
+      const value = new URLSearchParams(location.search).get("d")
+      if (!value) return ""
+      return decode64(value) ?? ""
+    })
 
     createEffect(() => {
       if (kind() !== "chat") return
@@ -65,7 +71,7 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
       if (kind() === "workspace") return workspaceDirectory()
       if (kind() !== "chat") return ""
       if (!resolvedChatSessionID()) return GENERAL_CHAT_DRAFT_DIRECTORY
-      return cachedChatInfo()?.directory ?? chatInfo.latest?.directory ?? ""
+      return chatDirectoryParam() || cachedChatInfo()?.directory || chatInfo.latest?.directory || ""
     })
     const slug = createMemo(() => {
       if (kind() === "workspace") return params.dir ?? ""
@@ -78,7 +84,11 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
       id: kind() === "workspace" ? params.id : resolvedChatSessionID(),
     }))
     const href = (sessionID?: string) => {
-      if (kind() === "chat") return sessionID ? `/chat/${sessionID}` : "/chat"
+      if (kind() === "chat") {
+        if (!sessionID) return "/chat"
+        const dir = directory()
+        return `/chat/${encodeURIComponent(sessionID)}${dir ? `?d=${encodeURIComponent(base64Encode(dir))}` : ""}`
+      }
       const dir = slug()
       if (!dir) return "/"
       return `/${dir}/session${sessionID ? `/${sessionID}` : ""}`
@@ -91,8 +101,10 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
       directory,
       slug,
       sessionID: createMemo(() => routeParams().id),
-      rootSessionID: createMemo(() => cachedChatInfo()?.rootSessionID ?? chatInfo.latest?.rootSessionID),
-      ready: createMemo(() => kind() !== "chat" || !resolvedChatSessionID() || !!cachedChatInfo() || !!chatInfo()),
+      rootSessionID: createMemo(() => cachedChatInfo()?.rootSessionID ?? chatInfo.latest?.rootSessionID ?? resolvedChatSessionID()),
+      ready: createMemo(
+        () => kind() !== "chat" || !resolvedChatSessionID() || !!chatDirectoryParam() || !!cachedChatInfo() || !!chatInfo(),
+      ),
       chatInfo,
       href,
     }

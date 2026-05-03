@@ -168,6 +168,7 @@ function setOptimisticRemove(setStore: (...args: unknown[]) => void, input: Opti
 
 export const { use: useSync, provider: SyncProvider } = createSimpleContext({
   name: "Sync",
+  gate: false,
   init: () => {
     const globalSync = useGlobalSync()
     const sdk = useSDK()

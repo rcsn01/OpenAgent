@@ -1299,7 +1299,7 @@ export default function Layout(props: ParentProps) {
           onSelect={(session) => {
             const generalChat = generalChatForSession(session)
             if (generalChat) {
-              openGeneralChat(generalChat.rootSessionID)
+              openGeneralChat(generalChat.rootSessionID, generalChat.directory)
               return
             }
             navigateToSession(session)
@@ -2185,8 +2185,12 @@ export default function Layout(props: ParentProps) {
       .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created)),
   )
 
-  const openGeneralChat = (sessionID?: string) =>
-    navigateWithSidebarReset(sessionID ? `/chat/${encodeURIComponent(sessionID)}` : "/chat")
+  const openGeneralChat = (sessionID?: string, directory?: string) =>
+    navigateWithSidebarReset(
+      sessionID
+        ? `/chat/${encodeURIComponent(sessionID)}${directory ? `?d=${encodeURIComponent(base64Encode(directory))}` : ""}`
+        : "/chat",
+    )
 
   const generalChatForSession = (session: Session) =>
     generalChatSessions().find(
@@ -2637,7 +2641,7 @@ export default function Layout(props: ParentProps) {
           onOpenChat={(chat) => {
             generalChats.upsert(chat)
             prefetchSession(chat.session, "high")
-            openGeneralChat(chat.rootSessionID)
+            openGeneralChat(chat.rootSessionID, chat.directory)
           }}
           onWarmChat={(chat) => {
             generalChats.upsert(chat)
