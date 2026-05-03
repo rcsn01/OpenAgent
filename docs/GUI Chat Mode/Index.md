@@ -8,7 +8,7 @@ General chats are not truly directory-less. They are backed by hidden workspaces
 
 - [[GUI Chat Mode/Hidden Workspaces]] — where chat directories live, how they are allocated, and whether chat-only `AGENTS.md` or skills can be used
 - [[GUI Chat Mode/Shared Chat Profile]] — the first-class shared config bundle for all GUI chats
-- [[GUI Chat Mode/Session Switching Performance Implementation]] — full implementation history for seamless project/chat session switching, persistent UI shell, sidebar highlighting, and audio-toggle visibility
+- [[GUI Chat Mode/Session Switching/Problem Summary|Session Switching]] — full implementation history for seamless project/chat session switching, persistent UI shell, sidebar highlighting, and audio-toggle visibility
 - [[GUI Chat Mode/Subagent Graph Panel and Prompt Updates]] — compact graph groups, completed graph retention, newest-first ordering, web tool guidance, and minimal subagent completion updates
 - [[GUI Chat Mode/Project Sidebar Controls]] — expanded-sidebar project controls for compact/expanded sessions, organize/sort/show, and add project actions
 

@@ -1,6 +1,6 @@
 # OpenAgent Knowledge Base
 
-This folder is a starting Obsidian-style knowledge base for understanding how OpenAgent is put together.
+Obsidian-style knowledge base for understanding how OpenAgent is put together.
 
 ## Topics
 
@@ -33,7 +33,7 @@ The hands-free dictation system.
 - [[Voice Mode/Native Capture]] — macOS AVAudioEngine bypassing browser audio
 - [[Voice Mode/Post-Processing]] — dictionary, corrections, and prompt application
 - [[Voice Mode/Settings]] — all user-configurable options
-- [[Voice Mode/Implementation History]] — the 5 phases of development
+- [[Voice Mode/Implementation History]] — the 6 phases of development
 - [[Voice Mode/Testing]] — test coverage and what each suite verifies
 
 ### GUI Chat Mode
@@ -43,7 +43,7 @@ How the standalone `/chat` experience works in the GUI app.
 - [[GUI Chat Mode/Index|GUI Chat Mode]] — overview and navigation
 - [[GUI Chat Mode/Hidden Workspaces]] — hidden directory structure, location, and whether chat-only `AGENTS.md` / skills are possible
 - [[GUI Chat Mode/Shared Chat Profile]] — the shared config bundle that applies across all GUI chats
-- [[GUI Chat Mode/Session Switching Performance Implementation]] — session-switching performance work, persistent shell architecture, sidebar highlighting fixes, and audio-toggle visibility notes
+- [[GUI Chat Mode/Session Switching/Problem Summary|Session Switching]] — session-switching performance work, persistent shell architecture, sidebar highlighting fixes, and audio-toggle visibility notes
 - [[GUI Chat Mode/Subagent Graph Panel and Prompt Updates]] — compact subagent graph groups, completed graph retention, newest-first ordering, and prompt guidance for web/subagent updates
 - [[GUI Chat Mode/Project Sidebar Controls]] — project header controls for compact/expanded sessions, organize/sort/show menus, and project creation/opening actions
 
@@ -54,3 +54,16 @@ How to add new capabilities, tools, plugins, and chat-specific behaviors with le
 - [[Extensibility/Index|Extensibility]] — overview and navigation
 - [[Extensibility/Implementing Features]] — choose between instructions, skills, tools, and plugins
 - [[Extensibility/Plugin Development]] — create a plugin and get chat to use it reliably
+
+### Developer Guide
+
+Local development setup and coding conventions.
+
+- [[Developer Guide/Local Development]] — project overview, repository info, and local development commands
+- [[Developer Guide/Coding Conventions]] — style guide, testing, and type-checking rules
+
+### Architecture
+
+System design documents.
+
+- [[Architecture/Background Task Graph Design]] — DAG-based background task graph system design
