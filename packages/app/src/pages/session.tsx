@@ -419,8 +419,10 @@ export default function Page() {
   const isDesktop = createMediaQuery("(min-width: 768px)")
   const size = createSizing()
   const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
+  const desktopSubagentsOpen = createMemo(() => isDesktop() && view().subagents.opened())
+  const desktopMainPanelOpen = createMemo(() => desktopReviewOpen() || desktopSubagentsOpen())
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
-  const desktopSidePanelOpen = createMemo(() => desktopReviewOpen() || desktopFileTreeOpen())
+  const desktopSidePanelOpen = createMemo(() => desktopMainPanelOpen() || desktopFileTreeOpen())
   const reviewResizeMax = () => {
     if (typeof window === "undefined") return 1000
     const sidebarWidth = layout.sidebar.opened() ? layout.sidebar.width() : COLLAPSED_SIDEBAR_WIDTH
@@ -429,10 +431,10 @@ export default function Page() {
   }
   const sessionPanelWidth = createMemo(() => {
     if (!desktopSidePanelOpen()) return "100%"
-    if (desktopReviewOpen()) return `${layout.session.width()}px`
+    if (desktopMainPanelOpen()) return `${layout.session.width()}px`
     return `calc(100% - ${layout.fileTree.width()}px)`
   })
-  const centered = createMemo(() => isDesktop() && !desktopReviewOpen())
+  const centered = createMemo(() => isDesktop() && !desktopMainPanelOpen())
 
   function normalizeTab(tab: string) {
     if (!tab.startsWith("file://")) return tab
@@ -589,7 +591,7 @@ export default function Page() {
   let treeTimer: number | undefined
 
   createComputed((prev) => {
-    const open = desktopReviewOpen()
+    const open = desktopMainPanelOpen()
     if (prev === undefined || prev === open) return open
 
     if (reviewFrame !== undefined) cancelAnimationFrame(reviewFrame)
@@ -599,7 +601,7 @@ export default function Page() {
       setUi("reviewSnap", false)
     })
     return open
-  }, desktopReviewOpen())
+  }, desktopMainPanelOpen())
 
   const turnDiffs = createMemo(() => list(lastUserMessage()?.summary?.diffs))
   const nogit = createMemo(() => !!sync.project && sync.project.vcs !== "git")
@@ -1983,7 +1985,7 @@ export default function Page() {
             }}
           />
 
-          <Show when={desktopReviewOpen()}>
+          <Show when={desktopMainPanelOpen()}>
             <div onPointerDown={() => size.start()}>
               <ResizeHandle
                 direction="horizontal"
@@ -2000,6 +2002,7 @@ export default function Page() {
         </div>
 
         <SessionSidePanel
+          sessionID={params.id}
           canReview={canReview}
           diffs={reviewDiffs}
           diffsReady={reviewReady}

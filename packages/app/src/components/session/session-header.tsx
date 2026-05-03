@@ -473,6 +473,30 @@ export function SessionHeader() {
                     </Button>
                   </TooltipKeybind>
 
+                  <TooltipKeybind
+                    title={language.t("command.subagents.toggle")}
+                    keybind={command.keybind("subagents.toggle")}
+                  >
+                    <Button
+                      variant="ghost"
+                      class="group/subagents-toggle titlebar-icon w-8 h-6 p-0 box-border"
+                      onClick={() => view().subagents.toggle()}
+                      aria-label={language.t("command.subagents.toggle")}
+                      aria-expanded={view().subagents.opened()}
+                      aria-controls="subagents-panel"
+                      disabled={!params.id}
+                    >
+                      <Icon
+                        size="small"
+                        name="branch"
+                        classList={{
+                          "text-icon-strong": view().subagents.opened(),
+                          "text-icon-weak": !view().subagents.opened(),
+                        }}
+                      />
+                    </Button>
+                  </TooltipKeybind>
+
                   <Show when={tree()}>
                     <TooltipKeybind
                       title={language.t("command.fileTree.toggle")}

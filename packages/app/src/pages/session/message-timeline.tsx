@@ -23,6 +23,7 @@ import { SessionContextUsage } from "@/components/session-context-usage"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
+import { useLayout } from "@/context/layout"
 import { useSessionKey } from "@/pages/session/session-layout"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { usePlatform } from "@/context/platform"
@@ -239,7 +240,9 @@ export function MessageTimeline(props: {
   const settings = useSettings()
   const dialog = useDialog()
   const language = useLanguage()
+  const layout = useLayout()
   const { params, sessionKey, href } = useSessionKey()
+  const view = createMemo(() => layout.view(sessionKey))
   const platform = usePlatform()
 
   const rendered = createMemo(() => props.renderedUserMessages.map((message) => message.id))
@@ -342,9 +345,7 @@ export function MessageTimeline(props: {
   const openSessionGraphs = () => {
     const id = sessionID()
     if (!id) return
-    void import("@/components/dialog-session-graphs").then((x) => {
-      dialog.show(() => <x.DialogSessionGraphs sessionID={id} directory={sdk.directory} />)
-    })
+    view().subagents.open()
   }
   const stageCfg = { init: 1, batch: 3 }
   const staging = createTimelineStaging({

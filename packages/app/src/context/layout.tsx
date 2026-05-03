@@ -55,6 +55,7 @@ type TabHandoff = {
 export type LocalProject = Partial<Project> & { worktree: string; expanded: boolean; pinned?: boolean }
 
 export type ReviewDiffStyle = "unified" | "split"
+export type SessionSidePanelMode = "review" | "subagents"
 
 export function ensureSessionKey(key: string, touch: (key: string) => void, seed: (key: string) => void) {
   touch(key)
@@ -167,6 +168,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       })()
 
       const review = value.review
+      const sidePanel = value.sidePanel
       const fileTree = value.fileTree
       const migratedFileTree = (() => {
         if (!isRecord(fileTree)) return fileTree
@@ -220,6 +222,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       if (
         normalizedSidebar === sidebar &&
         migratedReview === review &&
+        isRecord(sidePanel) &&
         migratedFileTree === fileTree &&
         migratedSessionTabs === sessionTabs
       ) {
@@ -230,6 +233,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         ...value,
         sidebar: normalizedSidebar,
         review: migratedReview,
+        sidePanel: isRecord(sidePanel) ? sidePanel : { active: "review" },
         fileTree: migratedFileTree,
         sessionTabs: migratedSessionTabs,
       }
@@ -252,6 +256,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         review: {
           diffStyle: "split" as ReviewDiffStyle,
           panelOpened: true,
+        },
+        sidePanel: {
+          active: "review" as SessionSidePanelMode,
         },
         fileTree: {
           opened: false,
@@ -630,6 +637,9 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("review", "diffStyle", diffStyle)
         },
       },
+      sidePanel: {
+        active: createMemo(() => store.sidePanel?.active ?? "review"),
+      },
       fileTree: {
         opened: createMemo(() => store.fileTree?.opened ?? true),
         width: createMemo(() => store.fileTree?.width ?? DEFAULT_FILE_TREE_WIDTH),
@@ -739,7 +749,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const key = createSessionKeyReader(sessionKey, ensureKey)
         const s = createMemo(() => store.sessionView[key()] ?? { scroll: {} })
         const terminalOpened = createMemo(() => store.terminal?.opened ?? false)
-        const reviewPanelOpened = createMemo(() => store.review?.panelOpened ?? true)
+        const mainPanelOpened = createMemo(() => store.review?.panelOpened ?? true)
+        const sidePanelActive = createMemo(() => store.sidePanel?.active ?? "review")
+        const reviewPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "review")
+        const subagentsPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "subagents")
 
         function setTerminalOpened(next: boolean) {
           const current = store.terminal
@@ -765,6 +778,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("review", "panelOpened", next)
         }
 
+        function setSidePanelActive(active: SessionSidePanelMode) {
+          if (!store.sidePanel) {
+            setStore("sidePanel", { active })
+            return
+          }
+          setStore("sidePanel", "active", active)
+        }
+
         return {
           scroll(tab: string) {
             return scroll.scroll(key(), tab)
@@ -787,13 +808,37 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           reviewPanel: {
             opened: reviewPanelOpened,
             open() {
+              setSidePanelActive("review")
               setReviewPanelOpened(true)
             },
             close() {
               setReviewPanelOpened(false)
             },
             toggle() {
-              setReviewPanelOpened(!reviewPanelOpened())
+              if (sidePanelActive() !== "review") {
+                setSidePanelActive("review")
+                setReviewPanelOpened(true)
+                return
+              }
+              setReviewPanelOpened(!mainPanelOpened())
+            },
+          },
+          subagents: {
+            opened: subagentsPanelOpened,
+            open() {
+              setSidePanelActive("subagents")
+              setReviewPanelOpened(true)
+            },
+            close() {
+              setReviewPanelOpened(false)
+            },
+            toggle() {
+              if (sidePanelActive() !== "subagents") {
+                setSidePanelActive("subagents")
+                setReviewPanelOpened(true)
+                return
+              }
+              setReviewPanelOpened(!mainPanelOpened())
             },
           },
           review: {

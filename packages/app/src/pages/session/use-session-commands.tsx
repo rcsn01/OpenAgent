@@ -396,9 +396,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const openSessionGraphs = () => {
     const sessionID = params.id
     if (!sessionID) return
-    void import("@/components/dialog-session-graphs").then((x) => {
-      dialog.show(() => <x.DialogSessionGraphs sessionID={sessionID} directory={sdk.directory} />)
-    })
+    view().subagents.open()
   }
 
   const transcriptOptions = (overrides?: Partial<TranscriptOptions>) => ({
@@ -632,7 +630,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     }),
     sessionCommand({
       id: "session.graphs",
-      title: "Subagent graphs",
+      title: language.t("command.subagents.toggle"),
       disabled: !params.id,
       onSelect: openSessionGraphs,
     }),
@@ -708,6 +706,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.review.toggle"),
       keybind: "mod+shift+r",
       onSelect: () => view().reviewPanel.toggle(),
+    }),
+    viewCommand({
+      id: "subagents.toggle",
+      title: language.t("command.subagents.toggle"),
+      disabled: !params.id,
+      onSelect: () => view().subagents.toggle(),
     }),
     ...(shown()
       ? [
