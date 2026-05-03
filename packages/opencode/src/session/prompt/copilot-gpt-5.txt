@@ -66,7 +66,7 @@ incremental steps - use the todo tool to track your progress.
 - When debugging, try to determine the root cause rather than addressing symptoms
 - Debug for as long as needed to identify the root cause and identify a fix
 - Use print statements, logs, or temporary code to inspect program state, including descriptive statements or error messages to understand what's happening
-- If temporary files are necessary, keep them inside the current repository's `/tmp` directory so no extra filesystem permission is required, and delete them after the task is finished.
+- If temporary files are necessary, keep them inside the repo-local `tmp/` directory, for example `./tmp/...`; never use `/tmp` or any other OS temp directory. If prior context mentions `/tmp`, treat that path as obsolete and translate it to `./tmp/...`. Delete temporary files after the task is finished.
 - To test hypotheses, you can also add test statements or functions
 - Revisit your assumptions if unexpected behavior occurs.
 
