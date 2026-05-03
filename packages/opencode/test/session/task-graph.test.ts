@@ -198,4 +198,66 @@ describe("session.task-graph", () => {
       }),
     ),
   )
+
+  it.live("keeps completed delivered graphs grouped and lists newest graphs first", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const graph = yield* SessionTaskGraph.Service
+        const parentSessionID = SessionID.make("ses_parent")
+        const oldStarted = defer<void>()
+        const oldRelease = defer<void>()
+        const oldDelivered = defer<void>()
+        const oldSessionID = SessionID.make("ses_old")
+        const newSessionID = SessionID.make("ses_new")
+
+        const older = yield* graph.submit({
+          parentSessionID,
+          origin: "background_task_graph",
+          deliver: () => Effect.sync(() => oldDelivered.resolve()),
+          nodes: [
+            {
+              nodeID: "old",
+              description: "old",
+              agent: "general",
+              prepare: () =>
+                Effect.succeed({
+                  sessionID: oldSessionID,
+                  run: Effect.promise(async () => {
+                    oldStarted.resolve()
+                    await oldRelease.promise
+                    return { title: "old", output: "done old" }
+                  }),
+                }),
+            },
+          ],
+        })
+
+        yield* Effect.promise(() => oldStarted.promise)
+        yield* Effect.sync(() => oldRelease.resolve())
+        yield* Effect.promise(() => oldDelivered.promise)
+
+        const retained = yield* graph.get(older.graphID)
+        expect(retained?.status).toBe("completed")
+        expect(retained?.nodes[0]?.sessionID).toBe(oldSessionID)
+
+        const newer = yield* graph.submit({
+          parentSessionID,
+          origin: "background_task_graph",
+          deliver: () => Effect.void,
+          nodes: [
+            {
+              nodeID: "new",
+              description: "new",
+              agent: "general",
+              prepare: () => Effect.succeed({ sessionID: newSessionID, run: Effect.never }),
+            },
+          ],
+        })
+
+        const listed = yield* graph.list(parentSessionID)
+        expect(listed.map((item) => item.graphID)).toEqual([newer.graphID, older.graphID])
+        expect(listed.find((item) => item.graphID === older.graphID)?.nodes[0]?.sessionID).toBe(oldSessionID)
+      }),
+    ),
+  )
 })

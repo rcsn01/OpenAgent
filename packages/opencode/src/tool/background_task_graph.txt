@@ -18,6 +18,7 @@ Usage notes:
 2. Keep dependency edges minimal. Only include edges required for ordering.
 3. If several nodes are independent, omit dependencies so they can launch concurrently.
 4. Do not poll graph status in a loop. Use the graph management tools for concrete inspection or cancellation.
+5. If a node needs the web, include explicit tool guidance in that node prompt: use websearch for search queries and webfetch only for specific URLs. WebFetch accepts only "markdown", "text", or "html" as its format; never pass "json", even for JSON API endpoints.
 
 Canonical node shape:
 - Use `node_id` for the stable node id.

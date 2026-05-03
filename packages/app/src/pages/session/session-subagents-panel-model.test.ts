@@ -150,6 +150,56 @@ describe("buildSubagentsPanelModel", () => {
     expect(model.defaultSelection).toEqual({ type: "node", graphID: "focus", nodeID: "current" })
   })
 
+  test("sorts newer graphs first and defaults to the newest graph", () => {
+    const model = buildSubagentsPanelModel({
+      sessionID: "root",
+      sessions: [session({ id: "root" })],
+      response: response({
+        graphs: [
+          {
+            graphID: "older",
+            parentSessionID: "root",
+            origin: "background_task_graph",
+            status: "completed",
+            createdAt: 1,
+            nodes: [
+              {
+                graphID: "older",
+                nodeID: "old-node",
+                description: "old",
+                agent: "worker",
+                dependencies: [],
+                status: "completed",
+                createdAt: 1,
+              },
+            ],
+          },
+          {
+            graphID: "newer",
+            parentSessionID: "root",
+            origin: "background_task_graph",
+            status: "active",
+            createdAt: 2,
+            nodes: [
+              {
+                graphID: "newer",
+                nodeID: "new-node",
+                description: "new",
+                agent: "worker",
+                dependencies: [],
+                status: "running",
+                createdAt: 2,
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    expect(model.graphs.map((item) => item.graph.graphID)).toEqual(["newer", "older"])
+    expect(model.defaultSelection).toEqual({ type: "node", graphID: "newer", nodeID: "new-node" })
+  })
+
   test("preserves dependency and blocked-by details", () => {
     const model = buildSubagentsPanelModel({
       sessionID: "root",
@@ -184,4 +234,3 @@ describe("buildSubagentsPanelModel", () => {
     expect(model.summary.failed).toBe(1)
   })
 })
-

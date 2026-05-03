@@ -251,7 +251,9 @@ export const layer = Layer.effect(
 
     cleanupParent = Effect.fnUntraced(function* (parentSessionID: SessionID) {
       const data = yield* InstanceState.get(state)
-      const hasPending = [...data.graphs.values()].some((graph) => graph.parentSessionID === parentSessionID)
+      const hasPending = [...data.graphs.values()].some(
+        (graph) => graph.parentSessionID === parentSessionID && (graph.status === "active" || graph.pendingDelivery.size > 0),
+      )
       if (!hasPending) data.delivery.delete(parentSessionID)
     })
 
@@ -261,7 +263,6 @@ export const layer = Layer.effect(
       if (!graph) return
       if (graph.status === "active") return
       if (!graph.suppressDelivery && graph.pendingDelivery.size > 0) return
-      data.graphs.delete(graphID)
       yield* cleanupParent(graph.parentSessionID)
     })
 
@@ -514,7 +515,7 @@ export const layer = Layer.effect(
       const data = yield* InstanceState.get(state)
       return [...data.graphs.values()]
         .filter((graph) => !sessionID || graph.parentSessionID === sessionID)
-        .sort((left, right) => left.createdAt - right.createdAt)
+        .sort((left, right) => right.createdAt - left.createdAt)
         .map(cloneGraph)
     })
 

@@ -129,7 +129,7 @@ function renderBackgroundTaskGraphPrompt(deliveries: SessionTaskGraph.Delivery[]
       "</background_task_graph>",
       "",
     ]),
-    "Summarize the graph updates for the user and continue with your task.",
+    "Think through whether these updates change your next steps. Continue working if action is needed. Do not give progress reports for intermediate graph or node updates. If you update the user after a task completes or fails, only say `Task <description> completed.` or `Task <description> failed.` Do not include bullets, headings, per-node status, dependency updates, output summaries, or promises to update again unless the user explicitly asked for those details.",
     "</system-reminder>",
   ].join("\n")
 }

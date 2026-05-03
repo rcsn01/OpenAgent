@@ -54,21 +54,22 @@ export function buildSubagentsPanelModel(input: {
   const sessionsByID = new Map(childSessions.map((item) => [item.id, item]))
   const represented = new Set<string>()
 
-  const graphs = (input.response?.graphs ?? []).map((graph) => ({
-    graph,
-    nodes: graph.nodes.map((node) => {
-      if (node.sessionID) represented.add(node.sessionID)
-      return {
-        key: `${graph.graphID}:${node.nodeID}`,
-        graphID: graph.graphID,
-        node,
-        session: node.sessionID ? sessionsByID.get(node.sessionID) : undefined,
-      }
-    }),
-  }))
+  const graphs = (input.response?.graphs ?? [])
+    .toSorted((a, b) => b.createdAt - a.createdAt)
+    .map((graph) => ({
+      graph,
+      nodes: graph.nodes.map((node) => {
+        if (node.sessionID) represented.add(node.sessionID)
+        return {
+          key: `${graph.graphID}:${node.nodeID}`,
+          graphID: graph.graphID,
+          node,
+          session: node.sessionID ? sessionsByID.get(node.sessionID) : undefined,
+        }
+      }),
+    }))
 
-  const focusGraph =
-    graphs.find((item) => item.graph.graphID === input.response?.focusGraphID) ?? graphs.at(-1) ?? graphs[0]
+  const focusGraph = graphs.find((item) => item.graph.graphID === input.response?.focusGraphID) ?? graphs[0]
   const focusNode =
     focusGraph?.nodes.find((item) => item.node.sessionID === input.sessionID) ??
     focusGraph?.nodes.find((item) => item.node.status === "running") ??
@@ -106,4 +107,3 @@ export function buildSubagentsPanelModel(input: {
     },
   }
 }
-

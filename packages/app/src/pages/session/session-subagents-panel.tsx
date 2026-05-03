@@ -59,6 +59,7 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
   const language = useLanguage()
   const [store, setStore] = createStore({
     selection: undefined as SubagentSelection | undefined,
+    expandedGraphs: {} as Record<string, boolean>,
   })
 
   const query = createQuery(() => ({
@@ -118,6 +119,9 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
     }
     navigate(`/${base64Encode(sdk.directory)}/session/${sessionID}`)
   }
+
+  const graphExpanded = (graphID: string) => store.expandedGraphs[graphID] === true
+  const toggleGraph = (graphID: string) => setStore("expandedGraphs", graphID, !graphExpanded(graphID))
 
   const nodeButton = (row: SubagentNodeRow) => {
     const selected = () =>
@@ -201,9 +205,21 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
             <For each={model().graphs}>
               {(group) => (
                 <section class="mb-3">
-                  <div class="px-2 py-1.5">
+                  <button
+                    type="button"
+                    class="w-full rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-raised-base-hover"
+                    aria-expanded={graphExpanded(group.graph.graphID)}
+                    onClick={() => toggleGraph(group.graph.graphID)}
+                  >
                     <div class="flex min-w-0 items-center justify-between gap-2">
-                      <div class="min-w-0 truncate text-12-medium text-text-strong">{group.graph.graphID}</div>
+                      <div class="flex min-w-0 items-center gap-1.5">
+                        <Icon
+                          name={graphExpanded(group.graph.graphID) ? "chevron-down" : "chevron-right"}
+                          size="small"
+                          class="shrink-0 text-icon-weak"
+                        />
+                        <div class="min-w-0 truncate text-12-medium text-text-strong">{group.graph.graphID}</div>
+                      </div>
                       <div class={`shrink-0 text-11-regular ${graphStatusClass(group.graph.status)}`}>
                         {group.graph.status}
                       </div>
@@ -211,10 +227,12 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
                     <div class="mt-0.5 text-11-regular text-text-weak">
                       {group.graph.origin} · {group.nodes.length} {language.t("session.subagents.nodes")}
                     </div>
-                  </div>
-                  <div class="flex flex-col gap-1">
-                    <For each={group.nodes}>{nodeButton}</For>
-                  </div>
+                  </button>
+                  <Show when={graphExpanded(group.graph.graphID)}>
+                    <div class="mt-1 flex flex-col gap-1">
+                      <For each={group.nodes}>{nodeButton}</For>
+                    </div>
+                  </Show>
                 </section>
               )}
             </For>

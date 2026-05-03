@@ -34,7 +34,7 @@ function renderBackgroundTaskPrompt(tasks: SessionBackgroundTask.Delivery[]) {
       "</background_task>",
       "",
     ]),
-    "Summarize the completed background work for the user and continue with your task.",
+    "Think through whether this result changes your next steps. Continue working if action is needed. If you update the user, only say `Task <description> completed.` or `Task <description> failed.` Do not include bullets, headings, node details, output summaries, dependency updates, or promises to update again unless the user explicitly asked for those details.",
     "</system-reminder>",
   ].join("\n")
 }
