@@ -135,12 +135,12 @@ export default function Layout(props: ParentProps) {
     light: "theme.scheme.light",
     dark: "theme.scheme.dark",
   }
+  const colorSchemeLabel = (scheme: ColorScheme) => language.t(colorSchemeKey[scheme])
   const macDesktop = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   const desktopTitlebarInset = createMemo(() => {
     if (!macDesktop()) return undefined
     return `${40 / (platform.webviewZoom?.() ?? 1)}px`
   })
-  const colorSchemeLabel = (scheme: ColorScheme) => language.t(colorSchemeKey[scheme])
   const currentDir = createMemo(() => appRoute.directory())
   const currentSessionID = createMemo(() => appRoute.sessionID())
   const currentConsoleState = createMemo(() => {
@@ -2701,7 +2701,6 @@ export default function Layout(props: ParentProps) {
         </div>
       </div>
       <div class="flex-1 min-h-0 min-w-0 flex flex-col relative">
-        <Titlebar embedded />
         <div class="flex-1 min-h-0 relative overflow-x-hidden">
           <div class="xl:hidden">
             <div
@@ -2730,12 +2729,15 @@ export default function Layout(props: ParentProps) {
 
           <main
             classList={{
-              "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base xl:border-l xl:rounded-tl-[12px]": true,
+              "size-full overflow-x-hidden flex flex-col items-start contain-strict bg-background-base xl:border-l xl:border-border-weak-base xl:rounded-tl-[12px]": true,
             }}
           >
-            <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
-              {props.children}
-            </Show>
+            <Titlebar embedded />
+            <div class="flex-1 min-h-0 min-w-0 w-full">
+              <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
+                {props.children}
+              </Show>
+            </div>
           </main>
 
           <div

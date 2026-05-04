@@ -168,7 +168,7 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
 
   return (
     <header
-      class="h-10 shrink-0 bg-background-base relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
+      class="h-10 shrink-0 bg-background-base relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center w-full"
       style={{ "min-height": minHeight() }}
       data-tauri-drag-region
       onMouseDown={drag}
