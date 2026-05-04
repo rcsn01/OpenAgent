@@ -26,6 +26,7 @@ import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { setSessionHandoff } from "@/pages/session/handoff"
+import { SessionExtensionsPanel } from "@/pages/session/session-extensions-panel"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { SessionSubagentsPanel } from "@/pages/session/session-subagents-panel"
 
@@ -63,7 +64,8 @@ export function SessionSidePanel(props: {
 
   const reviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
   const subagentsOpen = createMemo(() => isDesktop() && view().subagents.opened())
-  const mainOpen = createMemo(() => reviewOpen() || subagentsOpen())
+  const extensionsOpen = createMemo(() => isDesktop() && view().extensions.opened())
+  const mainOpen = createMemo(() => reviewOpen() || subagentsOpen() || extensionsOpen())
   const fileOpen = createMemo(() => isDesktop() && shown() && layout.fileTree.opened())
   const open = createMemo(() => mainOpen() || fileOpen())
   const reviewTab = createMemo(() => isDesktop())
@@ -207,7 +209,9 @@ export function SessionSidePanel(props: {
     <Show when={isDesktop()}>
       <aside
         id="review-panel"
-        aria-label={subagentsOpen() ? language.t("session.subagents.title") : language.t("session.panel.reviewAndFiles")}
+        aria-label={
+          extensionsOpen() ? "Extensions" : subagentsOpen() ? language.t("session.subagents.title") : language.t("session.panel.reviewAndFiles")
+        }
         aria-hidden={!open()}
         inert={!open()}
         class="relative min-w-0 h-full flex shrink-0 overflow-hidden bg-background-base"
@@ -228,6 +232,9 @@ export function SessionSidePanel(props: {
             }}
           >
             <Switch>
+              <Match when={extensionsOpen()}>
+                <SessionExtensionsPanel />
+              </Match>
               <Match when={subagentsOpen()}>
                 <SessionSubagentsPanel sessionID={props.sessionID} />
               </Match>

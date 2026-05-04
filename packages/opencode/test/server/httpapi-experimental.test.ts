@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { Effect } from "effect"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { GlobalBus } from "@/bus/global"
+import path from "path"
 import { Instance } from "../../src/project/instance"
 import { Server } from "../../src/server/server"
 import { ExperimentalPaths } from "../../src/server/routes/instance/httpapi/groups/experimental"
@@ -169,6 +170,88 @@ describe("experimental HttpApi", () => {
     )
     expect(next.status).toBe(200)
     expect(((await next.json()) as Session.GlobalInfo[]).map((session) => session.id)).toContain(first.id)
+  })
+
+  test("installs, lists, and removes project-scoped extensions through Hono bridge", async () => {
+    await using tmp = await tmpdir({ config: { formatter: false, lsp: false } })
+
+    const headers = { "x-opencode-directory": tmp.path, "content-type": "application/json" }
+    const install = await app().request(ExperimentalPaths.extensionsInstall, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        id: "calendar",
+        version: "1.0.0",
+        name: "Calendar",
+        description: "Project calendar tools",
+        mcp: {
+          "calendar-main": {
+            type: "local",
+            command: ["echo", "calendar"],
+            enabled: false,
+          },
+        },
+        skills: [
+          {
+            path: "daily-brief/SKILL.md",
+            content: `---
+name: calendar:daily-brief
+description: Build a daily brief from calendar data
+---
+Use calendar tools when the user asks for a daily brief.`,
+          },
+        ],
+      }),
+    })
+
+    expect(install.status).toBe(200)
+    expect(await install.json()).toBe(true)
+
+    const configText = await Bun.file(path.join(tmp.path, "opencode.json")).text()
+    expect(configText).toContain('"calendar-main"')
+    expect(configText).toContain('"extensions"')
+
+    const skillPath = path.join(tmp.path, ".opencode", "skills", "extensions", "calendar", "daily-brief", "SKILL.md")
+    expect(await Bun.file(skillPath).exists()).toBe(true)
+
+    const list = await app().request(ExperimentalPaths.extensions, { headers })
+    expect(list.status).toBe(200)
+    expect(await list.json()).toEqual({
+      extensions: [
+        expect.objectContaining({
+          id: "calendar",
+          name: "Calendar",
+          version: "1.0.0",
+          config_path: path.join(tmp.path, "opencode.json"),
+          skill_roots: [path.join(tmp.path, ".opencode", "skills", "extensions", "calendar")],
+          servers: [
+            expect.objectContaining({
+              key: "calendar-main",
+              status: { status: "disabled" },
+              tools: [],
+            }),
+          ],
+          skills: [
+            expect.objectContaining({
+              name: "calendar:daily-brief",
+              location: skillPath,
+            }),
+          ],
+        }),
+      ],
+    })
+
+    const remove = await app().request(ExperimentalPaths.extensionsRemove, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ id: "calendar" }),
+    })
+    expect(remove.status).toBe(200)
+    expect(await remove.json()).toBe(true)
+
+    expect(await Bun.file(skillPath).exists()).toBe(false)
+    const removedList = await app().request(ExperimentalPaths.extensions, { headers })
+    expect(await removedList.json()).toEqual({ extensions: [] })
   })
 
   testWorktreeMutations("serves worktree mutations through Hono bridge", async () => {

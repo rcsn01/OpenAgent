@@ -13,6 +13,7 @@ import { FileWatcher } from "@/file/watcher"
 import { ShareNext } from "@/share/share-next"
 import * as Effect from "effect/Effect"
 import { Config } from "@/config/config"
+import { Extension } from "@/extension"
 
 export const InstanceBootstrap = Effect.gen(function* () {
   const ctx = yield* InstanceState.context
@@ -23,6 +24,7 @@ export const InstanceBootstrap = Effect.gen(function* () {
   yield* Plugin.Service.use((svc) => svc.init())
   yield* Effect.all(
     [
+      Extension.Service,
       LSP.Service,
       ShareNext.Service,
       Format.Service,

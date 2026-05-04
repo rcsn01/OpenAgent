@@ -1,4 +1,5 @@
 import { AccountID, OrgID } from "@/account/schema"
+import { Extension } from "@/extension"
 import { MCP } from "@/mcp"
 import { ProviderID, ModelID } from "@/provider/schema"
 import { Session } from "@/session/session"
@@ -72,6 +73,9 @@ export const ExperimentalPluginStatePayload = Schema.Struct({
   spec: Schema.String,
   source: Schema.String,
 })
+export const ExperimentalExtensionRemovePayload = Schema.Struct({
+  id: Schema.String,
+})
 
 const QueryBoolean = Schema.Literals(["true", "false"]).pipe(
   Schema.decodeTo(Schema.Boolean, {
@@ -98,6 +102,9 @@ export const ExperimentalPaths = {
   pluginsInstall: "/experimental/plugins/install",
   pluginsEnable: "/experimental/plugins/enable",
   pluginsDisable: "/experimental/plugins/disable",
+  extensions: "/experimental/extensions",
+  extensionsInstall: "/experimental/extensions/install",
+  extensionsRemove: "/experimental/extensions/remove",
   tool: "/experimental/tool",
   toolIDs: "/experimental/tool/ids",
   worktree: "/experimental/worktree",
@@ -180,6 +187,38 @@ export const ExperimentalApi = HttpApi.make("experimental")
             identifier: "experimental.plugins.disable",
             summary: "Disable a configured plugin",
             description: "Disable a plugin entry in its source config file.",
+          }),
+        ),
+        HttpApiEndpoint.get("extensions", ExperimentalPaths.extensions, {
+          success: described(Extension.ExtensionList, "Installed extensions"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.extensions.list",
+            summary: "List installed extensions",
+            description:
+              "Get project-scoped managed extension state, including managed MCP servers, tool definitions, and managed skills.",
+          }),
+        ),
+        HttpApiEndpoint.post("extensionsInstall", ExperimentalPaths.extensionsInstall, {
+          payload: Extension.ExtensionBundle,
+          success: described(Schema.Boolean, "Install success"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.extensions.install",
+            summary: "Install an extension bundle",
+            description: "Install or reinstall a project-scoped extension bundle into the current instance.",
+          }),
+        ),
+        HttpApiEndpoint.post("extensionsRemove", ExperimentalPaths.extensionsRemove, {
+          payload: ExperimentalExtensionRemovePayload,
+          success: described(Schema.Boolean, "Remove success"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "experimental.extensions.remove",
+            summary: "Remove an installed extension",
+            description: "Remove a project-scoped managed extension and its owned MCP config and skills.",
           }),
         ),
         HttpApiEndpoint.get("tool", ExperimentalPaths.tool, {

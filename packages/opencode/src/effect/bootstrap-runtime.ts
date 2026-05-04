@@ -10,6 +10,7 @@ import { Vcs } from "@/project/vcs"
 import { Snapshot } from "@/snapshot"
 import { Bus } from "@/bus"
 import { Config } from "@/config/config"
+import { Extension } from "@/extension"
 import * as Observability from "@opencode-ai/core/effect/observability"
 import { memoMap } from "@opencode-ai/core/effect/memo-map"
 
@@ -24,6 +25,7 @@ export const BootstrapLayer = Layer.mergeAll(
   Vcs.defaultLayer,
   Snapshot.defaultLayer,
   Bus.defaultLayer,
+  Extension.defaultLayer,
 ).pipe(Layer.provide(Observability.layer))
 
 export const BootstrapRuntime = ManagedRuntime.make(BootstrapLayer, { memoMap })

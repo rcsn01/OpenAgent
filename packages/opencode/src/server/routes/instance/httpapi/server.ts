@@ -16,6 +16,7 @@ import { Format } from "@/format"
 import { GeneralChat } from "@/general-chat/general-chat"
 import { LSP } from "@/lsp/lsp"
 import { MCP } from "@/mcp"
+import { Extension } from "@/extension"
 import { Permission } from "@/permission"
 import { Installation } from "@/installation"
 import { Project } from "@/project/project"
@@ -148,6 +149,7 @@ export function createRoutes(corsOptions?: CorsOptions) {
       LSP.defaultLayer,
       Installation.defaultLayer,
       MCP.defaultLayer,
+      Extension.defaultLayer,
       Permission.defaultLayer,
       Project.defaultLayer,
       ProviderAuth.defaultLayer,

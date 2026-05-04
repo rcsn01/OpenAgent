@@ -457,6 +457,26 @@ export function SessionHeader() {
                 </Show>
 
                 <div class="hidden md:flex items-center gap-1 shrink-0">
+                  <TooltipKeybind title="Toggle extensions" keybind={command.keybind("extensions.toggle")}>
+                    <Button
+                      variant="ghost"
+                      class="group/extensions-toggle titlebar-icon w-8 h-6 p-0 box-border"
+                      onClick={() => view().extensions.toggle()}
+                      aria-label="Toggle extensions"
+                      aria-expanded={view().extensions.opened()}
+                      aria-controls="extensions-panel"
+                    >
+                      <Icon
+                        size="small"
+                        name="mcp"
+                        classList={{
+                          "text-icon-strong": view().extensions.opened(),
+                          "text-icon-weak": !view().extensions.opened(),
+                        }}
+                      />
+                    </Button>
+                  </TooltipKeybind>
+
                   <TooltipKeybind
                     title={language.t("command.review.toggle")}
                     keybind={command.keybind("review.toggle")}

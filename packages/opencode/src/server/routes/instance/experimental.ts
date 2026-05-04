@@ -5,6 +5,7 @@ import * as EffectZod from "@/util/effect-zod"
 import { ProviderID, ModelID } from "@/provider/schema"
 import { ToolRegistry } from "@/tool/registry"
 import { Worktree } from "@/worktree"
+import { Extension } from "@/extension"
 import { Instance } from "@/project/instance"
 import { Project } from "@/project/project"
 import { MCP } from "@/mcp"
@@ -74,6 +75,9 @@ const ExperimentalPluginInstallBody = z.object({
 const ExperimentalPluginStateBody = z.object({
   spec: z.string(),
   source: z.string(),
+})
+const ExperimentalExtensionRemoveBody = z.object({
+  id: z.string(),
 })
 
 const QueryBoolean = z.union([
@@ -275,6 +279,82 @@ export const ExperimentalRoutes = lazy(() =>
             ),
           )
           return { plugins }
+        }),
+    )
+    .post(
+      "/extensions/install",
+      describeRoute({
+        summary: "Install an extension bundle",
+        description: "Install or reinstall a project-scoped extension bundle into the current instance.",
+        operationId: "experimental.extensions.install",
+        responses: {
+          200: {
+            description: "Install success",
+            content: {
+              "application/json": {
+                schema: resolver(z.boolean()),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("json", Extension.ExtensionBundle.zod),
+      async (c) =>
+        jsonRequest("ExperimentalRoutes.extensions.install", c, function* () {
+          const extension = yield* Extension.Service
+          yield* extension.install(c.req.valid("json"))
+          return true
+        }),
+    )
+    .post(
+      "/extensions/remove",
+      describeRoute({
+        summary: "Remove an installed extension",
+        description: "Remove a project-scoped managed extension and its owned MCP config and skills.",
+        operationId: "experimental.extensions.remove",
+        responses: {
+          200: {
+            description: "Remove success",
+            content: {
+              "application/json": {
+                schema: resolver(z.boolean()),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("json", ExperimentalExtensionRemoveBody),
+      async (c) =>
+        jsonRequest("ExperimentalRoutes.extensions.remove", c, function* () {
+          const extension = yield* Extension.Service
+          yield* extension.remove(c.req.valid("json").id)
+          return true
+        }),
+    )
+    .get(
+      "/extensions",
+      describeRoute({
+        summary: "List installed extensions",
+        description:
+          "Get project-scoped managed extension state, including managed MCP servers, tool definitions, and managed skills.",
+        operationId: "experimental.extensions.list",
+        responses: {
+          200: {
+            description: "Installed extensions",
+            content: {
+              "application/json": {
+                schema: resolver(Extension.ExtensionList.zod),
+              },
+            },
+          },
+        },
+      }),
+      async (c) =>
+        jsonRequest("ExperimentalRoutes.extensions.list", c, function* () {
+          const extension = yield* Extension.Service
+          return yield* extension.list()
         }),
     )
     .post(

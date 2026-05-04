@@ -55,7 +55,12 @@ type TabHandoff = {
 export type LocalProject = Partial<Project> & { worktree: string; expanded: boolean; pinned?: boolean }
 
 export type ReviewDiffStyle = "unified" | "split"
-export type SessionSidePanelMode = "review" | "subagents"
+export type SessionSidePanelMode = "review" | "subagents" | "extensions"
+
+export function normalizeSessionSidePanelMode(mode: unknown): SessionSidePanelMode {
+  if (mode === "review" || mode === "subagents" || mode === "extensions") return mode
+  return "review"
+}
 
 export function ensureSessionKey(key: string, touch: (key: string) => void, seed: (key: string) => void) {
   touch(key)
@@ -233,7 +238,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         ...value,
         sidebar: normalizedSidebar,
         review: migratedReview,
-        sidePanel: isRecord(sidePanel) ? sidePanel : { active: "review" },
+        sidePanel: isRecord(sidePanel) ? { ...sidePanel, active: normalizeSessionSidePanelMode(sidePanel.active) } : { active: "review" },
         fileTree: migratedFileTree,
         sessionTabs: migratedSessionTabs,
       }
@@ -638,7 +643,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
       },
       sidePanel: {
-        active: createMemo(() => store.sidePanel?.active ?? "review"),
+        active: createMemo(() => normalizeSessionSidePanelMode(store.sidePanel?.active)),
       },
       fileTree: {
         opened: createMemo(() => store.fileTree?.opened ?? true),
@@ -750,9 +755,10 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const s = createMemo(() => store.sessionView[key()] ?? { scroll: {} })
         const terminalOpened = createMemo(() => store.terminal?.opened ?? false)
         const mainPanelOpened = createMemo(() => store.review?.panelOpened ?? true)
-        const sidePanelActive = createMemo(() => store.sidePanel?.active ?? "review")
+        const sidePanelActive = createMemo(() => normalizeSessionSidePanelMode(store.sidePanel?.active))
         const reviewPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "review")
         const subagentsPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "subagents")
+        const extensionsPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "extensions")
 
         function setTerminalOpened(next: boolean) {
           const current = store.terminal
@@ -835,6 +841,24 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             toggle() {
               if (sidePanelActive() !== "subagents") {
                 setSidePanelActive("subagents")
+                setReviewPanelOpened(true)
+                return
+              }
+              setReviewPanelOpened(!mainPanelOpened())
+            },
+          },
+          extensions: {
+            opened: extensionsPanelOpened,
+            open() {
+              setSidePanelActive("extensions")
+              setReviewPanelOpened(true)
+            },
+            close() {
+              setReviewPanelOpened(false)
+            },
+            toggle() {
+              if (sidePanelActive() !== "extensions") {
+                setSidePanelActive("extensions")
                 setReviewPanelOpened(true)
                 return
               }

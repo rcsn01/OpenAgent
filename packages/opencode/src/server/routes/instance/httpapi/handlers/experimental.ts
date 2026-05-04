@@ -1,6 +1,7 @@
 import { Account } from "@/account/account"
 import { Agent } from "@/agent/agent"
 import { Config } from "@/config/config"
+import { Extension } from "@/extension"
 import { ConfigPlugin } from "@/config/plugin"
 import { InstanceState } from "@/effect/instance-state"
 import { Filesystem } from "@/util/filesystem"
@@ -23,6 +24,7 @@ import path from "path"
 import { InstanceHttpApi } from "../api"
 import {
   ConsoleSwitchPayload,
+  ExperimentalExtensionRemovePayload,
   ExperimentalPluginInstallPayload,
   ExperimentalPluginStatePayload,
   SessionListQuery,
@@ -72,6 +74,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
     const account = yield* Account.Service
     const agents = yield* Agent.Service
     const config = yield* Config.Service
+    const extension = yield* Extension.Service
     const mcp = yield* MCP.Service
     const project = yield* Project.Service
     const registry = yield* ToolRegistry.Service
@@ -228,6 +231,24 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       return true
     })
 
+    const extensions = Effect.fn("ExperimentalHttpApi.extensions")(function* () {
+      return yield* extension.list()
+    })
+
+    const extensionsInstall = Effect.fn("ExperimentalHttpApi.extensionsInstall")(function* (ctx: {
+      payload: typeof Extension.ExtensionBundle.Type
+    }) {
+      yield* extension.install(ctx.payload)
+      return true
+    })
+
+    const extensionsRemove = Effect.fn("ExperimentalHttpApi.extensionsRemove")(function* (ctx: {
+      payload: typeof ExperimentalExtensionRemovePayload.Type
+    }) {
+      yield* extension.remove(ctx.payload.id)
+      return true
+    })
+
     const tool = Effect.fn("ExperimentalHttpApi.tool")(function* (ctx: { query: typeof ToolListQuery.Type }) {
       const list = yield* registry.tools({
         providerID: ctx.query.provider,
@@ -306,6 +327,9 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       .handle("pluginsInstall", pluginsInstall)
       .handle("pluginsEnable", pluginsEnable)
       .handle("pluginsDisable", pluginsDisable)
+      .handle("extensions", extensions)
+      .handle("extensionsInstall", extensionsInstall)
+      .handle("extensionsRemove", extensionsRemove)
       .handle("tool", tool)
       .handle("toolIDs", toolIDs)
       .handle("worktree", worktree)

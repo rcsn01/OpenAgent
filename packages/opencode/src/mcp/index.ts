@@ -211,6 +211,7 @@ interface State {
 export interface Interface {
   readonly status: () => Effect.Effect<Record<string, Status>>
   readonly clients: () => Effect.Effect<Record<string, MCPClient>>
+  readonly definitions: () => Effect.Effect<Record<string, MCPToolDef[]>>
   readonly tools: () => Effect.Effect<Record<string, Tool>>
   readonly prompts: () => Effect.Effect<Record<string, PromptInfo & { client: string }>>
   readonly resources: () => Effect.Effect<Record<string, ResourceInfo & { client: string }>>
@@ -591,6 +592,11 @@ export const layer = Layer.effect(
       return s.clients
     })
 
+    const definitions = Effect.fn("MCP.definitions")(function* () {
+      const s = yield* InstanceState.get(state)
+      return s.defs
+    })
+
     const createAndStore = Effect.fn("MCP.createAndStore")(function* (name: string, mcp: ConfigMCP.Info) {
       const s = yield* InstanceState.get(state)
       const result = yield* create(name, mcp)
@@ -897,6 +903,7 @@ export const layer = Layer.effect(
     return Service.of({
       status,
       clients,
+      definitions,
       tools,
       prompts,
       resources,

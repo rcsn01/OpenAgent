@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createRoot, createSignal } from "solid-js"
-import { createSessionKeyReader, ensureSessionKey, pruneSessionKeys } from "./layout"
+import { createSessionKeyReader, ensureSessionKey, normalizeSessionSidePanelMode, pruneSessionKeys } from "./layout"
 
 describe("layout session-key helpers", () => {
   test("couples touch and scroll seed in order", () => {
@@ -65,5 +65,18 @@ describe("pruneSessionKeys", () => {
     })
 
     expect(drop).toEqual([])
+  })
+})
+
+describe("normalizeSessionSidePanelMode", () => {
+  test("accepts supported modes", () => {
+    expect(normalizeSessionSidePanelMode("review")).toBe("review")
+    expect(normalizeSessionSidePanelMode("subagents")).toBe("subagents")
+    expect(normalizeSessionSidePanelMode("extensions")).toBe("extensions")
+  })
+
+  test("falls back to review for unknown values", () => {
+    expect(normalizeSessionSidePanelMode("other")).toBe("review")
+    expect(normalizeSessionSidePanelMode(undefined)).toBe("review")
   })
 })

@@ -420,7 +420,10 @@ export default function Page() {
   const size = createSizing()
   const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
   const desktopSubagentsOpen = createMemo(() => isDesktop() && view().subagents.opened())
-  const desktopMainPanelOpen = createMemo(() => desktopReviewOpen() || desktopSubagentsOpen())
+  const desktopExtensionsOpen = createMemo(() => isDesktop() && view().extensions.opened())
+  const desktopMainPanelOpen = createMemo(
+    () => desktopReviewOpen() || desktopSubagentsOpen() || desktopExtensionsOpen(),
+  )
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
   const desktopSidePanelOpen = createMemo(() => desktopMainPanelOpen() || desktopFileTreeOpen())
   const reviewResizeMax = () => {

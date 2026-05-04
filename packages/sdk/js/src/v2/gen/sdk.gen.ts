@@ -35,6 +35,11 @@ import type {
   ExperimentalConsoleGetResponses,
   ExperimentalConsoleListOrgsResponses,
   ExperimentalConsoleSwitchOrgResponses,
+  ExperimentalExtensionsInstallErrors,
+  ExperimentalExtensionsInstallResponses,
+  ExperimentalExtensionsListResponses,
+  ExperimentalExtensionsRemoveErrors,
+  ExperimentalExtensionsRemoveResponses,
   ExperimentalPluginsDisableErrors,
   ExperimentalPluginsDisableResponses,
   ExperimentalPluginsEnableErrors,
@@ -1156,6 +1161,135 @@ export class Plugins extends HeyApiClient {
   }
 }
 
+export class Extensions extends HeyApiClient {
+  /**
+   * Install an extension bundle
+   *
+   * Install or reinstall a project-scoped extension bundle into the current instance.
+   */
+  public install<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      id?: string
+      version?: string
+      name?: string
+      description?: string
+      mcp?: {
+        [key: string]: McpLocalConfig | McpRemoteConfig
+      }
+      skills?: Array<{
+        path: string
+        content: string
+      }>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "id" },
+            { in: "body", key: "version" },
+            { in: "body", key: "name" },
+            { in: "body", key: "description" },
+            { in: "body", key: "mcp" },
+            { in: "body", key: "skills" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExperimentalExtensionsInstallResponses,
+      ExperimentalExtensionsInstallErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/extensions/install",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Remove an installed extension
+   *
+   * Remove a project-scoped managed extension and its owned MCP config and skills.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      id?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "id" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ExperimentalExtensionsRemoveResponses,
+      ExperimentalExtensionsRemoveErrors,
+      ThrowOnError
+    >({
+      url: "/experimental/extensions/remove",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List installed extensions
+   *
+   * Get project-scoped managed extension state, including managed MCP servers, tool definitions, and managed skills.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ExperimentalExtensionsListResponses, unknown, ThrowOnError>({
+      url: "/experimental/extensions",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class Session extends HeyApiClient {
   /**
    * List sessions
@@ -1251,6 +1385,11 @@ export class Experimental extends HeyApiClient {
   private _plugins?: Plugins
   get plugins(): Plugins {
     return (this._plugins ??= new Plugins({ client: this.client }))
+  }
+
+  private _extensions?: Extensions
+  get extensions(): Extensions {
+    return (this._extensions ??= new Extensions({ client: this.client }))
   }
 
   private _session?: Session

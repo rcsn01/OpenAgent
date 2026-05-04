@@ -702,6 +702,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       onSelect: () => view().terminal.toggle(),
     }),
     viewCommand({
+      id: "extensions.toggle",
+      title: "Toggle extensions",
+      keybind: "mod+shift+e",
+      onSelect: () => view().extensions.toggle(),
+    }),
+    viewCommand({
       id: "review.toggle",
       title: language.t("command.review.toggle"),
       keybind: "mod+shift+r",

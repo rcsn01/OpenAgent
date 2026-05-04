@@ -1481,7 +1481,7 @@ export type Config = {
   logLevel?: LogLevel
   server?: ServerConfig
   /**
-   * Command configuration, see https://opencode.ai/docs/commands
+   * Command configuration, see the repository README and local command docs
    */
   command?: {
     [key: string]: {
@@ -1491,6 +1491,21 @@ export type Config = {
       model?: string
       subtask?: boolean
     }
+  }
+  /**
+   * Managed project-scoped extension metadata
+   */
+  extensions?: {
+    installed?: Array<{
+      id: string
+      version: string
+      name: string
+      description?: string
+      installed_at: number
+      config_path: string
+      mcp_servers: Array<string>
+      skill_roots: Array<string>
+    }>
   }
   /**
    * Additional skill folder paths
@@ -1566,7 +1581,7 @@ export type Config = {
     [key: string]: AgentConfig | undefined
   }
   /**
-   * Agent configuration, see https://opencode.ai/docs/agents
+   * Agent configuration, see the repository README and local docs
    */
   agent?: {
     plan?: AgentConfig
@@ -1848,6 +1863,35 @@ export type ConsoleState = {
   switchableOrgCount: number
 }
 
+export type McpStatusConnected = {
+  status: "connected"
+}
+
+export type McpStatusDisabled = {
+  status: "disabled"
+}
+
+export type McpStatusFailed = {
+  status: "failed"
+  error: string
+}
+
+export type McpStatusNeedsAuth = {
+  status: "needs_auth"
+}
+
+export type McpStatusNeedsClientRegistration = {
+  status: "needs_client_registration"
+  error: string
+}
+
+export type McpStatus =
+  | McpStatusConnected
+  | McpStatusDisabled
+  | McpStatusFailed
+  | McpStatusNeedsAuth
+  | McpStatusNeedsClientRegistration
+
 export type ToolIds = Array<string>
 
 export type ToolListItem = {
@@ -2113,35 +2157,6 @@ export type Event =
   | EventSessionCreated
   | EventSessionUpdated
   | EventSessionDeleted
-
-export type McpStatusConnected = {
-  status: "connected"
-}
-
-export type McpStatusDisabled = {
-  status: "disabled"
-}
-
-export type McpStatusFailed = {
-  status: "failed"
-  error: string
-}
-
-export type McpStatusNeedsAuth = {
-  status: "needs_auth"
-}
-
-export type McpStatusNeedsClientRegistration = {
-  status: "needs_client_registration"
-  error: string
-}
-
-export type McpStatus =
-  | McpStatusConnected
-  | McpStatusDisabled
-  | McpStatusFailed
-  | McpStatusNeedsAuth
-  | McpStatusNeedsClientRegistration
 
 export type McpUnsupportedOAuthError = {
   error: string
@@ -3210,6 +3225,126 @@ export type ExperimentalPluginsListResponses = {
 }
 
 export type ExperimentalPluginsListResponse = ExperimentalPluginsListResponses[keyof ExperimentalPluginsListResponses]
+
+export type ExperimentalExtensionsInstallData = {
+  body?: {
+    id: string
+    version: string
+    name: string
+    description?: string
+    mcp: {
+      [key: string]: McpLocalConfig | McpRemoteConfig
+    }
+    skills: Array<{
+      path: string
+      content: string
+    }>
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/extensions/install"
+}
+
+export type ExperimentalExtensionsInstallErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalExtensionsInstallError =
+  ExperimentalExtensionsInstallErrors[keyof ExperimentalExtensionsInstallErrors]
+
+export type ExperimentalExtensionsInstallResponses = {
+  /**
+   * Install success
+   */
+  200: boolean
+}
+
+export type ExperimentalExtensionsInstallResponse =
+  ExperimentalExtensionsInstallResponses[keyof ExperimentalExtensionsInstallResponses]
+
+export type ExperimentalExtensionsRemoveData = {
+  body?: {
+    id: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/extensions/remove"
+}
+
+export type ExperimentalExtensionsRemoveErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ExperimentalExtensionsRemoveError =
+  ExperimentalExtensionsRemoveErrors[keyof ExperimentalExtensionsRemoveErrors]
+
+export type ExperimentalExtensionsRemoveResponses = {
+  /**
+   * Remove success
+   */
+  200: boolean
+}
+
+export type ExperimentalExtensionsRemoveResponse =
+  ExperimentalExtensionsRemoveResponses[keyof ExperimentalExtensionsRemoveResponses]
+
+export type ExperimentalExtensionsListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/experimental/extensions"
+}
+
+export type ExperimentalExtensionsListResponses = {
+  /**
+   * Installed extensions
+   */
+  200: {
+    extensions: Array<{
+      id: string
+      version: string
+      name: string
+      description?: string
+      installed: boolean
+      active: boolean
+      installed_at: number
+      config_path: string
+      skill_roots: Array<string>
+      servers: Array<{
+        key: string
+        status: McpStatus
+        tools: Array<{
+          name: string
+          description?: string
+        }>
+      }>
+      skills: Array<{
+        name: string
+        description: string
+        location: string
+        content: string
+      }>
+    }>
+  }
+}
+
+export type ExperimentalExtensionsListResponse =
+  ExperimentalExtensionsListResponses[keyof ExperimentalExtensionsListResponses]
 
 export type ExperimentalPluginsInstallData = {
   body?: {
