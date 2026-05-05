@@ -1,5 +1,5 @@
 import type { ExperimentalExtensionsListResponse, McpStatus } from "@opencode-ai/sdk/v2/client"
-import type { ExtensionBundle, ExtensionRegistryEntry } from "@/extensions/registry"
+import type { ExtensionBundle, ExtensionRegistryEntry, ExtensionSetup } from "@/extensions/registry"
 
 export type InstalledExtension = ExperimentalExtensionsListResponse["extensions"][number]
 export type InstalledExtensionServer = InstalledExtension["servers"][number]
@@ -17,10 +17,31 @@ export type ExtensionPanelItem = {
   config_path?: string
   installed_at?: number
   tags: string[]
+  setup?: ExtensionSetup
   search: string
   bundle?: ExtensionBundle
   servers: ExtensionPanelServer[]
   skills: InstalledExtension["skills"]
+}
+
+function setupSearch(setup?: ExtensionSetup) {
+  return [
+    ...(setup?.prerequisites ?? []),
+    ...(setup?.environment ?? []),
+    ...(setup?.steps ?? []),
+    ...(setup?.links ?? []).flatMap((link) => [link.label, link.href]),
+  ]
+}
+
+function installBundle(item: ExtensionRegistryEntry): ExtensionBundle {
+  return {
+    id: item.id,
+    version: item.version,
+    name: item.name,
+    description: item.description,
+    mcp: item.mcp,
+    skills: item.skills,
+  }
 }
 
 function serverAction(status: McpStatus["status"]): ExtensionPanelServer["action"] {
@@ -56,8 +77,11 @@ function installedItem(
     config_path: item.config_path,
     installed_at: item.installed_at,
     tags,
-    search: [item.id, bundle?.name, item.name, bundle?.description, item.description, ...tags].filter(Boolean).join(" "),
-    bundle,
+    setup: bundle?.setup,
+    search: [item.id, bundle?.name, item.name, bundle?.description, item.description, ...tags, ...setupSearch(bundle?.setup)]
+      .filter(Boolean)
+      .join(" "),
+    bundle: bundle ? installBundle(bundle) : undefined,
     servers,
     skills: item.skills,
   }
@@ -73,8 +97,9 @@ function availableItem(item: ExtensionRegistryEntry): ExtensionPanelItem {
     active: false,
     available: true,
     tags: item.tags ?? [],
-    search: [item.id, item.name, item.description, ...(item.tags ?? [])].filter(Boolean).join(" "),
-    bundle: item,
+    setup: item.setup,
+    search: [item.id, item.name, item.description, ...(item.tags ?? []), ...setupSearch(item.setup)].filter(Boolean).join(" "),
+    bundle: installBundle(item),
     servers: Object.keys(item.mcp).map((key) => ({
       key,
       status: { status: "disabled" as const },

@@ -28,6 +28,8 @@ function tr(translator: Translator | undefined, key: string, text: string, vars?
 export function formatServerError(error: unknown, translate?: Translator, fallback?: string) {
   if (isConfigInvalidErrorLike(error)) return parseReadableConfigInvalidError(error, translate)
   if (isProviderModelNotFoundErrorLike(error)) return parseReadableProviderModelNotFoundError(error, translate)
+  const objectMessage = parseObjectMessage(error)
+  if (objectMessage) return objectMessage
   if (error instanceof Error && error.message) return error.message
   if (typeof error === "string" && error) return error
   if (fallback) return fallback
@@ -44,6 +46,19 @@ function isProviderModelNotFoundErrorLike(error: unknown): error is ProviderMode
   if (typeof error !== "object" || error === null) return false
   const o = error as Record<string, unknown>
   return o.name === "ProviderModelNotFoundError" && typeof o.data === "object" && o.data !== null
+}
+
+function parseObjectMessage(error: unknown) {
+  if (typeof error !== "object" || error === null) return
+  const topLevel = readMessage(error)
+  if (topLevel) return topLevel
+  if (!("data" in error) || typeof error.data !== "object" || error.data === null) return
+  return readMessage(error.data)
+}
+
+function readMessage(value: object) {
+  if ("error" in value && typeof value.error === "string" && value.error.trim()) return value.error
+  if ("message" in value && typeof value.message === "string" && value.message.trim()) return value.message
 }
 
 export function parseReadableConfigInvalidError(errorInput: ConfigInvalidError, translator?: Translator) {

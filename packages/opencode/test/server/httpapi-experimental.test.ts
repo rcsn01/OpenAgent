@@ -254,6 +254,107 @@ Use calendar tools when the user asks for a daily brief.`,
     expect(await removedList.json()).toEqual({ extensions: [] })
   })
 
+  test("reinstalling Google Calendar rewrites the managed MCP config to streamable-http OAuth", async () => {
+    await using tmp = await tmpdir({ config: { formatter: false, lsp: false } })
+
+    const headers = { "x-opencode-directory": tmp.path, "content-type": "application/json" }
+    const oldInstall = await app().request(ExperimentalPaths.extensionsInstall, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        id: "google-calendar",
+        version: "1.0.0",
+        name: "Google Calendar",
+        description: "Google Calendar and Google Tasks",
+        mcp: {
+          google_workspace_calendar: {
+            type: "local",
+            command: ["uvx", "workspace-mcp", "--permissions", "calendar:full", "tasks:full", "--tool-tier", "extended"],
+            enabled: false,
+            environment: {
+              GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
+              GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
+            },
+          },
+        },
+        skills: [
+          {
+            path: "general/SKILL.md",
+            content: `---
+name: google-calendar:general
+description: General calendar access
+---
+Use Google Calendar.`,
+          },
+        ],
+      }),
+    })
+
+    expect(oldInstall.status).toBe(200)
+    expect(await oldInstall.json()).toBe(true)
+
+    const newInstall = await app().request(ExperimentalPaths.extensionsInstall, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        id: "google-calendar",
+        version: "2.0.0",
+        name: "Google Calendar",
+        description: "Google Calendar and Google Tasks",
+        mcp: {
+          google_workspace_calendar: {
+            type: "local",
+            command: [
+              "uvx",
+              "workspace-mcp",
+              "--transport",
+              "streamable-http",
+              "--permissions",
+              "calendar:full",
+              "tasks:full",
+              "--tool-tier",
+              "extended",
+            ],
+            enabled: false,
+            transport: {
+              type: "streamable-http",
+              host: "127.0.0.1",
+              path: "/mcp",
+              portEnv: "WORKSPACE_MCP_PORT",
+            },
+            oauth: {},
+            environment: {
+              GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
+              GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
+              MCP_ENABLE_OAUTH21: "true",
+              WORKSPACE_MCP_HOST: "127.0.0.1",
+              OAUTHLIB_INSECURE_TRANSPORT: "1",
+            },
+          },
+        },
+        skills: [
+          {
+            path: "general/SKILL.md",
+            content: `---
+name: google-calendar:general
+description: General calendar access
+---
+Use Google Calendar.`,
+          },
+        ],
+      }),
+    })
+
+    expect(newInstall.status).toBe(200)
+    expect(await newInstall.json()).toBe(true)
+
+    const configText = await Bun.file(path.join(tmp.path, "opencode.json")).text()
+    expect(configText).toContain('"streamable-http"')
+    expect(configText).toContain('"portEnv": "WORKSPACE_MCP_PORT"')
+    expect(configText).toContain('"oauth": {}')
+    expect(configText).toContain('"MCP_ENABLE_OAUTH21": "true"')
+  })
+
   testWorktreeMutations("serves worktree mutations through Hono bridge", async () => {
     await using tmp = await tmpdir({ git: true, config: { formatter: false, lsp: false } })
 

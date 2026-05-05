@@ -1,5 +1,6 @@
 import { test, expect, mock, beforeEach } from "bun:test"
-import { Effect } from "effect"
+import { Effect, Layer, Stream } from "effect"
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import type { MCP as MCPNS } from "../../src/mcp/index"
 
 // --- Mock infrastructure ---
@@ -23,10 +24,15 @@ let lastCreatedClientName: string | undefined
 let connectShouldFail = false
 let connectShouldHang = false
 let connectError = "Mock transport cannot connect"
+let connectFailuresRemaining = 0
 // Tracks how many Client instances were created (detects leaks)
 let clientCreateCount = 0
 // Tracks how many times transport.close() is called across all mock transports
 let transportCloseCount = 0
+const httpTransportCalls: Array<{ url: string }> = []
+const spawnCalls: Array<{ command: string; args: string[]; env: Record<string, string> | undefined }> = []
+let spawnKillCount = 0
+let mockedPort = 43123
 
 function getOrCreateClientState(name?: string): MockClientState {
   const key = name ?? "default"
@@ -58,6 +64,10 @@ class MockStdioTransport {
   async start() {
     if (connectShouldHang) return new Promise<void>(() => {}) // never resolves
     if (connectShouldFail) throw new Error(connectError)
+    if (connectFailuresRemaining > 0) {
+      connectFailuresRemaining--
+      throw new Error(connectError)
+    }
   }
   async close() {
     transportCloseCount++
@@ -66,10 +76,16 @@ class MockStdioTransport {
 
 class MockStreamableHTTP {
   // oxlint-disable-next-line no-useless-constructor
-  constructor(_url: URL, _opts?: any) {}
+  constructor(url: URL, _opts?: any) {
+    httpTransportCalls.push({ url: url.toString() })
+  }
   async start() {
     if (connectShouldHang) return new Promise<void>(() => {}) // never resolves
     if (connectShouldFail) throw new Error(connectError)
+    if (connectFailuresRemaining > 0) {
+      connectFailuresRemaining--
+      throw new Error(connectError)
+    }
   }
   async close() {
     transportCloseCount++
@@ -105,6 +121,21 @@ void mock.module("@modelcontextprotocol/sdk/client/auth.js", () => ({
   UnauthorizedError: class extends Error {
     constructor() {
       super("Unauthorized")
+    }
+  },
+}))
+
+void mock.module("net", () => ({
+  createServer: () => {
+    let port = mockedPort
+    return {
+      address: () => ({ port }),
+      close: (callback?: (error?: Error) => void) => callback?.(),
+      listen: (_port: number, _host: string, callback?: () => void) => {
+        port = mockedPort
+        callback?.()
+      },
+      once: () => undefined,
     }
   },
 }))
@@ -164,20 +195,30 @@ beforeEach(() => {
   connectShouldFail = false
   connectShouldHang = false
   connectError = "Mock transport cannot connect"
+  connectFailuresRemaining = 0
   clientCreateCount = 0
   transportCloseCount = 0
+  httpTransportCalls.length = 0
+  spawnCalls.length = 0
+  spawnKillCount = 0
+  mockedPort = 43123
 })
 
 // Import after mocks
 const { MCP } = await import("../../src/mcp/index")
+const { Bus } = await import("../../src/bus")
+const { Config } = await import("../../src/config/config")
+const { McpAuth } = await import("../../src/mcp/auth")
 const { Instance } = await import("../../src/project/instance")
 const { tmpdir } = await import("../fixture/fixture")
+const { AppFileSystem } = await import("@opencode-ai/core/filesystem")
 
 // --- Helper ---
 
 function withInstance(
   config: Record<string, unknown>,
   fn: (mcp: MCPNS.Interface) => Effect.Effect<void, unknown, never>,
+  layer = MCP.defaultLayer,
 ) {
   return async () => {
     await using tmp = await tmpdir({
@@ -195,13 +236,54 @@ function withInstance(
     await Instance.provide({
       directory: tmp.path,
       fn: async () => {
-        await Effect.runPromise(MCP.Service.use(fn).pipe(Effect.provide(MCP.defaultLayer)))
+        await Effect.runPromise(MCP.Service.use(fn).pipe(Effect.provide(layer)))
         // dispose instance to clean up state between tests
         await Instance.dispose()
       },
     })
   }
 }
+
+function mockSpawner() {
+  return Layer.succeed(
+    ChildProcessSpawner.ChildProcessSpawner,
+    ChildProcessSpawner.make((command) => {
+      const std = ChildProcess.isStandardCommand(command) ? command : undefined
+      spawnCalls.push({
+        command: std?.command ?? "",
+        args: std?.args ? [...std.args] : [],
+        env: (std as any)?.options?.env ? { ...((std as any).options.env as Record<string, string>) } : undefined,
+      })
+
+      return Effect.succeed(
+        ChildProcessSpawner.makeHandle({
+          pid: ChildProcessSpawner.ProcessId(43210),
+          exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
+          isRunning: Effect.succeed(true),
+          kill: () => {
+            spawnKillCount++
+            return Effect.void
+          },
+          stdin: { [Symbol.for("effect/Sink/TypeId")]: Symbol.for("effect/Sink/TypeId") } as any,
+          stdout: Stream.empty,
+          stderr: Stream.empty,
+          all: Stream.empty,
+          getInputFd: () => ({ [Symbol.for("effect/Sink/TypeId")]: Symbol.for("effect/Sink/TypeId") }) as any,
+          getOutputFd: () => Stream.empty,
+          unref: Effect.succeed(Effect.void),
+        }),
+      )
+    }),
+  )
+}
+
+const localHttpLayer = MCP.layer.pipe(
+  Layer.provide(McpAuth.defaultLayer),
+  Layer.provide(Bus.layer),
+  Layer.provide(Config.defaultLayer),
+  Layer.provide(mockSpawner()),
+  Layer.provide(AppFileSystem.defaultLayer),
+)
 
 // ========================================================================
 // Test: tools() are cached after connect
@@ -340,6 +422,138 @@ test(
         const tools = yield* mcp.tools()
         expect(Object.keys(tools).some((k) => k.includes("my_tool"))).toBe(true)
       }),
+  ),
+)
+
+test(
+  "connect() uses spawned streamable-http local MCPs and cleans them up on disconnect",
+  withInstance(
+    {},
+    (mcp) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "local-http-server"
+        getOrCreateClientState("local-http-server")
+
+        const added = yield* mcp.add("local-http-server", {
+          type: "local",
+          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
+          transport: {
+            type: "streamable-http",
+            host: "127.0.0.1",
+            path: "/mcp",
+            portEnv: "WORKSPACE_MCP_PORT",
+          },
+          oauth: {},
+        } as any)
+
+        expect((added.status as Record<string, { status: string }>)["local-http-server"]?.status).toBe("connected")
+        expect(spawnCalls).toHaveLength(1)
+        expect(spawnCalls[0]?.command).toBe("uvx")
+        expect(spawnCalls[0]?.env?.WORKSPACE_MCP_PORT).toMatch(/^\d+$/)
+        expect(httpTransportCalls.some((call) => call.url.startsWith("http://127.0.0.1:") && call.url.endsWith("/mcp"))).toBe(
+          true,
+        )
+
+        yield* mcp.disconnect("local-http-server")
+
+        const clientsAfter = yield* mcp.clients()
+        expect(clientsAfter["local-http-server"]).toBeUndefined()
+        expect(spawnKillCount).toBeGreaterThanOrEqual(1)
+      }),
+    localHttpLayer,
+  ),
+)
+
+test(
+  "connect() marks local OAuth MCPs as needing setup when Google client ID is missing",
+  withInstance(
+    {},
+    (mcp) =>
+      Effect.gen(function* () {
+        const added = yield* mcp.add("local-http-missing-google-client", {
+          type: "local",
+          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
+          transport: {
+            type: "streamable-http",
+            host: "127.0.0.1",
+            path: "/mcp",
+            portEnv: "WORKSPACE_MCP_PORT",
+          },
+          oauth: {},
+          environment: {
+            MCP_ENABLE_OAUTH21: "true",
+            GOOGLE_OAUTH_CLIENT_ID: "",
+          },
+        } as any)
+
+        expect((added.status as Record<string, { status: string }>)["local-http-missing-google-client"]?.status).toBe(
+          "needs_client_registration",
+        )
+        expect(spawnCalls).toHaveLength(0)
+      }),
+    localHttpLayer,
+  ),
+)
+
+test(
+  "connect() injects a signing key for local OAuth 2.1 MCPs with public PKCE clients",
+  withInstance(
+    {},
+    (mcp) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "local-http-public-pkce"
+        getOrCreateClientState("local-http-public-pkce")
+
+        const added = yield* mcp.add("local-http-public-pkce", {
+          type: "local",
+          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
+          transport: {
+            type: "streamable-http",
+            host: "127.0.0.1",
+            path: "/mcp",
+            portEnv: "WORKSPACE_MCP_PORT",
+          },
+          oauth: {},
+          environment: {
+            MCP_ENABLE_OAUTH21: "true",
+            GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
+          },
+        } as any)
+
+        expect((added.status as Record<string, { status: string }>)["local-http-public-pkce"]?.status).toBe("connected")
+        expect(spawnCalls[0]?.env?.FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY).toMatch(/^[a-f0-9]{64}$/)
+      }),
+    localHttpLayer,
+  ),
+)
+
+test(
+  "connect() retries spawned streamable-http local MCPs until the server is ready",
+  withInstance(
+    {},
+    (mcp) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "local-http-retry-server"
+        getOrCreateClientState("local-http-retry-server")
+        connectFailuresRemaining = 2
+        connectError = "fetch failed\nCaused by: connect ECONNREFUSED 127.0.0.1:43123 failed"
+
+        const added = yield* mcp.add("local-http-retry-server", {
+          type: "local",
+          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
+          transport: {
+            type: "streamable-http",
+            host: "127.0.0.1",
+            path: "/mcp",
+            portEnv: "WORKSPACE_MCP_PORT",
+          },
+          oauth: {},
+        } as any)
+
+        expect((added.status as Record<string, { status: string }>)["local-http-retry-server"]?.status).toBe("connected")
+        expect(httpTransportCalls.filter((call) => call.url.endsWith("/mcp"))).toHaveLength(3)
+      }),
+    localHttpLayer,
   ),
 )
 

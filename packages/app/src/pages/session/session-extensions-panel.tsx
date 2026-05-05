@@ -6,11 +6,14 @@ import { showToast } from "@opencode-ai/ui/toast"
 import { createQuery, useQueryClient } from "@tanstack/solid-query"
 import { createMemo, For, Match, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
+import { Link } from "@/components/link"
 import { useGlobalSync } from "@/context/global-sync"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { OFFICIAL_EXTENSIONS } from "@/extensions/registry"
+import { formatServerError } from "@/utils/server-errors"
 import { buildExtensionsPanelModel, type ExtensionPanelItem } from "./session-extensions-panel-model"
+import { installExtension } from "./session-extensions-install"
 
 function statusTone(status: ExtensionPanelItem["servers"][number]["status"]["status"]) {
   if (status === "connected") return "text-icon-success-base"
@@ -66,10 +69,11 @@ export function SessionExtensionsPanel() {
   }
 
   const fail = (error: unknown) => {
+    console.error("[extensions] update failed", error)
     showToast({
       variant: "error",
       title: "Couldn't update extensions",
-      description: error instanceof Error ? error.message : String(error),
+      description: formatServerError(error, undefined, "Request failed"),
     })
   }
 
@@ -77,9 +81,23 @@ export function SessionExtensionsPanel() {
     if (!item.bundle || pending.install || pending.remove || pending.server) return
     setPending("install", item.id)
     try {
-      await client().install(item.bundle)
-      await refresh()
+      await installExtension({
+        bundle: item.bundle,
+        client: {
+          experimental: {
+            install: (bundle) => client().install(bundle),
+          },
+          mcp: {
+            connect: (input) => sdk.client.mcp.connect(input),
+            auth: {
+              authenticate: (input) => sdk.client.mcp.auth.authenticate(input),
+            },
+          },
+        },
+        refresh,
+      })
     } catch (error) {
+      await refresh()
       fail(error)
     } finally {
       setPending("install", undefined)
@@ -201,6 +219,56 @@ export function SessionExtensionsPanel() {
                 </Match>
               </Switch>
             </div>
+
+            <Show when={item.setup}>
+              <div class="mt-3 space-y-2">
+                <div class="text-11-medium uppercase text-text-weaker">Setup</div>
+
+                <Show when={item.setup?.prerequisites?.length}>
+                  <div class="rounded-md bg-surface-raised-base px-3 py-2">
+                    <div class="text-12-medium text-text-base">Prerequisites</div>
+                    <div class="mt-1 flex flex-col gap-1 text-11-regular text-text-weak">
+                      <For each={item.setup?.prerequisites ?? []}>{(prerequisite) => <div>{prerequisite}</div>}</For>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={item.setup?.environment?.length}>
+                  <div class="rounded-md bg-surface-raised-base px-3 py-2">
+                    <div class="text-12-medium text-text-base">Environment</div>
+                    <div class="mt-1 flex flex-wrap gap-2">
+                      <For each={item.setup?.environment ?? []}>
+                        {(variable) => (
+                          <code class="rounded bg-background-base px-1.5 py-0.5 font-mono text-11-regular text-text-base">
+                            {variable}
+                          </code>
+                        )}
+                      </For>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={item.setup?.steps?.length}>
+                  <div class="rounded-md bg-surface-raised-base px-3 py-2">
+                    <div class="text-12-medium text-text-base">Steps</div>
+                    <div class="mt-1 flex flex-col gap-1 text-11-regular text-text-weak">
+                      <For each={item.setup?.steps ?? []}>{(step) => <div>{step}</div>}</For>
+                    </div>
+                  </div>
+                </Show>
+
+                <Show when={item.setup?.links?.length}>
+                  <div class="rounded-md bg-surface-raised-base px-3 py-2">
+                    <div class="text-12-medium text-text-base">Docs</div>
+                    <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-11-regular">
+                      <For each={item.setup?.links ?? []}>
+                        {(link) => <Link href={link.href}>{link.label}</Link>}
+                      </For>
+                    </div>
+                  </div>
+                </Show>
+              </div>
+            </Show>
 
             <Show when={item.servers.length > 0}>
               <div class="mt-3 space-y-2">

@@ -2,24 +2,23 @@ import { Schema } from "effect"
 import { zod } from "@/util/effect-zod"
 import { PositiveInt, withStatics } from "@/util/schema"
 
-export const Local = Schema.Struct({
-  type: Schema.Literal("local").annotate({ description: "Type of MCP server connection" }),
-  command: Schema.mutable(Schema.Array(Schema.String)).annotate({
-    description: "Command and arguments to run the MCP server",
+export const LocalTransportStreamableHTTP = Schema.Struct({
+  type: Schema.Literal("streamable-http").annotate({
+    description: "Connect to a locally spawned MCP server over streamable HTTP instead of stdio.",
   }),
-  environment: Schema.optional(Schema.Record(Schema.String, Schema.String)).annotate({
-    description: "Environment variables to set when running the MCP server",
+  host: Schema.String.annotate({
+    description: "Loopback host for the locally spawned HTTP MCP server.",
   }),
-  enabled: Schema.optional(Schema.Boolean).annotate({
-    description: "Enable or disable the MCP server on startup",
+  path: Schema.String.annotate({
+    description: "HTTP path for the locally spawned MCP server.",
   }),
-  timeout: Schema.optional(PositiveInt).annotate({
-    description: "Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.",
+  portEnv: Schema.String.annotate({
+    description: "Environment variable name used to inject the chosen loopback port into the child process.",
   }),
 })
-  .annotate({ identifier: "McpLocalConfig" })
+  .annotate({ identifier: "McpLocalTransportStreamableHTTPConfig" })
   .pipe(withStatics((s) => ({ zod: zod(s) })))
-export type Local = Schema.Schema.Type<typeof Local>
+export type LocalTransportStreamableHTTP = Schema.Schema.Type<typeof LocalTransportStreamableHTTP>
 
 export const OAuth = Schema.Struct({
   clientId: Schema.optional(Schema.String).annotate({
@@ -36,6 +35,32 @@ export const OAuth = Schema.Struct({
   .annotate({ identifier: "McpOAuthConfig" })
   .pipe(withStatics((s) => ({ zod: zod(s) })))
 export type OAuth = Schema.Schema.Type<typeof OAuth>
+
+export const Local = Schema.Struct({
+  type: Schema.Literal("local").annotate({ description: "Type of MCP server connection" }),
+  command: Schema.mutable(Schema.Array(Schema.String)).annotate({
+    description: "Command and arguments to run the MCP server",
+  }),
+  environment: Schema.optional(Schema.Record(Schema.String, Schema.String)).annotate({
+    description: "Environment variables to set when running the MCP server",
+  }),
+  transport: Schema.optional(LocalTransportStreamableHTTP).annotate({
+    description: "Optional transport override for locally spawned MCP servers. Defaults to stdio when omitted.",
+  }),
+  oauth: Schema.optional(Schema.Union([OAuth, Schema.Literal(false)])).annotate({
+    description:
+      "OAuth authentication configuration for HTTP-based local MCP servers. Omit or set to false for non-OAuth local servers.",
+  }),
+  enabled: Schema.optional(Schema.Boolean).annotate({
+    description: "Enable or disable the MCP server on startup",
+  }),
+  timeout: Schema.optional(PositiveInt).annotate({
+    description: "Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.",
+  }),
+})
+  .annotate({ identifier: "McpLocalConfig" })
+  .pipe(withStatics((s) => ({ zod: zod(s) })))
+export type Local = Schema.Schema.Type<typeof Local>
 
 export const Remote = Schema.Struct({
   type: Schema.Literal("remote").annotate({ description: "Type of MCP server connection" }),

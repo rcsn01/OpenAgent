@@ -90,6 +90,20 @@ describe("formatServerError", () => {
     expect(formatServerError("Failed to connect to server", language.t)).toBe("Failed to connect to server")
   })
 
+  test("extracts top-level error fields from plain objects", () => {
+    expect(formatServerError({ error: "Google auth failed" }, language.t)).toBe("Google auth failed")
+    expect(formatServerError({ status: "failed", error: "OAuth completion failed" }, language.t)).toBe(
+      "OAuth completion failed",
+    )
+  })
+
+  test("extracts nested data error fields from SDK error objects", () => {
+    expect(formatServerError({ data: { error: "Browser open failed" } }, language.t)).toBe("Browser open failed")
+    expect(formatServerError({ data: { message: "Missing Google OAuth credentials" } }, language.t)).toBe(
+      "Missing Google OAuth credentials",
+    )
+  })
+
   test("uses translated unknown fallback", () => {
     expect(formatServerError(0, language.t)).toBe("Erro desconhecido")
   })

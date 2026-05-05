@@ -6,6 +6,8 @@ import type { MCP as MCPNS } from "../../src/mcp/index"
 // Track open() calls and control failure behavior
 let openShouldFail = false
 let openCalledWith: string | undefined
+let mockedPort = 43123
+const pendingCallbacks = new Map<string, (error: Error) => void>()
 
 void mock.module("open", () => ({
   default: async (url: string) => {
@@ -94,10 +96,50 @@ void mock.module("@modelcontextprotocol/sdk/client/auth.js", () => ({
   UnauthorizedError: MockUnauthorizedError,
 }))
 
+void mock.module("net", () => ({
+  createServer: () => {
+    let port = mockedPort
+    return {
+      address: () => ({ port }),
+      close: (callback?: (error?: Error) => void) => callback?.(),
+      listen: (_port: number, _host: string, callback?: () => void) => {
+        port = mockedPort
+        callback?.()
+      },
+      once: () => undefined,
+    }
+  },
+}))
+
+void mock.module("../../src/mcp/oauth-callback", () => ({
+  McpOAuthCallback: {
+    cancelPending: (mcpName: string) => {
+      const reject = pendingCallbacks.get(mcpName)
+      if (!reject) return
+      pendingCallbacks.delete(mcpName)
+      reject(new Error("Authorization cancelled"))
+    },
+    ensureRunning: async () => {},
+    isRunning: () => true,
+    stop: async () => {
+      for (const reject of pendingCallbacks.values()) {
+        reject(new Error("OAuth callback server stopped"))
+      }
+      pendingCallbacks.clear()
+    },
+    waitForCallback: async (oauthState: string, mcpName?: string) =>
+      new Promise<string>((_resolve, reject) => {
+        pendingCallbacks.set(mcpName ?? oauthState, reject)
+      }),
+  },
+}))
+
 beforeEach(() => {
   openShouldFail = false
   openCalledWith = undefined
   transportCalls.length = 0
+  mockedPort = 43123
+  pendingCallbacks.clear()
 })
 
 // Import modules after mocking
@@ -263,6 +305,59 @@ test("open() is called with the authorization URL", async () => {
       expect(openCalledWith).toBeDefined()
       expect(typeof openCalledWith).toBe("string")
       expect(openCalledWith!).toContain("https://")
+    },
+  })
+})
+
+test("open() is called for local streamable-http OAuth MCPs", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      await Bun.write(
+        `${dir}/opencode.json`,
+        JSON.stringify({
+          $schema: "https://opencode.ai/config.json",
+          mcp: {
+            "test-local-oauth-server": {
+              type: "local",
+              command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
+              transport: {
+                type: "streamable-http",
+                host: "127.0.0.1",
+                path: "/mcp",
+                portEnv: "WORKSPACE_MCP_PORT",
+              },
+              oauth: {},
+            },
+          },
+        }),
+      )
+    },
+  })
+
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      openShouldFail = false
+      openCalledWith = undefined
+
+      const authPromise = AppRuntime.runPromise(
+        Effect.gen(function* () {
+          const mcp = yield* service
+          return yield* mcp.authenticate("test-local-oauth-server")
+        }),
+      ).catch(() => undefined)
+
+      await new Promise((resolve) => setTimeout(resolve, 2_000))
+
+      await McpOAuthCallback.stop()
+
+      await authPromise
+
+      expect(openCalledWith).toBeDefined()
+      expect(openCalledWith!).toContain("https://")
+      expect(transportCalls.some((call) => call.type === "streamable" && call.url.startsWith("http://127.0.0.1:"))).toBe(
+        true,
+      )
     },
   })
 })

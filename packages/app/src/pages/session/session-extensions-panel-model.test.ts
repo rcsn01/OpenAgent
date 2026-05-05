@@ -10,6 +10,7 @@ const registryEntry = (input: Partial<ExtensionRegistryEntry> & Pick<ExtensionRe
     name: input.name,
     description: input.description,
     tags: input.tags ?? [],
+    setup: input.setup,
     mcp: input.mcp ?? {},
     skills: input.skills ?? [],
   }) satisfies ExtensionRegistryEntry
@@ -117,5 +118,43 @@ describe("buildExtensionsPanelModel", () => {
     })
 
     expect(model[0]?.servers[0]?.action).toBe("authenticate")
+  })
+
+  test("keeps setup metadata on bundled extensions and indexes it for search", () => {
+    const model = buildExtensionsPanelModel({
+      registry: [
+        registryEntry({
+          id: "google-calendar",
+          version: "1.0.0",
+          name: "Google Calendar",
+          setup: {
+            prerequisites: ["Python 3.10+ installed"],
+            environment: ["GOOGLE_OAUTH_CLIENT_ID"],
+            steps: ["Click Connect after installing the extension."],
+            links: [{ label: "Workspace MCP docs", href: "https://github.com/taylorwilsdon/google_workspace_mcp" }],
+          },
+          mcp: {
+            google_workspace_calendar: {
+              type: "local",
+              enabled: false,
+              command: ["uvx", "workspace-mcp"],
+            },
+          },
+        }),
+      ],
+      installed: [],
+      live: {},
+    })
+
+    expect(model[0]).toMatchObject({
+      id: "google-calendar",
+      setup: {
+        prerequisites: ["Python 3.10+ installed"],
+        environment: ["GOOGLE_OAUTH_CLIENT_ID"],
+      },
+    })
+    expect(model[0]?.servers[0]?.action).toBe("connect")
+    expect(model[0]?.search).toContain("GOOGLE_OAUTH_CLIENT_ID")
+    expect(model[0]?.search).toContain("Workspace MCP docs")
   })
 })

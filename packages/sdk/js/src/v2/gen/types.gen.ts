@@ -1391,29 +1391,26 @@ export type ProviderConfig = {
   }
 }
 
-export type McpLocalConfig = {
+/**
+ * Optional transport override for locally spawned MCP servers. Defaults to stdio when omitted.
+ */
+export type McpLocalTransportStreamableHttpConfig = {
   /**
-   * Type of MCP server connection
+   * Connect to a locally spawned MCP server over streamable HTTP instead of stdio.
    */
-  type: "local"
+  type: "streamable-http"
   /**
-   * Command and arguments to run the MCP server
+   * Loopback host for the locally spawned HTTP MCP server.
    */
-  command: Array<string>
+  host: string
   /**
-   * Environment variables to set when running the MCP server
+   * HTTP path for the locally spawned MCP server.
    */
-  environment?: {
-    [key: string]: string
-  }
+  path: string
   /**
-   * Enable or disable the MCP server on startup
+   * Environment variable name used to inject the chosen loopback port into the child process.
    */
-  enabled?: boolean
-  /**
-   * Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.
-   */
-  timeout?: number
+  portEnv: string
 }
 
 export type McpOAuthConfig = {
@@ -1433,6 +1430,36 @@ export type McpOAuthConfig = {
    * OAuth redirect URI (default: http://127.0.0.1:19876/mcp/oauth/callback).
    */
   redirectUri?: string
+}
+
+export type McpLocalConfig = {
+  /**
+   * Type of MCP server connection
+   */
+  type: "local"
+  /**
+   * Command and arguments to run the MCP server
+   */
+  command: Array<string>
+  /**
+   * Environment variables to set when running the MCP server
+   */
+  environment?: {
+    [key: string]: string
+  }
+  transport?: McpLocalTransportStreamableHttpConfig
+  /**
+   * OAuth authentication configuration for HTTP-based local MCP servers. Omit or set to false for non-OAuth local servers.
+   */
+  oauth?: McpOAuthConfig | false
+  /**
+   * Enable or disable the MCP server on startup
+   */
+  enabled?: boolean
+  /**
+   * Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.
+   */
+  timeout?: number
 }
 
 export type McpRemoteConfig = {
