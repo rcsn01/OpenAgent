@@ -108,6 +108,12 @@ type Cleanup = Effect.Effect<void, never, never>
 type PendingOAuthSession = {
   transport: TransportWithAuth
   cleanup: Cleanup
+  local?: {
+    url: URL
+    serverUrl: string
+    timeout?: number
+    config?: ConfigMCP.OAuth
+  }
 }
 const pendingOAuthSessions = new Map<string, PendingOAuthSession>()
 
@@ -142,8 +148,10 @@ function oauthConfig(mcp: ConfigMCP.Info) {
 
 function missingLocalOAuthEnvironment(mcp: ConfigMCP.Local) {
   if (!supportsOAuthConfig(mcp) || mcp.environment?.MCP_ENABLE_OAUTH21 !== "true") return []
-  if (!("GOOGLE_OAUTH_CLIENT_ID" in (mcp.environment ?? {}))) return []
-  return mcp.environment.GOOGLE_OAUTH_CLIENT_ID.trim() ? [] : ["GOOGLE_OAUTH_CLIENT_ID"]
+  const environment = mcp.environment ?? {}
+  return ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"].filter((key) => {
+    return key in environment && !environment[key]?.trim()
+  })
 }
 
 function localOAuthEnvironmentStatus(mcpName: string, mcp: ConfigMCP.Local): Status | undefined {
@@ -414,9 +422,7 @@ export const layer = Layer.effect(
         childEnv.MCP_ENABLE_OAUTH21 === "true" && !childEnv.FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY
           ? {
               ...childEnv,
-              FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY: Array.from(crypto.getRandomValues(new Uint8Array(32)))
-                .map((b) => b.toString(16).padStart(2, "0"))
-                .join(""),
+              FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY: yield* auth.getOrCreateLocalAuthSigningKey(key),
             }
           : childEnv
       const handle = yield* Scope.provide(scope)(
@@ -510,6 +516,14 @@ export const layer = Layer.effect(
             pendingOAuthSessions.set(mcpName, {
               transport,
               cleanup: input.cleanup ?? Effect.void,
+              local: input.local
+                ? {
+                    url: input.url,
+                    serverUrl: input.serverUrl,
+                    timeout: input.timeout,
+                    config: input.config,
+                  }
+                : undefined,
             })
             return Effect.succeed({
               authorizationUrl: authorizationUrl.toString(),
@@ -1094,6 +1108,11 @@ export const layer = Layer.effect(
             status: environmentStatus,
           } satisfies AuthResult
         }
+
+        // Spawned local OAuth servers keep dynamic client registrations in
+        // the child process, so any stored registration becomes stale after
+        // that process exits. Start each interactive auth flow fresh.
+        yield* auth.remove(mcpName)
       }
 
       if (mcpConfig.type === "remote") {
@@ -1209,12 +1228,70 @@ export const layer = Layer.effect(
       }
 
       yield* auth.clearCodeVerifier(mcpName)
+      yield* auth.clearOAuthState(mcpName)
+
+      if (session.local) {
+        pendingOAuthSessions.delete(mcpName)
+        yield* Effect.tryPromise(() => session.transport.close()).pipe(Effect.ignore)
+
+        const mcpConfig = yield* getMcpConfig(mcpName)
+        if (!mcpConfig) {
+          yield* session.cleanup
+          return { status: "failed", error: "MCP config not found after auth" } as Status
+        }
+
+        const authProvider = new McpOAuthProvider(
+          mcpName,
+          session.local.serverUrl,
+          {
+            clientId: session.local.config?.clientId,
+            clientSecret: session.local.config?.clientSecret,
+            scope: session.local.config?.scope,
+            redirectUri: session.local.config?.redirectUri,
+          },
+          {
+            onRedirect: async (url) => {
+              log.info("oauth redirect requested after finish", { key: mcpName, url: url.toString() })
+            },
+          },
+          auth,
+        )
+
+        const connected = yield* connectLocalHTTPTransport(
+          mcpName,
+          session.local.url,
+          session.local.timeout ?? DEFAULT_TIMEOUT,
+          () => new StreamableHTTPClientTransport(session.local!.url, { authProvider }),
+        ).pipe(
+          Effect.match({
+            onFailure: (error) => ({ ok: false as const, error }),
+            onSuccess: (client) => ({ ok: true as const, client }),
+          }),
+        )
+        if (!connected.ok) {
+          yield* session.cleanup
+          const error = connected.error instanceof Error ? connected.error.message : String(connected.error)
+          return { status: "failed", error } as Status
+        }
+        const client = connected.client
+
+        const listed = yield* defs(mcpName, client, mcpConfig.timeout)
+        if (!listed) {
+          yield* Effect.tryPromise(() => client.close()).pipe(Effect.ignore)
+          yield* session.cleanup
+          return { status: "failed", error: "Failed to get tools" } as Status
+        }
+
+        const s = yield* InstanceState.get(state)
+        return yield* storeClient(s, mcpName, client, listed, session.cleanup, mcpConfig.timeout)
+      }
+
       yield* closePendingOAuth(mcpName)
 
       const mcpConfig = yield* getMcpConfig(mcpName)
       if (!mcpConfig) return { status: "failed", error: "MCP config not found after auth" } as Status
 
-      return yield* createAndStore(mcpName, mcpConfig).pipe(Effect.orDie)
+      return yield* createAndStore(mcpName, { ...mcpConfig, enabled: true }).pipe(Effect.orDie)
     })
 
     const removeAuth = Effect.fn("MCP.removeAuth")(function* (mcpName: string) {

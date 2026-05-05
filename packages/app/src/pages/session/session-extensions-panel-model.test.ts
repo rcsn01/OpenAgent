@@ -120,6 +120,49 @@ describe("buildExtensionsPanelModel", () => {
     expect(model[0]?.servers[0]?.action).toBe("authenticate")
   })
 
+  test("maps disabled installed local HTTP OAuth servers to authenticate actions", () => {
+    const model = buildExtensionsPanelModel({
+      registry: [
+        registryEntry({
+          id: "google-calendar",
+          version: "1.0.0",
+          name: "Google Calendar",
+          mcp: {
+            google_workspace_calendar: {
+              type: "local",
+              enabled: false,
+              command: ["uvx", "workspace-mcp"],
+              transport: {
+                type: "streamable-http",
+                host: "localhost",
+                path: "/mcp",
+                portEnv: "WORKSPACE_MCP_PORT",
+              },
+              oauth: {},
+            },
+          },
+        }),
+      ],
+      installed: [
+        installedEntry({
+          id: "google-calendar",
+          version: "1.0.0",
+          name: "Google Calendar",
+          servers: [
+            {
+              key: "google_workspace_calendar",
+              status: { status: "disabled" },
+              tools: [],
+            },
+          ],
+        }),
+      ],
+      live: {},
+    })
+
+    expect(model[0]?.servers[0]?.action).toBe("authenticate")
+  })
+
   test("keeps setup metadata on bundled extensions and indexes it for search", () => {
     const model = buildExtensionsPanelModel({
       registry: [

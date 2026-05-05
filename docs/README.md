@@ -54,6 +54,7 @@ How to add new capabilities, tools, plugins, and chat-specific behaviors with le
 - [[Extensibility/Index|Extensibility]] — overview and navigation
 - [[Extensibility/Implementing Features]] — choose between instructions, skills, tools, and plugins
 - [[Extensibility/Plugin Development]] — create a plugin and get chat to use it reliably
+- [[Extensibility/Project-Scoped Extensions]] — ship official app-bundled extensions with MCP servers, managed skills, OAuth, UI, and tests
 
 ### Developer Guide
 

@@ -465,7 +465,7 @@ test(
 )
 
 test(
-  "connect() marks local OAuth MCPs as needing setup when Google client ID is missing",
+  "connect() marks local OAuth MCPs as needing setup when Google credentials are missing",
   withInstance(
     {},
     (mcp) =>
@@ -483,6 +483,7 @@ test(
           environment: {
             MCP_ENABLE_OAUTH21: "true",
             GOOGLE_OAUTH_CLIENT_ID: "",
+            GOOGLE_OAUTH_CLIENT_SECRET: "",
           },
         } as any)
 
@@ -496,7 +497,7 @@ test(
 )
 
 test(
-  "connect() injects a signing key for local OAuth 2.1 MCPs with public PKCE clients",
+  "connect() injects a stable signing key for local OAuth 2.1 MCPs",
   withInstance(
     {},
     (mcp) =>
@@ -517,11 +518,33 @@ test(
           environment: {
             MCP_ENABLE_OAUTH21: "true",
             GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
+            GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret",
           },
         } as any)
 
         expect((added.status as Record<string, { status: string }>)["local-http-public-pkce"]?.status).toBe("connected")
-        expect(spawnCalls[0]?.env?.FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY).toMatch(/^[a-f0-9]{64}$/)
+        const firstKey = spawnCalls[0]?.env?.FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY
+        expect(firstKey).toMatch(/^[a-f0-9]{64}$/)
+
+        yield* mcp.disconnect("local-http-public-pkce")
+        yield* mcp.add("local-http-public-pkce", {
+          type: "local",
+          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
+          transport: {
+            type: "streamable-http",
+            host: "127.0.0.1",
+            path: "/mcp",
+            portEnv: "WORKSPACE_MCP_PORT",
+          },
+          oauth: {},
+          environment: {
+            MCP_ENABLE_OAUTH21: "true",
+            GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
+            GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret",
+          },
+        } as any)
+
+        expect(spawnCalls[1]?.env?.FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY).toBe(firstKey)
       }),
     localHttpLayer,
   ),
@@ -876,6 +899,12 @@ test("McpOAuthCallback.cancelPending is keyed by mcpName but pendingAuths uses o
   expect(rejected).toBe(true)
 
   await McpOAuthCallback.stop()
+})
+
+test("McpOAuthCallback keeps browser OAuth state alive long enough for Google consent", async () => {
+  const { CALLBACK_TIMEOUT_MS } = await import("../../src/mcp/oauth-callback")
+
+  expect(CALLBACK_TIMEOUT_MS).toBeGreaterThanOrEqual(30 * 60 * 1000)
 })
 
 // ========================================================================

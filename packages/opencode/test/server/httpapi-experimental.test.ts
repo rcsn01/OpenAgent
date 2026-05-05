@@ -65,7 +65,7 @@ describe("experimental HttpApi", () => {
           demo: {
             type: "local",
             command: ["echo", "demo"],
-            enabled: false,
+            enabled: true,
           },
         },
       },
@@ -298,7 +298,7 @@ Use Google Calendar.`,
       headers,
       body: JSON.stringify({
         id: "google-calendar",
-        version: "2.0.0",
+        version: "2.0.1",
         name: "Google Calendar",
         description: "Google Calendar and Google Tasks",
         mcp: {
@@ -315,10 +315,10 @@ Use Google Calendar.`,
               "--tool-tier",
               "extended",
             ],
-            enabled: false,
+            enabled: true,
             transport: {
               type: "streamable-http",
-              host: "127.0.0.1",
+              host: "localhost",
               path: "/mcp",
               portEnv: "WORKSPACE_MCP_PORT",
             },
@@ -327,7 +327,7 @@ Use Google Calendar.`,
               GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
               GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
               MCP_ENABLE_OAUTH21: "true",
-              WORKSPACE_MCP_HOST: "127.0.0.1",
+              WORKSPACE_MCP_HOST: "localhost",
               OAUTHLIB_INSECURE_TRANSPORT: "1",
             },
           },
@@ -352,7 +352,9 @@ Use Google Calendar.`,
     expect(configText).toContain('"streamable-http"')
     expect(configText).toContain('"portEnv": "WORKSPACE_MCP_PORT"')
     expect(configText).toContain('"oauth": {}')
+    expect(configText).toContain('"enabled": true')
     expect(configText).toContain('"MCP_ENABLE_OAUTH21": "true"')
+    expect(configText).toContain('"GOOGLE_OAUTH_CLIENT_SECRET": "{env:GOOGLE_OAUTH_CLIENT_SECRET}"')
   })
 
   testWorktreeMutations("serves worktree mutations through Hono bridge", async () => {

@@ -26,6 +26,7 @@ export const Entry = z.object({
   codeVerifier: z.string().optional(),
   oauthState: z.string().optional(),
   serverUrl: z.string().optional(),
+  localAuthSigningKey: z.string().optional(),
 })
 export type Entry = z.infer<typeof Entry>
 
@@ -44,6 +45,7 @@ export interface Interface {
   readonly updateOAuthState: (mcpName: string, oauthState: string) => Effect.Effect<void>
   readonly getOAuthState: (mcpName: string) => Effect.Effect<string | undefined>
   readonly clearOAuthState: (mcpName: string) => Effect.Effect<void>
+  readonly getOrCreateLocalAuthSigningKey: (mcpName: string) => Effect.Effect<string>
   readonly isTokenExpired: (mcpName: string) => Effect.Effect<boolean | null>
 }
 
@@ -109,6 +111,20 @@ export const layer = Layer.effect(
     const clearCodeVerifier = clearField("codeVerifier", "clearCodeVerifier")
     const clearOAuthState = clearField("oauthState", "clearOAuthState")
 
+    const getOrCreateLocalAuthSigningKey = Effect.fn("McpAuth.getOrCreateLocalAuthSigningKey")(function* (
+      mcpName: string,
+    ) {
+      const entry = (yield* get(mcpName)) ?? {}
+      if (entry.localAuthSigningKey) return entry.localAuthSigningKey
+
+      const key = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+      entry.localAuthSigningKey = key
+      yield* set(mcpName, entry)
+      return key
+    })
+
     const getOAuthState = Effect.fn("McpAuth.getOAuthState")(function* (mcpName: string) {
       const entry = yield* get(mcpName)
       return entry?.oauthState
@@ -134,6 +150,7 @@ export const layer = Layer.effect(
       updateOAuthState,
       getOAuthState,
       clearOAuthState,
+      getOrCreateLocalAuthSigningKey,
       isTokenExpired,
     })
   }),

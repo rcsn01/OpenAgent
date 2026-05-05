@@ -44,9 +44,19 @@ function installBundle(item: ExtensionRegistryEntry): ExtensionBundle {
   }
 }
 
-function serverAction(status: McpStatus["status"]): ExtensionPanelServer["action"] {
+function isOAuthCapable(config: ExtensionBundle["mcp"][string] | undefined) {
+  if (!config) return false
+  if (config.type === "remote") return config.oauth !== false
+  return config.transport?.type === "streamable-http" && !!config.oauth
+}
+
+function serverAction(
+  status: McpStatus["status"],
+  config?: ExtensionBundle["mcp"][string],
+): ExtensionPanelServer["action"] {
   if (status === "connected") return "disconnect"
   if (status === "needs_auth" || status === "needs_client_registration") return "authenticate"
+  if (status === "disabled" && isOAuthCapable(config)) return "authenticate"
   return "connect"
 }
 
@@ -62,7 +72,7 @@ function installedItem(
     return {
       ...server,
       status,
-      action: serverAction(status.status),
+      action: serverAction(status.status, bundle?.mcp[server.key]),
     }
   })
 

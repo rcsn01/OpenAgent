@@ -1,4 +1,4 @@
-import { test, expect, mock, beforeEach } from "bun:test"
+import { test, expect, mock, beforeEach, afterEach } from "bun:test"
 import { EventEmitter } from "events"
 import { Effect } from "effect"
 import type { MCP as MCPNS } from "../../src/mcp/index"
@@ -7,7 +7,9 @@ import type { MCP as MCPNS } from "../../src/mcp/index"
 let openShouldFail = false
 let openCalledWith: string | undefined
 let mockedPort = 43123
+let callbackCode: string | undefined
 const pendingCallbacks = new Map<string, (error: Error) => void>()
+const authenticatedUrls = new Set<string>()
 
 void mock.module("open", () => ({
   default: async (url: string) => {
@@ -55,6 +57,7 @@ void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
       })
     }
     async start() {
+      if (authenticatedUrls.has(this.url)) return
       // Simulate OAuth redirect by calling the authProvider's redirectToAuthorization
       if (this.authProvider?.redirectToAuthorization) {
         await this.authProvider.redirectToAuthorization(new URL("https://auth.example.com/authorize?client_id=test"))
@@ -62,8 +65,9 @@ void mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
       throw new MockUnauthorizedError()
     }
     async finishAuth(_code: string) {
-      // Mock successful auth completion
+      authenticatedUrls.add(this.url)
     }
+    async close() {}
   },
 }))
 
@@ -85,9 +89,14 @@ void mock.module("@modelcontextprotocol/sdk/client/sse.js", () => ({
 // Mock the MCP SDK Client to trigger OAuth flow
 void mock.module("@modelcontextprotocol/sdk/client/index.js", () => ({
   Client: class MockClient {
+    async close() {}
     async connect(transport: { start: () => Promise<void> }) {
       await transport.start()
     }
+    async listTools() {
+      return { tools: [{ name: "test_tool", description: "Test tool", inputSchema: { type: "object", properties: {} } }] }
+    }
+    setNotificationHandler() {}
   },
 }))
 
@@ -112,6 +121,7 @@ void mock.module("net", () => ({
 }))
 
 void mock.module("../../src/mcp/oauth-callback", () => ({
+  CALLBACK_TIMEOUT_MS: 30 * 60 * 1000,
   McpOAuthCallback: {
     cancelPending: (mcpName: string) => {
       const reject = pendingCallbacks.get(mcpName)
@@ -127,10 +137,12 @@ void mock.module("../../src/mcp/oauth-callback", () => ({
       }
       pendingCallbacks.clear()
     },
-    waitForCallback: async (oauthState: string, mcpName?: string) =>
-      new Promise<string>((_resolve, reject) => {
+    waitForCallback: async (oauthState: string, mcpName?: string) => {
+      if (callbackCode) return callbackCode
+      return new Promise<string>((_resolve, reject) => {
         pendingCallbacks.set(mcpName ?? oauthState, reject)
-      }),
+      })
+    },
   },
 }))
 
@@ -139,7 +151,15 @@ beforeEach(() => {
   openCalledWith = undefined
   transportCalls.length = 0
   mockedPort = 43123
+  callbackCode = undefined
   pendingCallbacks.clear()
+  authenticatedUrls.clear()
+})
+
+afterEach(() => {
+  callbackCode = undefined
+  pendingCallbacks.clear()
+  authenticatedUrls.clear()
 })
 
 // Import modules after mocking
@@ -358,6 +378,54 @@ test("open() is called for local streamable-http OAuth MCPs", async () => {
       expect(transportCalls.some((call) => call.type === "streamable" && call.url.startsWith("http://127.0.0.1:"))).toBe(
         true,
       )
+    },
+  })
+})
+
+test("local streamable-http OAuth reconnects on the same loopback URL after callback", async () => {
+  await using tmp = await tmpdir({
+    init: async (dir) => {
+      await Bun.write(
+        `${dir}/opencode.json`,
+        JSON.stringify({
+          $schema: "https://opencode.ai/config.json",
+          mcp: {
+            "test-local-oauth-same-port": {
+              type: "local",
+              command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
+              transport: {
+                type: "streamable-http",
+                host: "127.0.0.1",
+                path: "/mcp",
+                portEnv: "WORKSPACE_MCP_PORT",
+              },
+              oauth: {},
+            },
+          },
+        }),
+      )
+    },
+  })
+
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      callbackCode = "authorization-code"
+
+      const status = await AppRuntime.runPromise(
+        Effect.gen(function* () {
+          const mcp = yield* service
+          return yield* mcp.authenticate("test-local-oauth-same-port")
+        }),
+      )
+
+      const localUrls = transportCalls
+        .filter((call) => call.type === "streamable" && call.url.startsWith("http://127.0.0.1:"))
+        .map((call) => call.url)
+
+      expect(status.status).toBe("connected")
+      expect(localUrls.length).toBeGreaterThanOrEqual(2)
+      expect(new Set(localUrls).size).toBe(1)
     },
   })
 })

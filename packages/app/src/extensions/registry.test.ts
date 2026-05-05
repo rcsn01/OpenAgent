@@ -12,17 +12,17 @@ describe("OFFICIAL_EXTENSIONS", () => {
 
     expect(extension).toMatchObject({
       id: "google-calendar",
-      version: "2.0.0",
+      version: "2.0.1",
       name: "Google Calendar",
       tags: expect.arrayContaining(["google", "calendar", "tasks"]),
       setup: {
         prerequisites: expect.arrayContaining(["Python 3.10+ installed"]),
-        environment: ["GOOGLE_OAUTH_CLIENT_ID"],
+        environment: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
       },
     })
     expect(server).toEqual({
       type: "local",
-      enabled: false,
+      enabled: true,
       command: [
         "uvx",
         "workspace-mcp",
@@ -36,15 +36,16 @@ describe("OFFICIAL_EXTENSIONS", () => {
       ],
       transport: {
         type: "streamable-http",
-        host: "127.0.0.1",
+        host: "localhost",
         path: "/mcp",
         portEnv: "WORKSPACE_MCP_PORT",
       },
       oauth: {},
       environment: {
         GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
+        GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
         MCP_ENABLE_OAUTH21: "true",
-        WORKSPACE_MCP_HOST: "127.0.0.1",
+        WORKSPACE_MCP_HOST: "localhost",
         OAUTHLIB_INSECURE_TRANSPORT: "1",
       },
     })

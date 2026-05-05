@@ -62,7 +62,7 @@ const pendingAuths = new Map<string, PendingAuth>()
 // find the right entry in pendingAuths (which is keyed by oauthState).
 const mcpNameToState = new Map<string, string>()
 
-const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+export const CALLBACK_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 
 function cleanupStateIndex(oauthState: string) {
   for (const [name, state] of mcpNameToState) {

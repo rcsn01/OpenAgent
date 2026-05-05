@@ -56,16 +56,16 @@ export function extensionInstallActions(bundle: ExtensionBundle): ExtensionInsta
 
 const googleCalendar = {
   id: "google-calendar",
-  version: "2.0.0",
+  version: "2.0.1",
   name: "Google Calendar",
   description: "Google Calendar and Google Tasks for planning, scheduling, and meeting workflows.",
   tags: ["google", "calendar", "tasks", "scheduling", "productivity"],
   setup: {
     prerequisites: ["Python 3.10+ installed", "uv or uvx installed", "Google Cloud OAuth credentials created"],
-    environment: ["GOOGLE_OAUTH_CLIENT_ID"],
+    environment: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
     steps: [
       "Create a Google OAuth client in Google Cloud for a local desktop workflow.",
-      "Export GOOGLE_OAUTH_CLIENT_ID before launching OpenCode Desktop.",
+      "Export GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET before launching OpenCode Desktop.",
       "Install the extension to launch Google sign-in for google_workspace_calendar.",
     ],
     links: [{ label: "Workspace MCP docs", href: "https://github.com/taylorwilsdon/google_workspace_mcp" }],
@@ -73,7 +73,7 @@ const googleCalendar = {
   mcp: {
     google_workspace_calendar: {
       type: "local" as const,
-      enabled: false,
+      enabled: true,
       command: [
         "uvx",
         "workspace-mcp",
@@ -87,15 +87,16 @@ const googleCalendar = {
       ],
       transport: {
         type: "streamable-http" as const,
-        host: "127.0.0.1",
+        host: "localhost",
         path: "/mcp",
         portEnv: "WORKSPACE_MCP_PORT",
       },
       oauth: {},
       environment: {
         GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
+        GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
         MCP_ENABLE_OAUTH21: "true",
-        WORKSPACE_MCP_HOST: "127.0.0.1",
+        WORKSPACE_MCP_HOST: "localhost",
         OAUTHLIB_INSECURE_TRANSPORT: "1",
       },
     },
