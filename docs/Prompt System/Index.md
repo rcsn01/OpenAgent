@@ -41,4 +41,4 @@ final system text =
 
 ## Related Architecture
 
-- [[Architecture/Native OpenSwarm Integration]] — assistant-only delegation, specialist agents, `send_message`, `transfer`, and per-user OAuth
+- [[Architecture/Native OpenSwarm Integration]] — build/assistant blocking `task`, assistant-only swarm tools, specialist agents, `send_message`, `transfer`, and per-user OAuth

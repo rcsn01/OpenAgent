@@ -19,7 +19,7 @@ So the rule is:
 
 | Agent | Mode | Prompt File | What It Does |
 |-------|------|-------------|--------------|
-| `assistant` | `primary` | `packages/opencode/src/agent/prompt/assistant.txt` plus native OpenSwarm routing guidance in `agent.ts` | Extends the provider prompt with delegation, background-task, specialist routing, `send_message`, and `transfer` guidance |
+| `assistant` | `primary` | `packages/opencode/src/agent/prompt/assistant.txt` plus native OpenSwarm routing guidance in `agent.ts` | Extends the provider prompt with delegation, background-task, specialist routing, existing-session `send_message`, and `transfer` guidance |
 | `explore` | `subagent` | `packages/opencode/src/agent/prompt/explore.txt` | Fast codebase exploration: grep, glob, list, bash, web — quick/medium/very-thorough modes |
 | `compaction` | `primary` (hidden) | `packages/opencode/src/agent/prompt/compaction.txt` | Summarizes long tool outputs into compact form |
 | `title` | `primary` (hidden) | `packages/opencode/src/agent/prompt/title.txt` | Generates short conversation titles |

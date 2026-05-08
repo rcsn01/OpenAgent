@@ -3,12 +3,14 @@ import { allowedRecipients, isAllowed } from "@/agent/communication"
 import { isSpawnableAgent, spawnableAgentError } from "@/agent/spawnable"
 import { Config } from "@/config/config"
 import { MessageV2 } from "@/session/message-v2"
+import { Session } from "@/session/session"
+import { SessionID } from "@/session/schema"
 import { TaskExecution, type TaskPromptOps } from "@/session/task-execution"
 import { Effect, Schema } from "effect"
 import * as Tool from "./tool"
 
 export const Parameters = Schema.Struct({
-  recipient_agent: Schema.String.annotate({ description: "The specialist agent to message." }),
+  recipient_agent: Schema.String.annotate({ description: "The subagent or specialist agent to message." }),
   message: Schema.String.annotate({ description: "The bounded task or question for the recipient agent." }),
   description: Schema.optional(Schema.String).annotate({
     description: "Short 3-5 word description of the delegated work.",
@@ -24,16 +26,23 @@ type Metadata = {
   mode: "send_message"
 }
 
-export const SendMessageTool = Tool.define<typeof Parameters, Metadata, Agent.Service | Config.Service | TaskExecution.Service>(
+const agentTitleSuffix = (agent: string) => `(@${agent} subagent)`
+
+export const SendMessageTool = Tool.define<
+  typeof Parameters,
+  Metadata,
+  Agent.Service | Config.Service | Session.Service | TaskExecution.Service
+>(
   "send_message",
   Effect.gen(function* () {
     const agents = yield* Agent.Service
     const config = yield* Config.Service
+    const sessions = yield* Session.Service
     const execution = yield* TaskExecution.Service
 
     return {
       description:
-        "Send a bounded message to another specialist agent and wait for its result. Use this for OpenSwarm-style parallel or multi-specialist delegation where control should return to the sender.",
+        "Send a bounded message to another subagent or specialist agent and wait for its result. Use this for OpenSwarm-style parallel or multi-agent delegation where control should return to the sender.",
       parameters: Parameters,
       execute: (params: Schema.Schema.Type<typeof Parameters>, ctx: Tool.Context<Metadata>) =>
         Effect.gen(function* () {
@@ -50,6 +59,29 @@ export const SendMessageTool = Tool.define<typeof Parameters, Metadata, Agent.Se
           if (!recipient) return yield* Effect.fail(new Error(`Unknown recipient agent: ${params.recipient_agent}`))
           if (!isSpawnableAgent(recipient)) return yield* Effect.fail(spawnableAgentError(recipient.name))
 
+          const existingSession = params.task_id
+            ? yield* sessions.get(SessionID.make(params.task_id)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
+            : yield* sessions
+                .children(ctx.sessionID)
+                .pipe(
+                  Effect.map((children) =>
+                    children
+                      .filter((child) => child.title.includes(agentTitleSuffix(recipient.name)))
+                      .toSorted((a, b) => b.time.updated - a.time.updated)[0],
+                  ),
+                )
+
+          if (!existingSession) {
+            return yield* Effect.fail(
+              new Error(
+                [
+                  `No existing ${recipient.name} subagent session is available for send_message.`,
+                  `Create or choose a ${recipient.name} subagent session first, then call send_message with that session's task_id.`,
+                ].join(" "),
+              ),
+            )
+          }
+
           const ops = ctx.extra?.promptOps as TaskPromptOps | undefined
           if (!ops) return yield* Effect.fail(new Error("send_message requires promptOps in ctx.extra"))
 
@@ -61,7 +93,7 @@ export const SendMessageTool = Tool.define<typeof Parameters, Metadata, Agent.Se
               description: params.description ?? `message ${recipient.name}`,
               prompt: params.message,
               subagent_type: recipient.name,
-              task_id: params.task_id,
+              task_id: existingSession.id,
             },
             parentSessionID: ctx.sessionID,
             parentMessageID: ctx.messageID,

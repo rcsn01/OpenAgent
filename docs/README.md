@@ -68,4 +68,4 @@ Local development setup and coding conventions.
 System design documents.
 
 - [[Architecture/Background Task Graph Design]] — DAG-based background task graph system design
-- [[Architecture/Native OpenSwarm Integration]] — native specialist routing, assistant-only delegation, per-user OAuth, and artifact-producing specialist tools
+- [[Architecture/Native OpenSwarm Integration]] — native specialist routing, blocking subagent delegation, assistant-only swarm tools, per-user OAuth, and specialist artifacts

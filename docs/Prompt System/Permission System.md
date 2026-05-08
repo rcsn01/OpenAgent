@@ -73,18 +73,21 @@ Many built-in agents differ primarily through permissions rather than prompt tex
 
 | Agent | Key Permissions |
 |-------|----------------|
-| `build` | Most tools allowed |
+| `build` | Most tools allowed; blocking `task` allowed; background/swarm orchestration denied |
 | `plan` | `edit: deny` for all paths except `.opencode/plans/*.md` |
 | `general` | `todowrite: deny` |
 | `explore` | `* : deny` except `grep`, `glob`, `list`, `bash`, `webfetch`, `websearch`, `read` |
-| `assistant` | Same baseline as `build`, plus assistant-only delegation/OpenSwarm meta tools |
+| `assistant` | Same baseline as `build`, plus assistant-only background/swarm orchestration tools |
 | `compaction` | `* : deny` (only reads history) |
 | `title` | `* : deny` (only generates titles) |
 | `summary` | `* : deny` (only generates summaries) |
 
-Delegation and OpenSwarm meta tools are explicitly assistant-only:
+Blocking subagent delegation is available to `build` and `assistant`:
 
 - `task`
+
+Background and OpenSwarm orchestration tools are explicitly assistant-only:
+
 - `background_task`
 - `background_task_*`
 - `background_task_graph`
@@ -92,7 +95,9 @@ Delegation and OpenSwarm meta tools are explicitly assistant-only:
 - `send_message`
 - `transfer`
 
-`build`, `plan`, `explore`, `general`, and the OpenSwarm specialists deny those tools even if their prompts ask for delegation.
+`plan`, `explore`, `general`, and the OpenSwarm specialists deny `task` and the assistant-only orchestration tools. `build` denies the assistant-only orchestration tools even though it can use blocking `task`.
+
+Specialist tools are also owner-gated. For example, the slide-generation and slide-QA tools (`slides`, `slides_theme`, `slide_screenshot`, and `slide_overflow_check`) are only exposed to `slides-agent`.
 
 ## Key Takeaway
 

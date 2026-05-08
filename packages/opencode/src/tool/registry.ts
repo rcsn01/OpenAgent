@@ -12,6 +12,9 @@ import {
   DeepResearchTool,
   DocsTool,
   ImageGenerationTool,
+  SlideOverflowCheckTool,
+  SlideScreenshotTool,
+  SlidesThemeTool,
   SlidesTool,
   VideoGenerationTool,
 } from "./openswarm_stub"
@@ -71,7 +74,6 @@ import { OpenSwarmArtifacts } from "./openswarm/artifact"
 
 const log = Log.create({ service: "tool.registry" })
 const assistantOnlyToolIDs = new Set([
-  "task",
   "background_task",
   "background_task_list",
   "background_task_get",
@@ -83,12 +85,16 @@ const assistantOnlyToolIDs = new Set([
   "send_message",
   "transfer",
 ])
+const taskToolAgents = new Set(["assistant", "build"])
 
 const openswarmToolOwners: Record<string, string[]> = {
   composio: ["virtual-assistant"],
   deep_research: ["deep-research"],
   data_kernel: ["data-analyst"],
   slides: ["slides-agent"],
+  slides_theme: ["slides-agent"],
+  slide_screenshot: ["slides-agent"],
+  slide_overflow_check: ["slides-agent"],
   docs: ["docs-agent"],
   image_generation: ["image-generation-agent"],
   video_generation: ["video-generation-agent"],
@@ -177,6 +183,9 @@ export const layer: Layer.Layer<
     const deepResearch = yield* DeepResearchTool
     const dataKernel = yield* DataKernelTool
     const slides = yield* SlidesTool
+    const slidesTheme = yield* SlidesThemeTool
+    const slideScreenshot = yield* SlideScreenshotTool
+    const slideOverflowCheck = yield* SlideOverflowCheckTool
     const docs = yield* DocsTool
     const imageGeneration = yield* ImageGenerationTool
     const videoGeneration = yield* VideoGenerationTool
@@ -278,6 +287,9 @@ export const layer: Layer.Layer<
           deepResearch: Tool.init(deepResearch),
           dataKernel: Tool.init(dataKernel),
           slides: Tool.init(slides),
+          slidesTheme: Tool.init(slidesTheme),
+          slideScreenshot: Tool.init(slideScreenshot),
+          slideOverflowCheck: Tool.init(slideOverflowCheck),
           docs: Tool.init(docs),
           imageGeneration: Tool.init(imageGeneration),
           videoGeneration: Tool.init(videoGeneration),
@@ -317,6 +329,9 @@ export const layer: Layer.Layer<
             tool.deepResearch,
             tool.dataKernel,
             tool.slides,
+            tool.slidesTheme,
+            tool.slideScreenshot,
+            tool.slideOverflowCheck,
             tool.docs,
             tool.imageGeneration,
             tool.videoGeneration,
@@ -393,6 +408,7 @@ export const layer: Layer.Layer<
     const tools: Interface["tools"] = Effect.fn("ToolRegistry.tools")(function* (input) {
       const cfg = yield* config.get()
       const filtered = (yield* all()).filter((tool) => {
+        if (tool.id === TaskTool.id && !taskToolAgents.has(input.agent.name)) return false
         if (assistantOnlyToolIDs.has(tool.id) && input.agent.name !== "assistant") return false
 
         if (tool.id === SendMessageTool.id) {

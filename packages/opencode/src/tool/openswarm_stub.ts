@@ -2,6 +2,7 @@ import { Effect, Schema } from "effect"
 import { IntegrationAuth } from "@/integration/auth"
 import { OpenSwarmArtifacts } from "./openswarm/artifact"
 import { createDocx, createPptx } from "./openswarm/office"
+import { checkSlideOverflow, renderSlideSvg, themeCssVariables } from "./openswarm/slide_qa"
 import * as Tool from "./tool"
 
 const MissingMetadata = Schema.Struct({ missing: Schema.Array(Schema.String) })
@@ -312,6 +313,16 @@ const SlideSpec = Schema.Struct({
   bullets: Schema.optional(Schema.Array(Schema.String)),
 })
 
+const SlideTheme = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  background: Schema.optional(Schema.String).annotate({ description: "Slide background color, e.g. #ffffff." }),
+  foreground: Schema.optional(Schema.String).annotate({ description: "Primary text color, e.g. #172033." }),
+  accent: Schema.optional(Schema.String).annotate({ description: "Accent color, e.g. #2563eb." }),
+  fontFamily: Schema.optional(Schema.String).annotate({ description: "Font family name." }),
+  titleSize: Schema.optional(Schema.Number).annotate({ description: "Title font size in pixels." }),
+  bodySize: Schema.optional(Schema.Number).annotate({ description: "Body font size in pixels." }),
+})
+
 const SlidesParameters = Schema.Struct({
   task: Schema.String.annotate({ description: "Presentation generation task." }),
   slides: Schema.Array(SlideSpec).annotate({ description: "Ordered slide definitions." }),
@@ -353,6 +364,164 @@ export const SlidesTool = Tool.define<typeof SlidesParameters, ArtifactMetadata,
               { type: "file" as const, url: pptx.url, mime: pptx.mime, filename: pptx.filename },
               { type: "file" as const, url: source.url, mime: source.mime, filename: source.filename },
             ],
+          }
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const SlidesThemeParameters = Schema.Struct({
+  task: Schema.String.annotate({ description: "Theme design or update task." }),
+  theme: SlideTheme.annotate({ description: "Theme tokens to save for a deck." }),
+  output_path: Schema.optional(Schema.String).annotate({
+    description: "Workspace-relative theme JSON path. Defaults to deliverables/deck-theme.json.",
+  }),
+})
+
+export const SlidesThemeTool = Tool.define<typeof SlidesThemeParameters, ArtifactMetadata, OpenSwarmArtifacts.Service>(
+  "slides_theme",
+  Effect.gen(function* () {
+    const artifacts = yield* OpenSwarmArtifacts.Service
+    return {
+      description:
+        "Create or update a presentation theme token file for consistent slide colors, fonts, and type scale.",
+      parameters: SlidesThemeParameters,
+      execute: (params) =>
+        Effect.gen(function* () {
+          const content = JSON.stringify(
+            {
+              task: params.task,
+              theme: params.theme,
+              cssVariables: themeCssVariables(params.theme),
+            },
+            null,
+            2,
+          )
+          const theme = yield* artifacts.writeText({
+            path: params.output_path ?? "deliverables/deck-theme.json",
+            content,
+            mime: "application/json",
+          })
+          return {
+            title: "Slide theme saved",
+            metadata: { outputPath: theme.path },
+            output: `Created slide theme.\nTheme: ${theme.path}`,
+            attachments: [{ type: "file" as const, url: theme.url, mime: theme.mime, filename: theme.filename }],
+          }
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const SlideScreenshotParameters = Schema.Struct({
+  task: Schema.String.annotate({ description: "Visual preview or screenshot task." }),
+  slides: Schema.Array(SlideSpec).annotate({ description: "Slides to preview." }),
+  theme: Schema.optional(SlideTheme).annotate({ description: "Optional theme tokens used for preview rendering." }),
+  output_dir: Schema.optional(Schema.String).annotate({
+    description: "Workspace-relative output directory. Defaults to deliverables/slide-screenshots.",
+  }),
+})
+
+type SlideScreenshotMetadata = {
+  outputPaths: string[]
+}
+
+export const SlideScreenshotTool = Tool.define<
+  typeof SlideScreenshotParameters,
+  SlideScreenshotMetadata,
+  OpenSwarmArtifacts.Service
+>(
+  "slide_screenshot",
+  Effect.gen(function* () {
+    const artifacts = yield* OpenSwarmArtifacts.Service
+    return {
+      description:
+        "Generate SVG slide screenshot previews so the Slides Agent can visually inspect layout, density, and theme application.",
+      parameters: SlideScreenshotParameters,
+      execute: (params) =>
+        Effect.gen(function* () {
+          if (params.slides.length === 0) throw new Error("slides must include at least one slide")
+          const dir = params.output_dir ?? "deliverables/slide-screenshots"
+          const screenshots = []
+          for (const [index, slide] of params.slides.entries()) {
+            const screenshot = yield* artifacts.writeText({
+              path: `${dir}/slide-${String(index + 1).padStart(2, "0")}.svg`,
+              content: renderSlideSvg({ slide, theme: params.theme, index }),
+              mime: "image/svg+xml",
+            })
+            screenshots.push(screenshot)
+          }
+          return {
+            title: "Slide screenshots created",
+            metadata: { outputPaths: screenshots.map((item) => item.path) },
+            output: ["Created slide screenshot previews.", ...screenshots.map((item) => `SVG: ${item.path}`)].join("\n"),
+            attachments: screenshots.map((item) => ({
+              type: "file" as const,
+              url: item.url,
+              mime: item.mime,
+              filename: item.filename,
+            })),
+          }
+        }).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const SlideOverflowParameters = Schema.Struct({
+  task: Schema.String.annotate({ description: "Overflow QA task." }),
+  slides: Schema.Array(SlideSpec).annotate({ description: "Slides to check for text density and layout overflow." }),
+  theme: Schema.optional(SlideTheme).annotate({ description: "Optional theme tokens affecting font sizes." }),
+  output_path: Schema.optional(Schema.String).annotate({
+    description: "Workspace-relative Markdown report path. Defaults to deliverables/slide-overflow-report.md.",
+  }),
+})
+
+type SlideOverflowMetadata = {
+  ok: boolean
+  issueCount: number
+  outputPath: string
+}
+
+export const SlideOverflowCheckTool = Tool.define<
+  typeof SlideOverflowParameters,
+  SlideOverflowMetadata,
+  OpenSwarmArtifacts.Service
+>(
+  "slide_overflow_check",
+  Effect.gen(function* () {
+    const artifacts = yield* OpenSwarmArtifacts.Service
+    return {
+      description:
+        "Check slide specs for likely text overflow, clipping, and overly dense bullet layouts before exporting.",
+      parameters: SlideOverflowParameters,
+      execute: (params) =>
+        Effect.gen(function* () {
+          const report = checkSlideOverflow({ slides: params.slides, theme: params.theme })
+          const markdown = [
+            "# Slide Overflow Report",
+            "",
+            `Task: ${params.task}`,
+            "",
+            `Status: ${report.ok ? "PASS" : "NEEDS_FIX"}`,
+            `Issues: ${report.issues.length}`,
+            "",
+            ...(report.issues.length
+              ? report.issues.map(
+                  (issue) =>
+                    `- Slide ${issue.slide} ${issue.field} ${issue.severity}: ${issue.message} (${issue.estimate}/${issue.limit})`,
+                )
+              : ["No likely overflow issues detected."]),
+          ].join("\n")
+          const out = yield* artifacts.writeText({
+            path: params.output_path ?? "deliverables/slide-overflow-report.md",
+            content: markdown,
+            mime: "text/markdown",
+          })
+          return {
+            title: report.ok ? "Slide overflow check passed" : "Slide overflow issues found",
+            metadata: { ok: report.ok, issueCount: report.issues.length, outputPath: out.path },
+            output: `${report.ok ? "No likely overflow issues detected." : "Found likely slide overflow issues."}\nReport: ${out.path}`,
+            attachments: [{ type: "file" as const, url: out.url, mime: out.mime, filename: out.filename }],
           }
         }).pipe(Effect.orDie),
     }

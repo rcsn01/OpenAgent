@@ -23,7 +23,9 @@ import {
   BackgroundTaskGraphListTool,
 } from "../../src/tool/background_task_graph_manage"
 import { BackgroundTaskTool } from "../../src/tool/background_task"
+import { SendMessageTool } from "@/tool/send_message"
 import { TaskTool, type TaskPromptOps } from "../../src/tool/task"
+import { TransferTool } from "@/tool/transfer"
 import { Truncate } from "@/tool/truncate"
 import { ToolRegistry } from "@/tool/registry"
 import { provideTmpdirInstance } from "../fixture/fixture"
@@ -198,10 +200,13 @@ describe("tool.task", () => {
           const registry = yield* ToolRegistry.Service
           const buildTools = yield* registry.tools({ ...ref, agent: build })
           const assistantTools = yield* registry.tools({ ...ref, agent: assistant })
+          const buildDescription = buildTools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
           const description = assistantTools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
           const backgroundDescription = assistantTools.find((tool) => tool.id === BackgroundTaskTool.id)?.description ?? ""
 
-          expect(buildTools.find((tool) => tool.id === TaskTool.id)).toBeUndefined()
+          expect(buildTools.find((tool) => tool.id === TaskTool.id)).toBeDefined()
+          expect(buildDescription).toContain("- alpha: Alpha agent")
+          expect(buildDescription).not.toContain("- zebra: Zebra agent")
           expect(description).toContain("- alpha: Alpha agent")
           expect(description).not.toContain("- zebra: Zebra agent")
           expect(backgroundDescription).toContain("- alpha: Alpha agent")
@@ -230,7 +235,7 @@ describe("tool.task", () => {
     ),
   )
 
-  it.live("only assistant receives task and background task tools", () =>
+  it.live("build receives blocking task while only assistant receives orchestration tools", () =>
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
         const agent = yield* Agent.Service
@@ -242,7 +247,7 @@ describe("tool.task", () => {
         const planIDs = new Set((yield* registry.tools({ ...ref, agent: plan })).map((tool) => tool.id))
         const assistantIDs = new Set((yield* registry.tools({ ...ref, agent: assistant })).map((tool) => tool.id))
 
-        expect(buildIDs.has(TaskTool.id)).toBe(false)
+        expect(buildIDs.has(TaskTool.id)).toBe(true)
         expect(buildIDs.has(BackgroundTaskTool.id)).toBe(false)
         expect(buildIDs.has(BackgroundTaskGraphTool.id)).toBe(false)
         expect(buildIDs.has(BackgroundTaskListTool.id)).toBe(false)
@@ -251,6 +256,8 @@ describe("tool.task", () => {
         expect(buildIDs.has(BackgroundTaskGraphListTool.id)).toBe(false)
         expect(buildIDs.has(BackgroundTaskGraphGetTool.id)).toBe(false)
         expect(buildIDs.has(BackgroundTaskGraphCancelTool.id)).toBe(false)
+        expect(buildIDs.has(SendMessageTool.id)).toBe(false)
+        expect(buildIDs.has(TransferTool.id)).toBe(false)
 
         expect(planIDs.has(TaskTool.id)).toBe(false)
         expect(planIDs.has(BackgroundTaskTool.id)).toBe(false)
@@ -265,6 +272,8 @@ describe("tool.task", () => {
         expect(assistantIDs.has(BackgroundTaskGraphListTool.id)).toBe(true)
         expect(assistantIDs.has(BackgroundTaskGraphGetTool.id)).toBe(true)
         expect(assistantIDs.has(BackgroundTaskGraphCancelTool.id)).toBe(true)
+        expect(assistantIDs.has(SendMessageTool.id)).toBe(true)
+        expect(assistantIDs.has(TransferTool.id)).toBe(true)
       }),
     ),
   )
@@ -305,6 +314,43 @@ describe("tool.task", () => {
         expect(result.metadata.sessionId).toBe(child.id)
         expect(result.output).toContain(`task_id: ${child.id}`)
         expect(seen?.sessionID).toBe(child.id)
+      }),
+    ),
+  )
+
+  it.live("build can execute blocking task for a spawnable subagent", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const { chat, assistant } = yield* seed("Build task", "build")
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ text: "general complete", onPrompt: (input) => (seen = input) })
+
+        const result = yield* def.execute(
+          {
+            description: "ask general",
+            prompt: "inspect this from build",
+            subagent_type: "general",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps, bypassAgentCheck: true },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        const kids = yield* sessions.children(chat.id)
+        expect(kids).toHaveLength(1)
+        expect(seen?.agent).toBe("general")
+        expect(seen?.sessionID).toBe(kids[0]?.id)
+        expect(result.output).toContain("general complete")
       }),
     ),
   )

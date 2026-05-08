@@ -6,12 +6,12 @@ import { MessageV2 } from "@/session/message-v2"
 import { Session } from "@/session/session"
 import type { SessionPrompt } from "@/session/prompt"
 import { MessageID, PartID } from "@/session/schema"
-import { TaskExecution } from "@/session/task-execution"
+import { TaskExecution, type TaskPromptOps } from "@/session/task-execution"
 import { ModelID, ProviderID } from "@/provider/schema"
 import { allowedRecipients } from "@/agent/communication"
 import { SendMessageTool } from "@/tool/send_message"
 import { TransferTool } from "@/tool/transfer"
-import { ComposioTool, DocsTool, SlidesTool } from "@/tool/openswarm_stub"
+import { ComposioTool, DocsTool, SlideOverflowCheckTool, SlideScreenshotTool, SlidesThemeTool, SlidesTool } from "@/tool/openswarm_stub"
 import { IntegrationAuth } from "@/integration/auth"
 import { OpenSwarmArtifacts } from "@/tool/openswarm/artifact"
 import { ToolRegistry } from "@/tool/registry"
@@ -73,6 +73,18 @@ const seed = Effect.fn("OpenSwarmRoutingTest.seed")(function* (agentName = "assi
   return { chat, assistant }
 })
 
+function promptOps(opts?: { onPrompt?: (input: SessionPrompt.PromptInput) => void; text?: string }): TaskPromptOps {
+  return {
+    cancel() {},
+    resolvePromptParts: (template: string) => Effect.succeed([{ type: "text" as const, text: template }]),
+    prompt: (input: SessionPrompt.PromptInput) =>
+      Effect.sync(() => {
+        opts?.onPrompt?.(input)
+        return reply(input, opts?.text ?? "done")
+      }),
+  }
+}
+
 function reply(input: SessionPrompt.PromptInput, text: string): MessageV2.WithParts {
   const id = MessageID.ascending()
   return {
@@ -129,10 +141,11 @@ describe("openswarm native routing", () => {
         expect(assistantTools.has("send_message")).toBe(true)
         expect(assistantTools.has("transfer")).toBe(true)
         expect(allowedRecipients(yield* cfg.get(), "assistant", "send_message")).toEqual(
-          expect.arrayContaining(["virtual-assistant", "deep-research", "data-analyst", "docs-agent"]),
+          expect.arrayContaining(["general", "virtual-assistant", "deep-research", "data-analyst", "docs-agent"]),
         )
         expect(allowedRecipients(yield* cfg.get(), "assistant", "send_message")).not.toContain("orchestrator")
         expect(allowedRecipients(yield* cfg.get(), "assistant", "transfer")).not.toContain("orchestrator")
+        expect(allowedRecipients(yield* cfg.get(), "assistant", "transfer")).not.toContain("general")
         expect(virtualAssistantTools.has("send_message")).toBe(false)
         expect(virtualAssistantTools.has("transfer")).toBe(false)
         expect(virtualAssistantTools.has("composio")).toBe(true)
@@ -141,15 +154,58 @@ describe("openswarm native routing", () => {
         expect(planTools.has("transfer")).toBe(false)
         expect(docsTools.has("transfer")).toBe(false)
         expect(docsTools.has("docs")).toBe(true)
+        const slidesAgent = yield* agents.get("slides-agent")
+        const slidesTools = new Set((yield* registry.tools({ ...ref, agent: slidesAgent })).map((tool) => tool.id))
+        expect(slidesTools.has("slides")).toBe(true)
+        expect(slidesTools.has("slides_theme")).toBe(true)
+        expect(slidesTools.has("slide_screenshot")).toBe(true)
+        expect(slidesTools.has("slide_overflow_check")).toBe(true)
+        expect(docsTools.has("slide_screenshot")).toBe(false)
       }),
     ),
   )
 
-  it.live("send_message creates a child session and returns the specialist result", () =>
+  it.live("send_message requires an existing recipient session", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed()
+        const tool = yield* SendMessageTool
+        const def = yield* tool.init()
+
+        const exit = yield* def
+          .execute(
+            {
+              recipient_agent: "deep-research",
+              description: "research topic",
+              message: "Research citation practices",
+            },
+            {
+              sessionID: chat.id,
+              messageID: assistant.id,
+              agent: "assistant",
+              abort: new AbortController().signal,
+              extra: { promptOps: promptOps() },
+              messages: [],
+              metadata: () => Effect.void,
+              ask: () => Effect.void,
+            },
+          )
+          .pipe(Effect.exit)
+
+        expect(exit._tag).toBe("Failure")
+        if (exit._tag === "Failure") {
+          expect(String(exit.cause)).toContain("No existing deep-research subagent session")
+        }
+      }),
+    ),
+  )
+
+  it.live("send_message reuses an existing recipient session and returns the specialist result", () =>
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
         const sessions = yield* Session.Service
         const { chat, assistant } = yield* seed()
+        const child = yield* sessions.create({ parentID: chat.id, title: "research topic (@deep-research subagent)" })
         const tool = yield* SendMessageTool
         const def = yield* tool.init()
         let seen: SessionPrompt.PromptInput | undefined
@@ -165,17 +221,7 @@ describe("openswarm native routing", () => {
             messageID: assistant.id,
             agent: "assistant",
             abort: new AbortController().signal,
-            extra: {
-              promptOps: {
-                cancel() {},
-                resolvePromptParts: (template: string) => Effect.succeed([{ type: "text" as const, text: template }]),
-                prompt: (input: SessionPrompt.PromptInput) =>
-                  Effect.sync(() => {
-                    seen = input
-                    return reply(input, "research complete")
-                  }),
-              },
-            },
+            extra: { promptOps: promptOps({ text: "research complete", onPrompt: (input) => (seen = input) }) },
             messages: [],
             metadata: () => Effect.void,
             ask: () => Effect.void,
@@ -185,9 +231,49 @@ describe("openswarm native routing", () => {
         const children = yield* sessions.children(chat.id)
         expect(children).toHaveLength(1)
         expect(seen?.agent).toBe("deep-research")
-        expect(seen?.sessionID).toBe(children[0]?.id)
+        expect(seen?.sessionID).toBe(child.id)
         expect(result.metadata).toMatchObject({ recipientAgent: "deep-research", mode: "send_message" })
+        expect(result.metadata.sessionId).toBe(child.id)
         expect(result.output).toContain("research complete")
+      }),
+    ),
+  )
+
+  it.live("send_message can message the general subagent", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const sessions = yield* Session.Service
+        const { chat, assistant } = yield* seed()
+        const child = yield* sessions.create({ parentID: chat.id, title: "check in (@general subagent)" })
+        const tool = yield* SendMessageTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+
+        const result = yield* def.execute(
+          {
+            recipient_agent: "general",
+            description: "check in",
+            message: "how are you",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "assistant",
+            abort: new AbortController().signal,
+            extra: { promptOps: promptOps({ text: "I'm doing well.", onPrompt: (input) => (seen = input) }) },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        const children = yield* sessions.children(chat.id)
+        expect(children).toHaveLength(1)
+        expect(seen?.agent).toBe("general")
+        expect(seen?.sessionID).toBe(child.id)
+        expect(result.metadata).toMatchObject({ recipientAgent: "general", mode: "send_message" })
+        expect(result.metadata.sessionId).toBe(child.id)
+        expect(result.output).toContain("I'm doing well.")
       }),
     ),
   )
@@ -354,6 +440,79 @@ describe("openswarm native routing", () => {
         )
         expect(docHeader).toBe("PK")
         expect(deckHeader).toBe("PK")
+      }),
+    ),
+  )
+
+  it.live("slide theme, screenshots, and overflow checks create QA artifacts", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const theme = yield* SlidesThemeTool
+        const screenshot = yield* SlideScreenshotTool
+        const overflow = yield* SlideOverflowCheckTool
+        const themeDef = yield* theme.init()
+        const screenshotDef = yield* screenshot.init()
+        const overflowDef = yield* overflow.init()
+        const ctx = {
+          sessionID: "ses_test" as any,
+          messageID: "msg_test" as any,
+          agent: "slides-agent",
+          abort: new AbortController().signal,
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        }
+        const slides = [
+          {
+            title:
+              "This is a deliberately long title intended to trigger the overflow checker so the agent can revise it",
+            bullets: [
+              "A short bullet",
+              "A very long bullet that carries enough detail to make the slide too dense for a clean executive presentation and should be split or shortened.",
+              "Another dense bullet with additional information that belongs in speaker notes or a separate slide rather than on the same canvas.",
+              "Fourth",
+              "Fifth",
+              "Sixth",
+              "Seventh",
+              "Eighth",
+            ],
+          },
+        ]
+
+        const themeResult = yield* themeDef.execute(
+          {
+            task: "create a brand theme",
+            theme: { name: "Launch", background: "#f8fafc", foreground: "#111827", accent: "#0f766e" },
+            output_path: "deliverables/launch-theme.json",
+          },
+          ctx,
+        )
+        const screenshotResult = yield* screenshotDef.execute(
+          {
+            task: "preview slides",
+            slides,
+            theme: { name: "Launch", background: "#f8fafc", foreground: "#111827", accent: "#0f766e" },
+            output_dir: "deliverables/previews",
+          },
+          ctx,
+        )
+        const overflowResult = yield* overflowDef.execute(
+          {
+            task: "check slide density",
+            slides,
+            output_path: "deliverables/overflow.md",
+          },
+          ctx,
+        )
+
+        expect(themeResult.metadata.outputPath).toEndWith("deliverables/launch-theme.json")
+        expect(screenshotResult.metadata.outputPaths[0]).toEndWith("deliverables/previews/slide-01.svg")
+        expect(screenshotResult.attachments?.[0]?.mime).toBe("image/svg+xml")
+        expect(overflowResult.metadata.ok).toBe(false)
+        expect(overflowResult.metadata.issueCount).toBeGreaterThan(0)
+        expect(overflowResult.metadata.outputPath).toEndWith("deliverables/overflow.md")
+        expect(yield* Effect.promise(() => Bun.file(screenshotResult.metadata.outputPaths[0]!).text())).toContain("<svg")
+        expect(yield* Effect.promise(() => Bun.file(overflowResult.metadata.outputPath).text())).toContain("NEEDS_FIX")
       }),
     ),
   )

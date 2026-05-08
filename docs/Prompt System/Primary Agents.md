@@ -14,8 +14,8 @@ These agents are registered in `packages/opencode/src/agent/agent.ts`.
 
 | Agent | Main purpose | Prompt behavior | Tool/capability difference | Default behavior |
 |------|--------------|-----------------|----------------------------|------------------|
-| `build` | Standard coding agent | Uses the provider prompt directly | Full normal toolset, can ask questions, can enter plan mode; delegation/meta tools denied | Default outside hidden chat workspaces |
-| `assistant` | Main coordinator and specialist router | Uses the provider prompt plus `packages/opencode/src/agent/prompt/assistant.txt` and native OpenSwarm routing guidance | Only agent with background tasks, task graphs, `task`, `send_message`, and `transfer` | Default inside hidden general-chat workspaces; selectable elsewhere |
+| `build` | Standard coding agent | Uses the provider prompt directly | Full normal toolset, can ask questions, can enter plan mode, and can use blocking `task`; background/swarm tools denied | Default outside hidden chat workspaces |
+| `assistant` | Main coordinator and specialist router | Uses the provider prompt plus `packages/opencode/src/agent/prompt/assistant.txt` and native OpenSwarm routing guidance | Has blocking `task` plus assistant-only background tasks, task graphs, `send_message`, and `transfer` | Default inside hidden general-chat workspaces; selectable elsewhere |
 | `plan` | Planning and analysis mode | Uses the provider prompt, plus plan reminders injected by `session/prompt.ts` | Edits are denied except plan files; delegation/meta tools denied; `plan_exit` is allowed | Selectable primary agent |
 
 ## Build
@@ -27,7 +27,8 @@ Important traits:
 - Full normal tool access subject to the permission system
 - `question` is allowed
 - `plan_enter` is allowed
-- Delegation and OpenSwarm meta tools are denied
+- Blocking `task` is allowed for synchronous subagent work
+- Background tasks, graph tasks, `send_message`, and `transfer` are denied
 
 This is the default primary agent in normal workspaces.
 
@@ -42,6 +43,8 @@ Important traits:
 - Adds `packages/opencode/src/agent/prompt/assistant.txt`
 - Adds native OpenSwarm routing guidance
 - Unlocks `task`, `background_task`, `background_task_graph`, their management tools, `send_message`, and `transfer`
+- Can use `send_message` with existing `general` and OpenSwarm specialist child sessions by default
+- Must create the needed child session with `task` before `send_message` if none exists
 - Can spawn registered specialist subagents by exact name
 - Cannot spawn `build`, `plan`, `assistant`, `chat`, or `orchestrator`
 
@@ -82,8 +85,9 @@ There are 3 layers of difference between these agents:
    - `assistant` keeps the provider prompt and appends its own agent prompt plus native specialist-routing guidance.
 
 2. Tool exposure
-   - `assistant` is the only one that gets delegation and OpenSwarm meta tools.
-   - `build` and `plan` explicitly deny those tools.
+   - `build` and `assistant` get the blocking `task` tool.
+   - `assistant` is the only one that gets background task, graph task, `send_message`, and `transfer`.
+   - `plan` explicitly denies those tools.
    - `plan` also denies normal edits.
 
 3. Workspace/context defaults
@@ -96,7 +100,7 @@ There are 3 layers of difference between these agents:
 |------|----------------|
 | `packages/opencode/src/agent/agent.ts` | Registers native primary agents, specialist subagents, prompts, options, permissions, and default selection behavior |
 | `packages/opencode/src/agent/spawnable.ts` | Blocks primary/removed coordinator names from subagent spawning |
-| `packages/opencode/src/tool/registry.ts` | Gates assistant-only and specialist-owned tools |
+| `packages/opencode/src/tool/registry.ts` | Gates build/assistant `task`, assistant-only orchestration, and specialist-owned tools |
 | `packages/opencode/src/session/llm.ts` | Decides whether to use provider prompt only or provider prompt plus agent prompt |
 | `packages/opencode/src/session/prompt.ts` | Injects plan reminders and build-switch reminders |
 | `packages/opencode/src/tool/plan.ts` | Implements `plan_exit` and the switch back to `build` |

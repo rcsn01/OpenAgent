@@ -10,6 +10,8 @@ export const openswarmAgents = [
   "video-generation-agent",
 ] as const
 
+export const sendMessageAgents = ["general", ...openswarmAgents] as const
+
 export type CommunicationMode = "send_message" | "transfer"
 export type Flow = {
   from: string
@@ -18,13 +20,12 @@ export type Flow = {
 }
 
 export function defaultFlows(): Flow[] {
-  const recipients = [...openswarmAgents]
-  const sendMessage = recipients.map((to) => ({
+  const sendMessage = [...sendMessageAgents].map((to) => ({
     from: "assistant",
     to,
     modes: ["send_message" as const],
   }))
-  const transfer = recipients.map((to) => ({
+  const transfer = [...openswarmAgents].map((to) => ({
     from: "assistant",
     to,
     modes: ["transfer" as const],

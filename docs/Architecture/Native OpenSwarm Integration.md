@@ -10,9 +10,9 @@ The system has three layers:
 
 1. Primary user-facing agents
 2. Spawnable specialist subagents
-3. Assistant-only orchestration tools
+3. Blocking subagent delegation and assistant-only orchestration tools
 
-Only `assistant` can coordinate other agents. Other primary agents and specialists cannot call delegation or swarm tools.
+`build` and `assistant` can use the blocking `task` tool to spawn a subagent and wait for the result. Only `assistant` can use background tasks, graph tasks, `send_message`, and `transfer`.
 
 ## Primary Agents
 
@@ -50,7 +50,7 @@ The OpenSwarm-style specialist team is registered as native subagents:
 
 ## Spawn Rules
 
-When `assistant` spawns a subagent, the child is not automatically a build agent. The runtime uses the exact requested agent name:
+When `assistant` or `build` spawns a subagent through `task`, the child is not automatically a build agent. The runtime uses the exact requested agent name:
 
 - `subagent_type: "deep-research"` creates a Deep Research child session
 - `subagent_type: "docs-agent"` creates a Docs Agent child session
@@ -74,7 +74,11 @@ This keeps user-facing primaries and removed/merged coordinator names out of chi
 
 `send_message` is the OpenSwarm-style bounded delegation surface.
 
-Use it when `assistant` needs one or more specialists to perform independent subtasks and return results. Each recipient runs in its own child session with that agent's prompt, permissions, model override, and tools.
+Use it when `assistant` needs one or more subagents or specialists to continue independent work and return results. The recipient must already have an existing child session.
+
+Default `send_message` recipients include `general` plus the OpenSwarm specialist team.
+
+`send_message` does not create child sessions. If no matching child session exists, assistant must first decide which subagent type is needed and create that child session with `task`. After that, `send_message` can continue the existing session by `task_id` or by reusing the newest matching child session for that recipient.
 
 The child result returns to `assistant`; control does not move to the child.
 
@@ -86,9 +90,14 @@ Use it when the current conversation should move to one specialist. The recipien
 
 ## Tool Access Rules
 
-Delegation and meta-orchestration tools are assistant-only:
+Blocking subagent delegation is available to:
 
 - `task`
+
+Only `build` and `assistant` receive `task`.
+
+The rest of the orchestration and OpenSwarm communication tools are assistant-only:
+
 - `background_task`
 - `background_task_list`
 - `background_task_get`
@@ -100,7 +109,9 @@ Delegation and meta-orchestration tools are assistant-only:
 - `send_message`
 - `transfer`
 
-These tools are denied for:
+`send_message` can target `general` and the OpenSwarm specialists. `transfer` stays specialist-only by default.
+
+Those assistant-only tools are denied for:
 
 - `build`
 - `plan`
@@ -108,6 +119,8 @@ These tools are denied for:
 - `general`
 - all OpenSwarm specialists
 - any removed or merged coordinator such as `orchestrator`
+
+`task` is denied for `plan`, `explore`, `general`, all OpenSwarm specialists, and blocked/removed coordinator names.
 
 Specialist tools remain owner-gated. For example:
 
@@ -149,6 +162,9 @@ Current specialist tooling includes:
 - native research report generation with a source ledger shape
 - local Data Analyst kernel scaffolding with artifact paths and timeout/error reporting
 - native docs and slides artifact helpers
+- slide theme management through `slides_theme`
+- slide screenshot previews through `slide_screenshot`
+- slide density and overflow QA through `slide_overflow_check`
 - image and video provider adapter stubs with exact missing-credential guidance
 
 Missing credentials or unconnected accounts should produce setup guidance instead of crashing or disappearing.
@@ -170,22 +186,24 @@ Tool results should return structured metadata and file attachments where possib
 | `packages/opencode/src/agent/agent.ts` | Registers native primary agents, specialist subagents, prompts, permissions, and defaults |
 | `packages/opencode/src/agent/communication.ts` | Defines default communication flows |
 | `packages/opencode/src/agent/spawnable.ts` | Blocks non-spawnable primary/removed coordinator names |
-| `packages/opencode/src/tool/registry.ts` | Gates assistant-only and specialist-owned tools |
+| `packages/opencode/src/tool/registry.ts` | Gates build/assistant `task`, assistant-only orchestration, and specialist-owned tools |
 | `packages/opencode/src/tool/task.ts` | Synchronous/background subagent entry point |
 | `packages/opencode/src/session/task-execution.ts` | Shared child-session execution machinery |
-| `packages/opencode/src/tool/send_message.ts` | Bounded specialist delegation |
+| `packages/opencode/src/tool/send_message.ts` | Bounded subagent/specialist delegation |
 | `packages/opencode/src/tool/transfer.ts` | Session handoff event/tool |
 | `packages/opencode/src/integration/auth.ts` | Per-user integration credential service |
 | `packages/opencode/src/server/routes/instance/integration.ts` | Integration OAuth/status APIs |
 | `packages/opencode/src/tool/openswarm/` | Shared OpenSwarm specialist artifact/tool helpers |
+| `packages/opencode/src/tool/openswarm/slide_qa.ts` | Theme tokens, SVG slide previews, and overflow heuristics |
 | `packages/opencode/src/tool/openswarm_stub.ts` | Setup-aware specialist tool implementations |
 
 ## Test Coverage
 
 Core tests cover:
 
-- assistant-only registry exposure for delegation/meta tools
-- build/plan/specialists not receiving delegation/meta tools
+- build and assistant registry exposure for blocking `task`
+- assistant-only registry exposure for background/swarm orchestration tools
+- plan/specialists not receiving delegation/meta tools
 - blocked spawn names
 - allowed and denied communication flows
 - same pair supporting multiple communication modes

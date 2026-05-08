@@ -91,6 +91,11 @@ const DENY_META_TOOLS = {
   transfer: "deny",
 } as const
 
+const BUILD_META_TOOLS = {
+  ...DENY_META_TOOLS,
+  task: "allow",
+} as const
+
 export const Info = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
@@ -185,7 +190,7 @@ export const layer = Layer.effect(
               Permission.fromConfig({
                 question: "allow",
                 plan_enter: "allow",
-                ...DENY_META_TOOLS,
+                ...BUILD_META_TOOLS,
               }),
               user,
             ),
