@@ -18,6 +18,7 @@ import { sessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { displayName } from "./helpers"
 import { ProjectActionsMenu } from "./project-actions-menu"
+import { sidebarSessionStatus } from "./sidebar-session-status"
 
 type InlineEditorComponent = (props: {
   id: string
@@ -54,7 +55,12 @@ const compactRelativeTime = (value: number) => {
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
-type SessionActivityGlow = "working" | "done" | "needs-input" | "failed" | undefined
+const sessionGlow = {
+  running: "working",
+  done: "done",
+  pending: "needs-input",
+  error: "failed",
+} as const
 
 const ProjectSessionButton = (props: {
   session: Session
@@ -65,7 +71,6 @@ const ProjectSessionButton = (props: {
   const notification = useNotification()
   const permission = usePermission()
   const [sessionStore] = globalSync.child(props.session.directory, { bootstrap: false })
-  const messages = createMemo(() => sessionStore.message[props.session.id] ?? [])
   const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
   const hasPermissions = createMemo(() => {
     return !!sessionPermissionRequest(sessionStore.session, sessionStore.permission, props.session.id, (item) => {
@@ -73,22 +78,14 @@ const ProjectSessionButton = (props: {
     })
   })
   const hasError = createMemo(() => notification.session.unseenHasError(props.session.id))
-  const isWorking = createMemo(() => {
-    if (hasPermissions() || hasError()) return false
-    const pending = messages().findLast(
-      (message) =>
-        message.role === "assistant" &&
-        typeof (message as { time?: { completed?: unknown } }).time?.completed !== "number",
-    )
-    const status = sessionStore.session_status[props.session.id]
-    return pending !== undefined || (status !== undefined && status.type !== "idle")
-  })
-  const glow = createMemo<SessionActivityGlow>(() => {
-    if (hasError()) return "failed"
-    if (hasPermissions()) return "needs-input"
-    if (isWorking()) return "working"
-    if (unseenCount() > 0) return "done"
-    return undefined
+  const glow = createMemo(() => {
+    const status = sidebarSessionStatus({
+      status: sessionStore.session_status[props.session.id],
+      hasPendingInteraction: hasPermissions(),
+      hasUnseenError: hasError(),
+      unseenCount: unseenCount(),
+    })
+    return status ? sessionGlow[status] : undefined
   })
 
   return (
