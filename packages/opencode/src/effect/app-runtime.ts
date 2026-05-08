@@ -18,6 +18,7 @@ import { Provider } from "@/provider/provider"
 import { ProviderAuth } from "@/provider/auth"
 import { Agent } from "@/agent/agent"
 import { GeneralChat } from "@/general-chat/general-chat"
+import { IntegrationAuth } from "@/integration/auth"
 import { Skill } from "@/skill"
 import { Discovery } from "@/skill/discovery"
 import { Question } from "@/question"
@@ -56,7 +57,7 @@ import { SyncEvent } from "@/sync"
 import { Npm } from "@opencode-ai/core/npm"
 import { memoMap } from "@opencode-ai/core/effect/memo-map"
 
-export const AppLayer = Layer.mergeAll(
+const AppLayerCore = Layer.mergeAll(
   Npm.defaultLayer,
   AppFileSystem.defaultLayer,
   Bus.defaultLayer,
@@ -74,8 +75,12 @@ export const AppLayer = Layer.mergeAll(
   ProviderAuth.defaultLayer,
   Agent.defaultLayer,
   GeneralChat.defaultLayer,
+  IntegrationAuth.defaultLayer,
   Skill.defaultLayer,
   Discovery.defaultLayer,
+)
+
+const AppLayerSession = Layer.mergeAll(
   Question.defaultLayer,
   Permission.defaultLayer,
   Todo.defaultLayer,
@@ -96,6 +101,9 @@ export const AppLayer = Layer.mergeAll(
   MCP.defaultLayer,
   Extension.defaultLayer,
   McpAuth.defaultLayer,
+)
+
+const AppLayerTools = Layer.mergeAll(
   Command.defaultLayer,
   Truncate.defaultLayer,
   ToolRegistry.defaultLayer,
@@ -109,7 +117,11 @@ export const AppLayer = Layer.mergeAll(
   ShareNext.defaultLayer,
   SessionShare.defaultLayer,
   SyncEvent.defaultLayer,
-).pipe(Layer.provideMerge(Observability.layer))
+)
+
+export const AppLayer = Layer.mergeAll(AppLayerCore, AppLayerSession, AppLayerTools).pipe(
+  Layer.provideMerge(Observability.layer),
+)
 
 const rt = ManagedRuntime.make(AppLayer, { memoMap })
 type Runtime = Pick<typeof rt, "runSync" | "runPromise" | "runPromiseExit" | "runFork" | "runCallback" | "dispose">

@@ -186,6 +186,24 @@ export const Info = Schema.Struct({
       [Schema.Record(Schema.String, ConfigAgent.Info)],
     ),
   ).annotate({ description: "Agent configuration, see the repository README and local docs" }),
+  agent_communication: Schema.optional(
+    Schema.Struct({
+      flows: Schema.optional(
+        Schema.mutable(
+          Schema.Array(
+            Schema.Struct({
+              from: Schema.String,
+              to: Schema.String,
+              modes: Schema.mutable(Schema.Array(Schema.Literals(["send_message", "transfer"]))),
+            }),
+          ),
+        ),
+      ).annotate({
+        description:
+          "Directional agent communication flows. When omitted, OpenSwarm defaults are used: assistant send_message/transfer to specialists.",
+      }),
+    }),
+  ),
   provider: Schema.optional(Schema.Record(Schema.String, ConfigProvider.Info)).annotate({
     description: "Custom provider configurations and model overrides",
   }),

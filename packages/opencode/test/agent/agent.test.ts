@@ -611,7 +611,7 @@ test("defaultAgent returns build when no default_agent config", async () => {
   })
 })
 
-test("defaultAgent returns chat for general chat directories", async () => {
+test("defaultAgent returns assistant for general chat directories", async () => {
   const directory = path.join(chatsRoot, `agent-default-chat-${Math.random().toString(36).slice(2)}`)
   await fs.mkdir(directory, { recursive: true })
 
@@ -619,8 +619,8 @@ test("defaultAgent returns chat for general chat directories", async () => {
     await Instance.provide({
       directory,
       fn: async () => {
-        expect(await load(directory, (svc) => svc.defaultAgent())).toBe("chat")
-        expect((await load(directory, (svc) => svc.list())).map((agent) => agent.name)[0]).toBe("chat")
+        expect(await load(directory, (svc) => svc.defaultAgent())).toBe("assistant")
+        expect((await load(directory, (svc) => svc.list())).map((agent) => agent.name)[0]).toBe("assistant")
       },
     })
   } finally {

@@ -58,6 +58,8 @@ import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Ripgrep } from "../../src/file/ripgrep"
 import { Format } from "../../src/format"
+import { IntegrationAuth } from "@/integration/auth"
+import { OpenSwarmArtifacts } from "@/tool/openswarm/artifact"
 
 void Log.init({ print: false })
 
@@ -136,6 +138,8 @@ function makeHttp() {
     Layer.provide(CrossSpawnSpawner.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
+    Layer.provide(IntegrationAuth.defaultLayer),
+    Layer.provide(OpenSwarmArtifacts.defaultLayer),
     Layer.provide(TaskExecution.defaultLayer),
     Layer.provideMerge(graph),
     Layer.provideMerge(background),

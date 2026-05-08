@@ -4,6 +4,8 @@ The GUI chat system now has a **first-class shared config bundle** that applies 
 
 This is the main place to extend chat behavior globally without editing each hidden workspace by hand.
 
+This profile is a configuration directory, not a native `chat` agent. The native `chat` agent has been removed; GUI general-chat sessions now default to `assistant`.
+
 ## Directory
 
 The shared chat profile lives in:
@@ -43,6 +45,8 @@ The shared chat profile can contribute all the usual extension layers:
 - `package.json` — dependencies for local tools and plugins
 
 This means the shared chat profile is effectively a dedicated “chat feature bundle”.
+
+Because `assistant` is the default primary agent for GUI chats, shared profile tools and instructions are now layered onto `assistant` rather than a separate `chat` agent.
 
 ## Managed vs User-Managed
 

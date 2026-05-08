@@ -77,10 +77,22 @@ Many built-in agents differ primarily through permissions rather than prompt tex
 | `plan` | `edit: deny` for all paths except `.opencode/plans/*.md` |
 | `general` | `todowrite: deny` |
 | `explore` | `* : deny` except `grep`, `glob`, `list`, `bash`, `webfetch`, `websearch`, `read` |
-| `assistant` | Same as `build` but with `assistant_tools: true` |
+| `assistant` | Same baseline as `build`, plus assistant-only delegation/OpenSwarm meta tools |
 | `compaction` | `* : deny` (only reads history) |
 | `title` | `* : deny` (only generates titles) |
 | `summary` | `* : deny` (only generates summaries) |
+
+Delegation and OpenSwarm meta tools are explicitly assistant-only:
+
+- `task`
+- `background_task`
+- `background_task_*`
+- `background_task_graph`
+- `background_task_graph_*`
+- `send_message`
+- `transfer`
+
+`build`, `plan`, `explore`, `general`, and the OpenSwarm specialists deny those tools even if their prompts ask for delegation.
 
 ## Key Takeaway
 

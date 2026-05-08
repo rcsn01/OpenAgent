@@ -41,6 +41,8 @@ import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "@/tool/registry"
 import { Truncate } from "@/tool/truncate"
 import { GeneralChat } from "@/general-chat/general-chat"
+import { IntegrationAuth } from "@/integration/auth"
+import { OpenSwarmArtifacts } from "@/tool/openswarm/artifact"
 import * as Log from "@opencode-ai/core/util/log"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Ripgrep } from "../../src/file/ripgrep"
@@ -184,6 +186,8 @@ function makeHttp() {
     Layer.provide(CrossSpawnSpawner.defaultLayer),
     Layer.provide(Ripgrep.defaultLayer),
     Layer.provide(Format.defaultLayer),
+    Layer.provide(IntegrationAuth.defaultLayer),
+    Layer.provide(OpenSwarmArtifacts.defaultLayer),
     Layer.provide(TaskExecution.defaultLayer),
     Layer.provideMerge(graph),
     Layer.provideMerge(background),

@@ -15,6 +15,7 @@ This section is about the practical extension mechanisms:
 - [[Extensibility/Implementing Features]] — choose the right layer for a new feature
 - [[Extensibility/Plugin Development]] — create a plugin and get chat to use it
 - [[Extensibility/Project-Scoped Extensions]] — add an official app-bundled extension with MCP servers, skills, install UI, OAuth, and tests
+- [[Architecture/Native OpenSwarm Integration]] — per-user integration auth, specialist-owned tools, and assistant-only routing
 
 ## Key Source Files
 
@@ -31,3 +32,5 @@ This section is about the practical extension mechanisms:
 | `packages/app/src/pages/session/session-extensions-panel.tsx` | Renders the project-scoped Extensions side panel |
 | `packages/opencode/src/config/config.ts` | Installs dependencies for config directories and merges their config |
 | `packages/opencode/src/session/instruction.ts` | Injects `AGENTS.md` and the shared chat profile instructions |
+| `packages/opencode/src/integration/auth.ts` | Stores per-user integration credentials for specialist tools |
+| `packages/opencode/src/server/routes/instance/integration.ts` | Exposes integration OAuth/status APIs |

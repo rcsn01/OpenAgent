@@ -6,11 +6,22 @@ import { BackgroundTaskGraphCancelTool, BackgroundTaskGraphGetTool, BackgroundTa
 import { BackgroundTaskCancelTool, BackgroundTaskGetTool, BackgroundTaskListTool } from "./background_task_manage"
 import { BackgroundTaskTool } from "./background_task"
 import { BackgroundTaskGraphTool } from "./background_task_graph"
+import {
+  ComposioTool,
+  DataKernelTool,
+  DeepResearchTool,
+  DocsTool,
+  ImageGenerationTool,
+  SlidesTool,
+  VideoGenerationTool,
+} from "./openswarm_stub"
 import { EditTool } from "./edit"
 import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
 import { ReadTool } from "./read"
 import { TaskTool } from "./task"
+import { SendMessageTool } from "./send_message"
+import { TransferTool } from "./transfer"
 import { TodoWriteTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
 import { WriteTool } from "./write"
@@ -53,9 +64,14 @@ import { Bus } from "../bus"
 import { Agent } from "../agent/agent"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
+import { allowedRecipients } from "@/agent/communication"
+import { isSpawnableAgent } from "@/agent/spawnable"
+import { IntegrationAuth } from "@/integration/auth"
+import { OpenSwarmArtifacts } from "./openswarm/artifact"
 
 const log = Log.create({ service: "tool.registry" })
 const assistantOnlyToolIDs = new Set([
+  "task",
   "background_task",
   "background_task_list",
   "background_task_get",
@@ -64,7 +80,19 @@ const assistantOnlyToolIDs = new Set([
   "background_task_graph_list",
   "background_task_graph_get",
   "background_task_graph_cancel",
+  "send_message",
+  "transfer",
 ])
+
+const openswarmToolOwners: Record<string, string[]> = {
+  composio: ["virtual-assistant"],
+  deep_research: ["deep-research"],
+  data_kernel: ["data-analyst"],
+  slides: ["slides-agent"],
+  docs: ["docs-agent"],
+  image_generation: ["image-generation-agent"],
+  video_generation: ["video-generation-agent"],
+}
 
 type TaskDef = Tool.InferDef<typeof TaskTool>
 type ReadDef = Tool.InferDef<typeof ReadTool>
@@ -108,6 +136,8 @@ export const layer: Layer.Layer<
   | Ripgrep.Service
   | Format.Service
   | Truncate.Service
+  | IntegrationAuth.Service
+  | OpenSwarmArtifacts.Service
 > = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -119,6 +149,8 @@ export const layer: Layer.Layer<
 
     const invalid = yield* InvalidTool
     const task = yield* TaskTool
+    const sendMessage = yield* SendMessageTool
+    const transfer = yield* TransferTool
     const backgroundTask = yield* BackgroundTaskTool
     const backgroundTaskGraph = yield* BackgroundTaskGraphTool
     const backgroundTaskList = yield* BackgroundTaskListTool
@@ -141,6 +173,13 @@ export const layer: Layer.Layer<
     const greptool = yield* GrepTool
     const patchtool = yield* ApplyPatchTool
     const skilltool = yield* SkillTool
+    const composio = yield* ComposioTool
+    const deepResearch = yield* DeepResearchTool
+    const dataKernel = yield* DataKernelTool
+    const slides = yield* SlidesTool
+    const docs = yield* DocsTool
+    const imageGeneration = yield* ImageGenerationTool
+    const videoGeneration = yield* VideoGenerationTool
     const agent = yield* Agent.Service
 
     const state = yield* InstanceState.make<State>(
@@ -221,6 +260,8 @@ export const layer: Layer.Layer<
           edit: Tool.init(edit),
           write: Tool.init(writetool),
           task: Tool.init(task),
+          sendMessage: Tool.init(sendMessage),
+          transfer: Tool.init(transfer),
           backgroundTask: Tool.init(backgroundTask),
           backgroundTaskGraph: Tool.init(backgroundTaskGraph),
           backgroundTaskList: Tool.init(backgroundTaskList),
@@ -233,6 +274,13 @@ export const layer: Layer.Layer<
           todo: Tool.init(todo),
           search: Tool.init(websearch),
           skill: Tool.init(skilltool),
+          composio: Tool.init(composio),
+          deepResearch: Tool.init(deepResearch),
+          dataKernel: Tool.init(dataKernel),
+          slides: Tool.init(slides),
+          docs: Tool.init(docs),
+          imageGeneration: Tool.init(imageGeneration),
+          videoGeneration: Tool.init(videoGeneration),
           patch: Tool.init(patchtool),
           question: Tool.init(question),
           lsp: Tool.init(lsptool),
@@ -251,6 +299,8 @@ export const layer: Layer.Layer<
             tool.edit,
             tool.write,
             tool.task,
+            tool.sendMessage,
+            tool.transfer,
             tool.backgroundTask,
             tool.backgroundTaskGraph,
             tool.backgroundTaskList,
@@ -263,6 +313,13 @@ export const layer: Layer.Layer<
             tool.todo,
             tool.search,
             tool.skill,
+            tool.composio,
+            tool.deepResearch,
+            tool.dataKernel,
+            tool.slides,
+            tool.docs,
+            tool.imageGeneration,
+            tool.videoGeneration,
             tool.patch,
             ...(Flag.OPENCODE_EXPERIMENTAL_LSP_TOOL ? [tool.lsp] : []),
             ...(Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE && Flag.OPENCODE_CLIENT === "cli" ? [tool.plan] : []),
@@ -302,7 +359,7 @@ export const layer: Layer.Layer<
     })
 
     const describeTask = Effect.fn("ToolRegistry.describeTask")(function* (agent: Agent.Info) {
-      const items = (yield* agents.list()).filter((item) => item.mode !== "primary")
+      const items = (yield* agents.list()).filter(isSpawnableAgent)
       const filtered = items.filter(
         (item) => Permission.evaluate("task", item.name, agent.permission).action !== "deny",
       )
@@ -316,9 +373,36 @@ export const layer: Layer.Layer<
       return ["Available agent types and the tools they have access to:", description].join("\n")
     })
 
+    const describeCommunication = Effect.fn("ToolRegistry.describeCommunication")(function* (
+      agent: Agent.Info,
+      mode: "send_message" | "transfer",
+    ) {
+      const cfg = yield* config.get()
+      const recipients = allowedRecipients(cfg, agent.name, mode)
+      if (recipients.length === 0) return `No ${mode} recipients are available for ${agent.name}.`
+      const infos = yield* Effect.forEach(
+        recipients,
+        Effect.fnUntraced(function* (name) {
+          const recipient = yield* agents.get(name)
+          return `- ${name}: ${recipient?.description ?? "Specialist agent"}`
+        }),
+      )
+      return [`Allowed ${mode} recipients for ${agent.name}:`, ...infos].join("\n")
+    })
+
     const tools: Interface["tools"] = Effect.fn("ToolRegistry.tools")(function* (input) {
+      const cfg = yield* config.get()
       const filtered = (yield* all()).filter((tool) => {
-        if (assistantOnlyToolIDs.has(tool.id) && input.agent.options["assistant_tools"] !== true) return false
+        if (assistantOnlyToolIDs.has(tool.id) && input.agent.name !== "assistant") return false
+
+        if (tool.id === SendMessageTool.id) {
+          return allowedRecipients(cfg, input.agent.name, "send_message").length > 0
+        }
+        if (tool.id === TransferTool.id) {
+          return allowedRecipients(cfg, input.agent.name, "transfer").length > 0
+        }
+        const owners = openswarmToolOwners[tool.id]
+        if (owners && !owners.includes(input.agent.name)) return false
 
         if (tool.id === WebSearchTool.id) {
           return input.providerID === ProviderID.opencode || Flag.OPENCODE_ENABLE_EXA
@@ -348,6 +432,8 @@ export const layer: Layer.Layer<
               tool.id === TaskTool.id || tool.id === BackgroundTaskTool.id || tool.id === BackgroundTaskGraphTool.id
                 ? yield* describeTask(input.agent)
                 : undefined,
+              tool.id === SendMessageTool.id ? yield* describeCommunication(input.agent, "send_message") : undefined,
+              tool.id === TransferTool.id ? yield* describeCommunication(input.agent, "transfer") : undefined,
               tool.id === SkillTool.id ? yield* describeSkill(input.agent) : undefined,
             ]
               .filter(Boolean)
@@ -370,29 +456,30 @@ export const layer: Layer.Layer<
   }),
 )
 
-export const defaultLayer = Layer.suspend(() =>
-  layer.pipe(
-    Layer.provide(Config.defaultLayer),
-    Layer.provide(Plugin.defaultLayer),
-    Layer.provide(Question.defaultLayer),
-    Layer.provide(Todo.defaultLayer),
-    Layer.provide(Skill.defaultLayer),
-    Layer.provide(Agent.defaultLayer),
-    Layer.provide(Session.defaultLayer),
-    Layer.provide(TaskExecution.defaultLayer),
-    Layer.provide(SessionTaskGraph.defaultLayer),
-    Layer.provide(SessionBackgroundTask.defaultLayer),
-    Layer.provide(Provider.defaultLayer),
-    Layer.provide(LSP.defaultLayer),
-    Layer.provide(Instruction.defaultLayer),
-    Layer.provide(AppFileSystem.defaultLayer),
-    Layer.provide(Bus.layer),
-    Layer.provide(FetchHttpClient.layer),
-    Layer.provide(Format.defaultLayer),
-    Layer.provide(CrossSpawnSpawner.defaultLayer),
-    Layer.provide(Ripgrep.defaultLayer),
-    Layer.provide(Truncate.defaultLayer),
-  ),
-)
+export const defaultLayer = Layer.suspend(() => {
+  const base = Layer.mergeAll(
+    Config.defaultLayer,
+    Plugin.defaultLayer,
+    Question.defaultLayer,
+    Todo.defaultLayer,
+    Skill.defaultLayer,
+    Agent.defaultLayer,
+    Session.defaultLayer,
+    TaskExecution.defaultLayer,
+    SessionTaskGraph.defaultLayer,
+    SessionBackgroundTask.defaultLayer,
+    Provider.defaultLayer,
+    LSP.defaultLayer,
+    Instruction.defaultLayer,
+    AppFileSystem.defaultLayer,
+    Bus.layer,
+    FetchHttpClient.layer,
+    Format.defaultLayer,
+    CrossSpawnSpawner.defaultLayer,
+    Ripgrep.defaultLayer,
+    Truncate.defaultLayer,
+  )
+  return layer.pipe(Layer.provide(Layer.mergeAll(base, IntegrationAuth.defaultLayer, OpenSwarmArtifacts.defaultLayer)))
+})
 
 export * as ToolRegistry from "./registry"

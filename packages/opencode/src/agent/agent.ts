@@ -9,7 +9,6 @@ import { ProviderTransform } from "@/provider/transform"
 
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_ASSISTANT from "./prompt/assistant.txt"
-import PROMPT_CHAT from "./prompt/chat.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
@@ -27,6 +26,70 @@ import * as Option from "effect/Option"
 import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { zod } from "@/util/effect-zod"
 import { withStatics, type DeepMutable } from "@/util/schema"
+
+const OPEN_SWARM_SHARED = [
+  "You are part of an OpenSwarm-style multi-agent system.",
+  "Stay inside your specialty. The native assistant agent coordinates routing, delegation, and handoffs.",
+  "If the user asks for work owned by another specialist, briefly name the correct specialist instead of attempting partial work.",
+  "For user-facing files, include concrete file paths in final responses and avoid dumping raw generated source unless the user explicitly asks for it.",
+  "When a required API key or integration is missing, explain the exact setup key instead of pretending the action succeeded.",
+].join("\n")
+
+const ASSISTANT_SWARM_PROMPT = [
+  OPEN_SWARM_SHARED,
+  "",
+  "You are also the coordinator for the specialist team. You are the only agent that can call delegation, background task, send_message, and transfer tools.",
+  "Use transfer for one-specialist user requests. Use send_message when two or more independent specialist subtasks should run in parallel and you need to combine their results.",
+  "Do not route to a separate orchestrator agent; orchestrator behavior is merged into you.",
+  "When delegating file-producing tasks, summarize delivered file paths instead of dumping raw generated contents.",
+  "",
+  "Routing guide:",
+  "- virtual-assistant: everyday tasks, external systems, messaging, scheduling, task management, Composio integrations.",
+  "- deep-research: evidence-based web research, citations, source-backed analysis.",
+  "- data-analyst: structured data analysis, KPIs, charts, statistics, IPython-style analysis.",
+  "- slides-agent: HTML slide decks and PPTX exports.",
+  "- docs-agent: Word/PDF/Markdown/TXT document creation and conversion.",
+  "- image-generation-agent: image generation, editing, and composition.",
+  "- video-generation-agent: video generation, editing, and assembly.",
+].join("\n")
+
+const specialistPrompt = (role: string, owns: string, tools: string) =>
+  [
+    OPEN_SWARM_SHARED,
+    "",
+    `You are the ${role}.`,
+    `You own: ${owns}.`,
+    `Use your specialist tools for: ${tools}.`,
+    "If a task belongs to another specialist, state the correct owner briefly. Do not call delegation, background task, send_message, or transfer tools.",
+  ].join("\n")
+
+const ASSISTANT_META_TOOLS = {
+  task: "allow",
+  background_task: "allow",
+  background_task_list: "allow",
+  background_task_get: "allow",
+  background_task_cancel: "allow",
+  background_task_graph: "allow",
+  background_task_graph_list: "allow",
+  background_task_graph_get: "allow",
+  background_task_graph_cancel: "allow",
+  send_message: "allow",
+  transfer: "allow",
+} as const
+
+const DENY_META_TOOLS = {
+  task: "deny",
+  background_task: "deny",
+  background_task_list: "deny",
+  background_task_get: "deny",
+  background_task_cancel: "deny",
+  background_task_graph: "deny",
+  background_task_graph_list: "deny",
+  background_task_graph_get: "deny",
+  background_task_graph_cancel: "deny",
+  send_message: "deny",
+  transfer: "deny",
+} as const
 
 export const Info = Schema.Struct({
   name: Schema.String,
@@ -110,7 +173,7 @@ export const layer = Layer.effect(
         })
 
         const user = Permission.fromConfig(cfg.permission ?? {})
-        const preferredPrimary = isGeneralChatDirectory(ctx.directory) ? "chat" : "build"
+        const preferredPrimary = isGeneralChatDirectory(ctx.directory) ? "assistant" : "build"
 
         const agents: Record<string, Info> = {
           build: {
@@ -122,6 +185,7 @@ export const layer = Layer.effect(
               Permission.fromConfig({
                 question: "allow",
                 plan_enter: "allow",
+                ...DENY_META_TOOLS,
               }),
               user,
             ),
@@ -141,32 +205,13 @@ export const layer = Layer.effect(
               Permission.fromConfig({
                 question: "allow",
                 plan_enter: "allow",
+                ...ASSISTANT_META_TOOLS,
               }),
               user,
             ),
             mode: "primary",
             native: true,
-            prompt: PROMPT_ASSISTANT,
-          },
-          chat: {
-            name: "chat",
-            description:
-              "Primary agent for GUI chat sessions. Use this for general-purpose conversations, artifact creation, and hidden-workspace chat flows.",
-            hidden: !isGeneralChatDirectory(ctx.directory),
-            options: {
-              extend_provider_prompt: true,
-            },
-            permission: Permission.merge(
-              defaults,
-              Permission.fromConfig({
-                question: "allow",
-                plan_enter: "allow",
-              }),
-              user,
-            ),
-            mode: "primary",
-            native: true,
-            prompt: PROMPT_CHAT,
+            prompt: [PROMPT_ASSISTANT, ASSISTANT_SWARM_PROMPT].join("\n\n"),
           },
           plan: {
             name: "plan",
@@ -177,6 +222,7 @@ export const layer = Layer.effect(
               Permission.fromConfig({
                 question: "allow",
                 plan_exit: "allow",
+                ...DENY_META_TOOLS,
                 external_directory: {
                   [path.join(Global.Path.data, "plans", "*")]: "allow",
                 },
@@ -198,6 +244,7 @@ export const layer = Layer.effect(
               defaults,
               Permission.fromConfig({
                 todowrite: "deny",
+                ...DENY_META_TOOLS,
               }),
               user,
             ),
@@ -218,6 +265,7 @@ export const layer = Layer.effect(
                 webfetch: "allow",
                 websearch: "allow",
                 read: "allow",
+                ...DENY_META_TOOLS,
                 external_directory: {
                   "*": "ask",
                   ...Object.fromEntries(whitelistedDirs.map((dir) => [dir, "allow"])),
@@ -276,6 +324,140 @@ export const layer = Layer.effect(
               user,
             ),
             prompt: PROMPT_SUMMARY,
+          },
+          "virtual-assistant": {
+            name: "virtual-assistant",
+            description:
+              "Virtual assistant for writing, scheduling, messaging, task management, and external app workflows.",
+            options: { openswarm: true },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({ ...DENY_META_TOOLS, composio: "allow" }),
+              user,
+            ),
+            mode: "subagent",
+            native: true,
+            prompt: specialistPrompt(
+              "Virtual Assistant",
+              "everyday assistant workflows, writing, scheduling, messaging, task management, and external integrations",
+              "Composio-backed external actions and integration discovery",
+            ),
+            color: "info",
+          },
+          "deep-research": {
+            name: "deep-research",
+            description:
+              "Research specialist for comprehensive web research with citations, source comparison, and balanced analysis.",
+            options: { openswarm: true },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({
+                ...DENY_META_TOOLS,
+                webfetch: "allow",
+                websearch: "allow",
+                deep_research: "allow",
+              }),
+              user,
+            ),
+            mode: "subagent",
+            native: true,
+            prompt: specialistPrompt(
+              "Deep Research Agent",
+              "evidence-based web research, citations, source-backed synthesis, and balanced analysis",
+              "web search, web fetch, citation collection, and research report drafting",
+            ),
+            color: "accent",
+          },
+          "data-analyst": {
+            name: "data-analyst",
+            description:
+              "Data analyst for structured data analysis, charts, KPIs, statistical models, and isolated analysis workflows.",
+            options: { openswarm: true },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({ ...DENY_META_TOOLS, data_kernel: "allow" }),
+              user,
+            ),
+            mode: "subagent",
+            native: true,
+            prompt: specialistPrompt(
+              "Data Analyst",
+              "structured data analysis, charts, KPIs, statistical summaries, and model-driven insights",
+              "isolated IPython-style data analysis and chart generation",
+            ),
+            color: "success",
+          },
+          "slides-agent": {
+            name: "slides-agent",
+            description: "Slides specialist for polished HTML slide decks and PPTX exports.",
+            options: { openswarm: true },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({ ...DENY_META_TOOLS, slides: "allow" }),
+              user,
+            ),
+            mode: "subagent",
+            native: true,
+            prompt: specialistPrompt(
+              "Slides Agent",
+              "presentation creation, editing, visual polish, HTML decks, and PPTX export",
+              "slide deck creation and export workflows",
+            ),
+            color: "warning",
+          },
+          "docs-agent": {
+            name: "docs-agent",
+            description: "Document specialist for Word documents, PDFs, Markdown, TXT, and formatted deliverables.",
+            options: { openswarm: true },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({ ...DENY_META_TOOLS, docs: "allow" }),
+              user,
+            ),
+            mode: "subagent",
+            native: true,
+            prompt: specialistPrompt(
+              "Docs Agent",
+              "formatted documents, Word files, PDFs, Markdown, TXT, outlines, and conversions",
+              "document creation and export workflows",
+            ),
+            color: "secondary",
+          },
+          "image-generation-agent": {
+            name: "image-generation-agent",
+            description: "Image specialist for generation, editing, composition, and visual asset creation.",
+            options: { openswarm: true },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({ ...DENY_META_TOOLS, image_generation: "allow" }),
+              user,
+            ),
+            mode: "subagent",
+            native: true,
+            prompt: specialistPrompt(
+              "Image Generation Agent",
+              "image generation, image editing, composition, and visual asset creation",
+              "Gemini/fal-style image generation and editing workflows",
+            ),
+            color: "primary",
+          },
+          "video-generation-agent": {
+            name: "video-generation-agent",
+            description: "Video specialist for generation, editing, assembly, and clip composition.",
+            options: { openswarm: true },
+            permission: Permission.merge(
+              defaults,
+              Permission.fromConfig({ ...DENY_META_TOOLS, video_generation: "allow" }),
+              user,
+            ),
+            mode: "subagent",
+            native: true,
+            prompt: specialistPrompt(
+              "Video Generation Agent",
+              "video generation, editing, assembly, clip composition, and media workflows",
+              "Sora/Veo/Seedance/fal-style video generation and editing workflows",
+            ),
+            color: "error",
           },
         }
 
@@ -349,10 +531,8 @@ export const layer = Layer.effect(
             if (agent.hidden === true) throw new Error(`default agent "${c.default_agent}" is hidden`)
             return agent.name
           }
-          if (preferredPrimary === "chat") {
-            const chat = agents.chat
-            if (chat && chat.mode !== "subagent" && chat.hidden !== true) return chat.name
-          }
+          const preferred = agents[preferredPrimary]
+          if (preferred && preferred.mode !== "subagent" && preferred.hidden !== true) return preferred.name
           const visible = Object.values(agents).find((a) => a.mode !== "subagent" && a.hidden !== true)
           if (!visible) throw new Error("no primary visible agent found")
           return visible.name

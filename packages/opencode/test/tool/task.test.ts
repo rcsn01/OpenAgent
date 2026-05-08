@@ -154,6 +154,10 @@ describe("tool.task", () => {
           expect(first).toEqual(second)
           expect(buildTools.find((tool) => tool.id === BackgroundTaskTool.id)).toBeUndefined()
           expect(ids).toEqual(expect.arrayContaining(["background_task", "background_task_cancel", "background_task_get", "background_task_list", "task"]))
+          expect(first.task).not.toContain("- build:")
+          expect(first.task).not.toContain("- plan:")
+          expect(first.task).not.toContain("- assistant:")
+          expect(first.task).not.toContain("- chat:")
 
           const alpha = first.task.indexOf("- alpha: Alpha agent")
           const explore = first.task.indexOf("- explore:")
@@ -194,9 +198,10 @@ describe("tool.task", () => {
           const registry = yield* ToolRegistry.Service
           const buildTools = yield* registry.tools({ ...ref, agent: build })
           const assistantTools = yield* registry.tools({ ...ref, agent: assistant })
-          const description = buildTools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
+          const description = assistantTools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
           const backgroundDescription = assistantTools.find((tool) => tool.id === BackgroundTaskTool.id)?.description ?? ""
 
+          expect(buildTools.find((tool) => tool.id === TaskTool.id)).toBeUndefined()
           expect(description).toContain("- alpha: Alpha agent")
           expect(description).not.toContain("- zebra: Zebra agent")
           expect(backgroundDescription).toContain("- alpha: Alpha agent")
@@ -225,16 +230,19 @@ describe("tool.task", () => {
     ),
   )
 
-  it.live("build agent does not receive graph tools while assistant does", () =>
+  it.live("only assistant receives task and background task tools", () =>
     provideTmpdirInstance(() =>
       Effect.gen(function* () {
         const agent = yield* Agent.Service
         const build = yield* agent.get("build")
+        const plan = yield* agent.get("plan")
         const assistant = yield* agent.get("assistant")
         const registry = yield* ToolRegistry.Service
         const buildIDs = new Set((yield* registry.tools({ ...ref, agent: build })).map((tool) => tool.id))
+        const planIDs = new Set((yield* registry.tools({ ...ref, agent: plan })).map((tool) => tool.id))
         const assistantIDs = new Set((yield* registry.tools({ ...ref, agent: assistant })).map((tool) => tool.id))
 
+        expect(buildIDs.has(TaskTool.id)).toBe(false)
         expect(buildIDs.has(BackgroundTaskTool.id)).toBe(false)
         expect(buildIDs.has(BackgroundTaskGraphTool.id)).toBe(false)
         expect(buildIDs.has(BackgroundTaskListTool.id)).toBe(false)
@@ -244,6 +252,11 @@ describe("tool.task", () => {
         expect(buildIDs.has(BackgroundTaskGraphGetTool.id)).toBe(false)
         expect(buildIDs.has(BackgroundTaskGraphCancelTool.id)).toBe(false)
 
+        expect(planIDs.has(TaskTool.id)).toBe(false)
+        expect(planIDs.has(BackgroundTaskTool.id)).toBe(false)
+        expect(planIDs.has(BackgroundTaskGraphTool.id)).toBe(false)
+
+        expect(assistantIDs.has(TaskTool.id)).toBe(true)
         expect(assistantIDs.has(BackgroundTaskTool.id)).toBe(true)
         expect(assistantIDs.has(BackgroundTaskGraphTool.id)).toBe(true)
         expect(assistantIDs.has(BackgroundTaskListTool.id)).toBe(true)
@@ -292,6 +305,41 @@ describe("tool.task", () => {
         expect(result.metadata.sessionId).toBe(child.id)
         expect(result.output).toContain(`task_id: ${child.id}`)
         expect(seen?.sessionID).toBe(child.id)
+      }),
+    ),
+  )
+
+  it.live("execute rejects primary agents as subagents", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        const promptOps = stubOps()
+
+        for (const name of ["build", "plan", "assistant", "chat", "orchestrator"]) {
+          const exit = yield* def
+            .execute(
+              {
+                description: "blocked spawn",
+                prompt: "try to run",
+                subagent_type: name,
+              },
+              {
+                sessionID: chat.id,
+                messageID: assistant.id,
+                agent: "assistant",
+                abort: new AbortController().signal,
+                extra: { promptOps, bypassAgentCheck: true },
+                messages: [],
+                metadata: () => Effect.void,
+                ask: () => Effect.void,
+              },
+            )
+            .pipe(Effect.exit)
+
+          expect(exit._tag).toBe("Failure")
+        }
       }),
     ),
   )

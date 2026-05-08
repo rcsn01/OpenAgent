@@ -19,8 +19,7 @@ So the rule is:
 
 | Agent | Mode | Prompt File | What It Does |
 |-------|------|-------------|--------------|
-| `assistant` | `primary` | `packages/opencode/src/agent/prompt/assistant.txt` | Extends the provider prompt with delegation guidance and background-task workflows |
-| `chat` | `primary` | `packages/opencode/src/agent/prompt/chat.txt` | Extends the provider prompt for GUI chat sessions, artifact creation, and hidden-workspace chat flows |
+| `assistant` | `primary` | `packages/opencode/src/agent/prompt/assistant.txt` plus native OpenSwarm routing guidance in `agent.ts` | Extends the provider prompt with delegation, background-task, specialist routing, `send_message`, and `transfer` guidance |
 | `explore` | `subagent` | `packages/opencode/src/agent/prompt/explore.txt` | Fast codebase exploration: grep, glob, list, bash, web — quick/medium/very-thorough modes |
 | `compaction` | `primary` (hidden) | `packages/opencode/src/agent/prompt/compaction.txt` | Summarizes long tool outputs into compact form |
 | `title` | `primary` (hidden) | `packages/opencode/src/agent/prompt/title.txt` | Generates short conversation titles |
@@ -36,7 +35,23 @@ So the rule is:
 
 These agents rely on provider prompts + permissions to define behavior.
 
-For a runtime-focused comparison of the 4 main primary agents, see [[Prompt System/Primary Agents]].
+The native `chat` agent was removed. The shared GUI chat profile still exists, but hidden general-chat workspaces now default to `assistant`.
+
+## OpenSwarm Specialist Prompts
+
+OpenSwarm-style specialist prompts are built in `packages/opencode/src/agent/agent.ts` rather than separate prompt files.
+
+| Agent | Mode | What It Does |
+|-------|------|--------------|
+| `virtual-assistant` | `subagent` | Everyday assistant workflows, external systems, messaging, scheduling, Composio integrations |
+| `deep-research` | `subagent` | Evidence-based web research, citations, source-backed synthesis |
+| `data-analyst` | `subagent` | Structured data analysis, charts, KPIs, statistical summaries |
+| `slides-agent` | `subagent` | HTML slide decks and PPTX exports |
+| `docs-agent` | `subagent` | Word/PDF/Markdown/TXT documents and formatted deliverables |
+| `image-generation-agent` | `subagent` | Image generation, editing, and visual assets |
+| `video-generation-agent` | `subagent` | Video generation, editing, assembly, and clip workflows |
+
+For a runtime-focused comparison of the main primary agents, see [[Prompt System/Primary Agents]].
 
 ## Agent Definition Schema
 
@@ -129,3 +144,5 @@ Give that specific agent its own `prompt`. This is good for:
 ### Extend Provider Prompt
 
 The `assistant` agent sets `options.extend_provider_prompt: true`, which means it keeps the provider prompt and appends its own. This is useful when you want provider-specific conventions (e.g., GPT's formatting rules) plus custom behavior.
+
+For the native specialist-routing architecture, see [[Architecture/Native OpenSwarm Integration]].

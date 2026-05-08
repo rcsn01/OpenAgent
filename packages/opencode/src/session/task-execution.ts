@@ -1,4 +1,5 @@
 import { Agent } from "@/agent/agent"
+import { isSpawnableAgent, spawnableAgentError } from "@/agent/spawnable"
 import { Config } from "@/config/config"
 import { ModelID, ProviderID } from "@/provider/schema"
 import type { Permission } from "@/permission"
@@ -96,6 +97,7 @@ export const layer = Layer.effect(
       if (!next) {
         return yield* Effect.fail(new Error(`Unknown agent type: ${input.task.subagent_type} is not a valid agent type`))
       }
+      if (!isSpawnableAgent(next)) return yield* Effect.fail(spawnableAgentError(next.name))
 
       const canTask = next.permission.some((rule) => rule.permission === taskPermission)
       const canTodo = next.permission.some((rule) => rule.permission === "todowrite")

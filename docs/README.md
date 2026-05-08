@@ -12,7 +12,7 @@ How the system prompt is assembled layer by layer.
 - [[Prompt System/Overview]] — the mental model and why the stack matters
 - [[Prompt System/Base Prompt]] — provider prompts (GPT, Claude, Gemini, Kimi, etc.)
 - [[Prompt System/Agent Prompts]] — built-in agents, custom agents, config-driven agents
-- [[Prompt System/Primary Agents]] — the 4 main user-facing agents: `build`, `assistant`, `chat`, and `plan`
+- [[Prompt System/Primary Agents]] — the main user-facing agents: `build`, `assistant`, and `plan`
 - [[Prompt System/Instructions]] — AGENTS.md, remote instructions, dynamic file-walk rules
 - [[Prompt System/Skills]] — skill discovery, loading, and the `skill` tool
 - [[Prompt System/Permission System]] — how permissions constrain behaviour outside prompts
@@ -68,3 +68,4 @@ Local development setup and coding conventions.
 System design documents.
 
 - [[Architecture/Background Task Graph Design]] — DAG-based background task graph system design
+- [[Architecture/Native OpenSwarm Integration]] — native specialist routing, assistant-only delegation, per-user OAuth, and artifact-producing specialist tools

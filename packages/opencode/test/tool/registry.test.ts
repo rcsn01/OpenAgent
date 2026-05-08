@@ -21,7 +21,7 @@ const baseCtx: Omit<Tool.Context, "ask"> = {
   sessionID: SessionID.make("ses_test"),
   messageID: MessageID.make(""),
   callID: "",
-  agent: "chat",
+  agent: "assistant",
   abort: AbortSignal.any([]),
   messages: [],
   metadata: () => Effect.void,
@@ -187,7 +187,7 @@ describe("tool.registry", () => {
     ),
   )
 
-  it.live("loads and executes shared chat export tools for chat", () =>
+  it.live("loads and executes shared chat export tools for assistant", () =>
     provideTmpdirInstance((dir) =>
       Effect.gen(function* () {
         const prevConfig = Global.Path.config
@@ -320,7 +320,7 @@ describe("tool.registry", () => {
           providerID: "opencode" as any,
           modelID: "gpt-5" as any,
           agent: {
-            name: "chat",
+            name: "assistant",
             mode: "primary",
             permission: [],
             options: {
