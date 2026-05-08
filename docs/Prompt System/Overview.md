@@ -53,10 +53,10 @@ If neither an agent prompt nor an instruction file is sufficient, permissions pr
 
 ## Related Notes
 
-- [[Prompt System/Base Prompt]] — how provider prompts are selected
-- [[Prompt System/Agent Prompts]] — how agent prompts override provider prompts
-- [[Prompt System/Instructions]] — how AGENTS.md and remote instructions are loaded
-- [[Prompt System/Skills]] — how skills are discovered and injected
-- [[Prompt System/Permission System]] — hard constraints outside the prompt stack
-- [[Prompt System/Prompt Assembly Flow]] — the exact join order in code
-- [[Prompt System/Provider Prompt Catalog]] — what each provider prompt targets
+- [[Prompt System/Provider Prompts]] — how provider prompts are selected and their full catalog
+- [[Prompt System/Agent Prompts]] — how agent prompts replace or extend provider prompts
+- [[Prompt System/Instructions]] — how AGENTS.md and other files stack
+- [[Prompt System/Skills]] — how skills provide domain-specific instructions
+- [[Prompt System/Prompt Assembly Flow]] — the exact code path and join order
+- [[Agents/Index]] — the main user-facing agent definitions
+- [[Agents/Permission System]] — hard constraints outside the prompt stack

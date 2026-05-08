@@ -195,5 +195,5 @@ When adding a new chat-wide capability:
 ## Related Notes
 
 - [[Extensibility/Implementing Features]] — choosing the right layer
-- [[GUI Chat Mode/Shared Chat Profile]] — where chat-wide files live
+- [[Desktop/Shared Chat Profile]] — where chat-wide files live
 - [[Prompt System/Skills]] — skill discovery and permissions

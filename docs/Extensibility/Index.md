@@ -15,7 +15,7 @@ This section is about the practical extension mechanisms:
 - [[Extensibility/Implementing Features]] — choose the right layer for a new feature
 - [[Extensibility/Plugin Development]] — create a plugin and get chat to use it
 - [[Extensibility/Project-Scoped Extensions]] — add an official app-bundled extension with MCP servers, skills, install UI, OAuth, and tests
-- [[Architecture/Native OpenSwarm Integration]] — per-user integration auth, specialist-owned tools, and assistant-only routing
+- [[Architecture/OpenSwarm Integration]] — per-user integration auth, specialist-owned tools, and assistant-only routing
 
 ## Key Source Files
 

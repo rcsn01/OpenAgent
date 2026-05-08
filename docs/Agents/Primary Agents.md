@@ -14,13 +14,13 @@ These agents are registered in `packages/opencode/src/agent/agent.ts`.
 
 | Agent | Main purpose | Prompt behavior | Tool/capability difference | Default behavior |
 |------|--------------|-----------------|----------------------------|------------------|
-| `build` | Standard coding agent | Uses the provider prompt directly | Full normal toolset, can ask questions, can enter plan mode, and can use blocking `task`; background/swarm tools denied | Default outside hidden chat workspaces |
-| `assistant` | Main coordinator and specialist router | Uses the provider prompt plus `packages/opencode/src/agent/prompt/assistant.txt` and native OpenSwarm routing guidance | Has blocking `task` plus assistant-only background tasks, task graphs, `send_message`, and `transfer` | Default inside hidden general-chat workspaces; selectable elsewhere |
-| `plan` | Planning and analysis mode | Uses the provider prompt, plus plan reminders injected by `session/prompt.ts` | Edits are denied except plan files; delegation/meta tools denied; `plan_exit` is allowed | Selectable primary agent |
+| `build` | Coding agent — code generation, editing, refactoring, debugging | Uses the provider prompt directly | Full normal toolset; can ask questions; can enter plan mode; **blocking `task` allowed**; background/swarm tools denied | Default outside hidden chat workspaces |
+| `assistant` | General-purpose non-coding agent — research, delegation, specialist routing, background work, all new capabilities | Uses the provider prompt plus `assistant.txt` and native OpenSwarm routing guidance | **Blocking `task` allowed** plus assistant-only background tasks, task graphs, `send_message`, and `transfer` | Default inside hidden general-chat workspaces; selectable elsewhere |
+| `plan` | Planning and analysis mode | Uses the provider prompt, plus plan reminders injected by `session/prompt.ts` | Edits denied except `.opencode/plans/*.md`; `plan_exit` allowed; **`task` denied**; all swarm tools denied | Selectable primary agent |
 
 ## Build
 
-`build` is the standard repo-work agent. It does not define a custom agent prompt, so runtime falls back to the provider prompt selected for the current model.
+`build` is the coding agent. It is purpose-built for code generation, editing, refactoring, debugging, and all implementation work. It does not define a custom agent prompt, so the runtime falls back to the provider prompt selected for the current model.
 
 Important traits:
 
@@ -34,7 +34,7 @@ This is the default primary agent in normal workspaces.
 
 ## Assistant
 
-`assistant` is the main user-facing coordinator. It owns the behavior that used to be proposed for a separate OpenSwarm `orchestrator`.
+`assistant` is the general-purpose non-coding agent. It owns research, delegation, specialist routing, background work, and all new capabilities. It should not be used for direct code generation or editing — that belongs to `build`.
 
 Important traits:
 
@@ -45,8 +45,12 @@ Important traits:
 - Unlocks `task`, `background_task`, `background_task_graph`, their management tools, `send_message`, and `transfer`
 - Can use `send_message` with existing `general` and OpenSwarm specialist child sessions by default
 - Must create the needed child session with `task` before `send_message` if none exists
-- Can spawn registered specialist subagents by exact name
+- Can spawn registered specialist subagents by exact name:
+  - `virtual-assistant`, `deep-research`, `data-analyst`, `slides-agent`, `docs-agent`, `image-generation-agent`, `video-generation-agent`
+  - `general`, `explore`
 - Cannot spawn `build`, `plan`, `assistant`, `chat`, or `orchestrator`
+- Default `send_message` recipients: `general` + all 7 specialists
+- Default `transfer` recipients: 7 specialists only (excludes `general`)
 
 Use `assistant` when the user wants delegation, parallel specialist work, background work, or a GUI general-chat session.
 
@@ -107,8 +111,8 @@ There are 3 layers of difference between these agents:
 
 ## Related Notes
 
-- [[Architecture/Native OpenSwarm Integration]] — specialist routing, `send_message`, `transfer`, OAuth, and artifact tools
+- [[Architecture/OpenSwarm Integration]] — specialist routing, `send_message`, `transfer`, OAuth, and artifact tools
 - [[Prompt System/Agent Prompts]] — how prompts are attached to agents
-- [[Prompt System/Permission System]] — how hard tool constraints are enforced
+- [[Agents/Permission System]] — how hard tool constraints are enforced
 - [[Prompt System/Prompt Assembly Flow]] — where these prompts/reminders are joined in runtime
-- [[GUI Chat Mode/Index]] — how hidden chat workspaces now default to `assistant`
+- [[Desktop/Index]] — how hidden chat workspaces now default to `assistant`

@@ -1,4 +1,4 @@
-# Native OpenSwarm Integration
+# OpenSwarm Integration
 
 OpenAgent implements the OpenSwarm-style routing model natively in the TypeScript runtime. It does not vendor Agency Swarm or run OpenSwarm as a Python sidecar.
 
@@ -18,8 +18,8 @@ The system has three layers:
 
 | Agent | Mode | Role |
 |-------|------|------|
-| `build` | `primary` | Standard coding and implementation agent |
-| `assistant` | `primary` | User-facing coordinator with routing, delegation, background tasks, and specialist handoffs |
+| `build` | `primary` | Coding agent — code generation, editing, refactoring, debugging |
+| `assistant` | `primary` | General-purpose non-coding agent — research, delegation, specialist routing, background work, all new capabilities |
 | `plan` | `primary` | Planning mode; normal edits are denied except plan files |
 
 There is no native `chat` agent. GUI general-chat workspaces now default to `assistant`.
@@ -46,17 +46,21 @@ The OpenSwarm-style specialist team is registered as native subagents:
 | `image-generation-agent` | image generation, editing, and visual asset creation |
 | `video-generation-agent` | video generation, editing, assembly, and clip workflows |
 
-`general` is also a built-in subagent. It is a generic provider-prompt subagent with `todowrite` denied. It is useful as a lightweight fallback worker, but it is not one of the OpenSwarm specialists.
+`general` and `explore` are also built-in subagents:
+- `general` is a generic provider-prompt subagent with `todowrite` denied. It is useful as a lightweight fallback worker and is a default `send_message` recipient, but it is not one of the OpenSwarm specialists and is not a `transfer` recipient.
+- `explore` is a fast codebase exploration subagent restricted to `grep`, `glob`, `list`, `bash`, `webfetch`, `websearch`, and `read`. It is spawnable but is not a default communication recipient.
 
 ## Spawn Rules
 
-When `assistant` or `build` spawns a subagent through `task`, the child is not automatically a build agent. The runtime uses the exact requested agent name:
+When `assistant` spawns a subagent through `task`, the child is not automatically a build agent. The runtime uses the exact requested agent name:
 
 - `subagent_type: "deep-research"` creates a Deep Research child session
 - `subagent_type: "docs-agent"` creates a Docs Agent child session
-- `recipient_agent: "slides-agent"` creates a Slides Agent child session
+- `subagent_type: "slides-agent"` creates a Slides Agent child session
 
 The requested agent must be registered and spawnable. The runtime rejects primary or blocked agents.
+
+`build` also has opencode-style blocking `task`, but it cannot see or spawn OpenAgent feature specialists. For `build`, `task` is limited to default/custom non-OpenAgent subagents such as `general`, `explore`, or project-defined coding/review agents.
 
 Blocked spawn names:
 
@@ -161,7 +165,8 @@ Current specialist tooling includes:
 - Composio setup-aware Virtual Assistant contracts
 - native research report generation with a source ledger shape
 - local Data Analyst kernel scaffolding with artifact paths and timeout/error reporting
-- native docs and slides artifact helpers
+- native docs artifact helpers
+- OpenSwarm-style Slides Agent workflow: `slides_plan` for storyline, `slides_modify` for per-slide enrichment, then `slides` for editable HTML project, inferred/editorial theme CSS, previews, and valid image-backed PPTX output
 - slide theme management through `slides_theme`
 - slide screenshot previews through `slide_screenshot`
 - slide density and overflow QA through `slide_overflow_check`
@@ -194,6 +199,7 @@ Tool results should return structured metadata and file attachments where possib
 | `packages/opencode/src/integration/auth.ts` | Per-user integration credential service |
 | `packages/opencode/src/server/routes/instance/integration.ts` | Integration OAuth/status APIs |
 | `packages/opencode/src/tool/openswarm/` | Shared OpenSwarm specialist artifact/tool helpers |
+| `packages/opencode/src/tool/openswarm/slides_html.ts` | HTML slide project generation and optional Playwright screenshot export |
 | `packages/opencode/src/tool/openswarm/slide_qa.ts` | Theme tokens, SVG slide previews, and overflow heuristics |
 | `packages/opencode/src/tool/openswarm_stub.ts` | Setup-aware specialist tool implementations |
 

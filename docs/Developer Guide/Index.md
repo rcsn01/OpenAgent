@@ -41,7 +41,7 @@ For subsystem documentation, see:
 
 - [[Prompt System/Index|Prompt System]] — how system prompts are assembled
 - [[Voice Mode/Index|Voice Mode]] — hands-free dictation system
-- [[GUI Chat Mode/Index|GUI Chat Mode]] — `/chat` flow internals
+- [[Desktop/Index|Desktop]] — desktop app and `/chat` flow internals
 - [[Extensibility/Index|Extensibility]] — adding capabilities without core changes
-- [[Architecture/Background Task Graph Design]] — DAG background task design
-- [[Architecture/Native OpenSwarm Integration]] — assistant-coordinated specialist routing, OAuth, and artifact tools
+- [[Architecture/Task Graph]] — DAG background task design
+- [[Architecture/OpenSwarm Integration]] — assistant-coordinated specialist routing, OAuth, and artifact tools

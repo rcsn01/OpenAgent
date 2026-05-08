@@ -247,5 +247,5 @@ They look directory-less in the app, but internally they now combine:
 
 ## Related Notes
 
-- [[GUI Chat Mode/Shared Chat Profile]] — how the shared chat bundle is seeded and extended
+- [[Desktop/Shared Chat Profile]] — how the shared chat bundle is seeded and extended
 - [[Extensibility/Plugin Development]] — how to add plugins/tools that chat can actually use

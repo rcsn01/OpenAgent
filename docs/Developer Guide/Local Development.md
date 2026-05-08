@@ -75,7 +75,7 @@ For detailed documentation on subsystems, see the relevant topics in this Obsidi
 
 - [[Prompt System/Index|Prompt System]] — how system prompts are assembled
 - [[Voice Mode/Index|Voice Mode]] — hands-free dictation system
-- [[GUI Chat Mode/Index|GUI Chat Mode]] — `/chat` flow internals
+- [[Desktop/Index|Desktop]] — `/chat` flow internals
 - [[Extensibility/Index|Extensibility]] — adding capabilities without core changes
-- [[Architecture/Background Task Graph Design]] — DAG background task design
+- [[Architecture/Task Graph]] — DAG background task design
 - [[Developer Guide/Coding Conventions]] — coding style and conventions

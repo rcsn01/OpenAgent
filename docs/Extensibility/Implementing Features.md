@@ -161,5 +161,5 @@ The most common reasons a feature “exists” but chat still does not use it ar
 ## Related Notes
 
 - [[Extensibility/Plugin Development]] — plugin-specific process
-- [[GUI Chat Mode/Shared Chat Profile]] — where to place chat-wide extensions
+- [[Desktop/Shared Chat Profile]] — where to place chat-wide extensions
 - [[Prompt System/Skills]] — how skills are discovered and filtered

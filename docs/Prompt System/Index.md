@@ -18,14 +18,13 @@ final system text =
 ## Contents
 
 - [[Prompt System/Overview]] — the mental model and why the stack matters
-- [[Prompt System/Base Prompt]] — provider prompts (GPT, Claude, Gemini, Kimi, etc.)
+- [[Prompt System/Provider Prompts]] — provider prompt selection and file catalog (GPT, Claude, Gemini, Kimi, etc.)
 - [[Prompt System/Agent Prompts]] — built-in agents, custom agents, config-driven agents
-- [[Prompt System/Primary Agents]] — the main user-facing agents and how `build`, `assistant`, and `plan` differ
 - [[Prompt System/Instructions]] — AGENTS.md, remote instructions, dynamic file-walk rules
 - [[Prompt System/Skills]] — skill discovery, loading, and the `skill` tool
-- [[Prompt System/Permission System]] — how permissions constrain behaviour outside prompts
 - [[Prompt System/Prompt Assembly Flow]] — the exact order things are joined in `llm.ts` and `prompt.ts`
-- [[Prompt System/Provider Prompt Catalog]] — what each provider-specific prompt targets
+
+For agent definitions and tool access rules, see [[Agents/Index]].
 
 ## Key Source Files
 
@@ -37,8 +36,9 @@ final system text =
 | `packages/opencode/src/session/instruction.ts` | AGENTS.md discovery, loading, dynamic rules |
 | `packages/opencode/src/agent/agent.ts` | Agent registry: built-in + config + markdown agents |
 | `packages/opencode/src/skill/index.ts` | Skill discovery, loading, and formatting |
-| `packages/opencode/src/permission/index.ts` | Permission evaluation (`allow`/`deny`/`ask`) |
 
-## Related Architecture
+## Related
 
-- [[Architecture/Native OpenSwarm Integration]] — build/assistant blocking `task`, assistant-only swarm tools, specialist agents, `send_message`, `transfer`, and per-user OAuth
+- [[Agents/Index]] — agent capability matrix and tool access rules
+- [[Agents/Permission System]] — hard permission enforcement for tool access
+- [[Architecture/OpenSwarm Integration]] — assistant-only swarm tools, specialist routing, per-user OAuth

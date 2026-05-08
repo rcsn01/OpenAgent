@@ -109,6 +109,6 @@ That is the path to ship a chat feature in the product itself.
 
 ## Related Notes
 
-- [[GUI Chat Mode/Hidden Workspaces]] — the per-chat workspace layer
+- [[Desktop/Hidden Workspaces]] — the per-chat workspace layer
 - [[Extensibility/Implementing Features]] — choose the right extension layer
 - [[Extensibility/Plugin Development]] — add plugins and make chat use them
