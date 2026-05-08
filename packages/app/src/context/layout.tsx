@@ -792,6 +792,13 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("sidePanel", "active", active)
         }
 
+        function openSidePanel(active: SessionSidePanelMode) {
+          batch(() => {
+            setSidePanelActive(active)
+            setReviewPanelOpened(true)
+          })
+        }
+
         return {
           scroll(tab: string) {
             return scroll.scroll(key(), tab)
@@ -814,16 +821,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           reviewPanel: {
             opened: reviewPanelOpened,
             open() {
-              setSidePanelActive("review")
-              setReviewPanelOpened(true)
+              openSidePanel("review")
             },
             close() {
               setReviewPanelOpened(false)
             },
             toggle() {
               if (sidePanelActive() !== "review") {
-                setSidePanelActive("review")
-                setReviewPanelOpened(true)
+                openSidePanel("review")
                 return
               }
               setReviewPanelOpened(!mainPanelOpened())
@@ -832,16 +837,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           subagents: {
             opened: subagentsPanelOpened,
             open() {
-              setSidePanelActive("subagents")
-              setReviewPanelOpened(true)
+              openSidePanel("subagents")
             },
             close() {
               setReviewPanelOpened(false)
             },
             toggle() {
               if (sidePanelActive() !== "subagents") {
-                setSidePanelActive("subagents")
-                setReviewPanelOpened(true)
+                openSidePanel("subagents")
                 return
               }
               setReviewPanelOpened(!mainPanelOpened())
@@ -850,16 +853,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           extensions: {
             opened: extensionsPanelOpened,
             open() {
-              setSidePanelActive("extensions")
-              setReviewPanelOpened(true)
+              openSidePanel("extensions")
             },
             close() {
               setReviewPanelOpened(false)
             },
             toggle() {
               if (sidePanelActive() !== "extensions") {
-                setSidePanelActive("extensions")
-                setReviewPanelOpened(true)
+                openSidePanel("extensions")
                 return
               }
               setReviewPanelOpened(!mainPanelOpened())

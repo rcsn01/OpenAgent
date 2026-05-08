@@ -30,11 +30,14 @@ export function SessionComposerRegion(props: {
     queue: () => boolean
     items: { id: string; text: string }[]
     sending?: string
+    autoSendPaused?: boolean
     edit?: { id: string; prompt: FollowupDraft["prompt"]; context: FollowupDraft["context"] }
     onQueue: (draft: FollowupDraft) => void
     onAbort: () => void
     onSend: (id: string) => void
+    onDelete: (id: string) => void
     onEdit: (id: string) => void
+    onToggleAutoSend: () => void
     onEditLoaded: () => void
   }
   revert?: {
@@ -242,8 +245,11 @@ export function SessionComposerRegion(props: {
                 <SessionFollowupDock
                   items={props.followup!.items}
                   sending={props.followup!.sending}
+                  autoSendPaused={props.followup!.autoSendPaused}
                   onSend={props.followup!.onSend}
+                  onDelete={props.followup!.onDelete}
                   onEdit={props.followup!.onEdit}
+                  onToggleAutoSend={props.followup!.onToggleAutoSend}
                 />
               </Show>
               <Show

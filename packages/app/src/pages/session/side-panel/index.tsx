@@ -53,12 +53,12 @@ export function SessionSidePanel(props: {
         class="relative min-w-0 h-full flex shrink-0 overflow-hidden bg-background-base"
         classList={{
           "pointer-events-none": !open(),
-          "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
+          "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
             !props.size.active() && !props.reviewSnap,
         }}
         style={{ width: panelWidth() }}
       >
-        <div class="size-full flex border-l border-border-weaker-base">
+        <div class="size-full flex border-l border-border-weaker-base bg-background-base">
           <Switch>
             <Match when={extensionsOpen()}>
               <SessionExtensionsPanel />

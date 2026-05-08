@@ -346,13 +346,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const suggest = createMemo(() => !hasUserPrompt())
 
   const defaultPlaceholder = createMemo(() =>
-    promptPlaceholder({
-      mode: store.mode,
-      commentCount: commentCount(),
-      example: suggest() ? (store.mode === "shell" ? "git status" : language.t(EXAMPLES[store.placeholder])) : "",
-      suggest: suggest(),
-      t: (key, params) => language.t(key as Parameters<typeof language.t>[0], params as never),
-    }),
+    props.shouldQueue?.()
+      ? language.t("prompt.placeholder.followup")
+      : promptPlaceholder({
+          mode: store.mode,
+          commentCount: commentCount(),
+          example: suggest() ? (store.mode === "shell" ? "git status" : language.t(EXAMPLES[store.placeholder])) : "",
+          suggest: suggest(),
+          t: (key, params) => language.t(key as Parameters<typeof language.t>[0], params as never),
+        }),
   )
 
   const historyComments = () => {

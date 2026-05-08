@@ -1642,7 +1642,7 @@ export default function Page() {
   const queueEnabled = createMemo(() => {
     const id = params.id
     if (!id) return false
-    return settings.general.followup() === "queue" && busy(id) && !composer.blocked() && !isChildSession()
+    return busy(id) && !composer.blocked() && !isChildSession()
   })
 
   const followupText = (item: FollowupDraft) => {
@@ -1699,10 +1699,34 @@ export default function Page() {
     })
   }
 
+  const deleteFollowup = (id: string) => {
+    const sessionID = params.id
+    if (!sessionID) return
+    if (followupBusy(sessionID)) return
+
+    setFollowup("items", sessionID, (items) => (items ?? []).filter((entry) => entry.id !== id))
+    setFollowup("failed", sessionID, (value) => (value === id ? undefined : value))
+    setFollowup("edit", sessionID, (value) => (value?.id === id ? undefined : value))
+    const remaining = (followup.items[sessionID] ?? []).filter((entry) => entry.id !== id)
+    if (remaining.length === 0) setFollowup("paused", sessionID, undefined)
+  }
+
   const clearFollowupEdit = () => {
     const id = params.id
     if (!id) return
     setFollowup("edit", id, undefined)
+  }
+
+  const pauseFollowupAutoSend = () => {
+    const id = params.id
+    if (!id) return
+    setFollowup("paused", id, true)
+  }
+
+  const toggleFollowupAutoSend = () => {
+    const id = params.id
+    if (!id) return
+    setFollowup("paused", id, (value) => (value ? undefined : true))
   }
 
   const halt = (sessionID: string) =>
@@ -1916,7 +1940,7 @@ export default function Page() {
         <div
           classList={{
             "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-stronger flex-1 md:flex-none": true,
-            "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
+            "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
               !size.active() && !ui.reviewSnap,
           }}
           style={{
@@ -1993,17 +2017,16 @@ export default function Page() {
                     queue: queueEnabled,
                     items: followupDock(),
                     sending: sendingFollowup(),
+                    autoSendPaused: !!followup.paused[params.id],
                     edit: editingFollowup(),
                     onQueue: queueFollowup,
-                    onAbort: () => {
-                      const id = params.id
-                      if (!id) return
-                      setFollowup("paused", id, true)
-                    },
+                    onAbort: pauseFollowupAutoSend,
                     onSend: (id) => {
                       void sendFollowup(params.id!, id, { manual: true })
                     },
+                    onDelete: deleteFollowup,
                     onEdit: editFollowup,
+                    onToggleAutoSend: toggleFollowupAutoSend,
                     onEditLoaded: clearFollowupEdit,
                   }
                 : undefined
