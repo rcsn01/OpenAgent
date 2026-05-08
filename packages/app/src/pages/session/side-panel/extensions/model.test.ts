@@ -183,6 +183,12 @@ describe("buildExtensionsPanelModel", () => {
               command: ["uvx", "workspace-mcp"],
             },
           },
+          skills: [
+            {
+              path: "skills/calendar/SKILL.md",
+              content: "---\nname: google-calendar:general\ndescription: Manage calendar workflows\n---\n",
+            },
+          ],
         }),
       ],
       installed: [],
@@ -199,5 +205,12 @@ describe("buildExtensionsPanelModel", () => {
     expect(model[0]?.servers[0]?.action).toBe("connect")
     expect(model[0]?.search).toContain("GOOGLE_OAUTH_CLIENT_ID")
     expect(model[0]?.search).toContain("Workspace MCP docs")
+    expect(model[0]?.skills).toEqual([
+      {
+        name: "google-calendar:general",
+        description: "Manage calendar workflows",
+        location: "skills/calendar/SKILL.md",
+      },
+    ])
   })
 })

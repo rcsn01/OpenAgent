@@ -6,6 +6,11 @@ export type InstalledExtensionServer = InstalledExtension["servers"][number]
 export type ExtensionPanelServer = InstalledExtensionServer & {
   action: "authenticate" | "connect" | "disconnect"
 }
+export type ExtensionPanelSkill = {
+  name: string
+  description?: string
+  location?: string
+}
 export type ExtensionPanelItem = {
   id: string
   name: string
@@ -21,7 +26,7 @@ export type ExtensionPanelItem = {
   search: string
   bundle?: ExtensionBundle
   servers: ExtensionPanelServer[]
-  skills: InstalledExtension["skills"]
+  skills: ExtensionPanelSkill[]
 }
 
 function setupSearch(setup?: ExtensionSetup) {
@@ -42,6 +47,30 @@ function installBundle(item: ExtensionRegistryEntry): ExtensionBundle {
     mcp: item.mcp,
     skills: item.skills,
   }
+}
+
+function frontmatterValue(content: string, key: string) {
+  const match = content.match(new RegExp(`^${key}:\\s*(.+)$`, "m"))
+  return match?.[1]?.trim()
+}
+
+function registrySkills(bundle?: ExtensionRegistryEntry | ExtensionBundle): ExtensionPanelSkill[] {
+  return (bundle?.skills ?? []).map((skill) => ({
+    name: frontmatterValue(skill.content, "name") ?? skill.path,
+    description: frontmatterValue(skill.content, "description"),
+    location: skill.path,
+  }))
+}
+
+function installedSkills(item: InstalledExtension, bundle?: ExtensionRegistryEntry): ExtensionPanelSkill[] {
+  if (item.skills.length > 0) {
+    return item.skills.map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      location: skill.location,
+    }))
+  }
+  return registrySkills(bundle)
 }
 
 function isOAuthCapable(config: ExtensionBundle["mcp"][string] | undefined) {
@@ -93,7 +122,7 @@ function installedItem(
       .join(" "),
     bundle: bundle ? installBundle(bundle) : undefined,
     servers,
-    skills: item.skills,
+    skills: installedSkills(item, bundle),
   }
 }
 
@@ -116,7 +145,7 @@ function availableItem(item: ExtensionRegistryEntry): ExtensionPanelItem {
       tools: [],
       action: "connect" as const,
     })),
-    skills: [],
+    skills: registrySkills(item),
   }
 }
 
