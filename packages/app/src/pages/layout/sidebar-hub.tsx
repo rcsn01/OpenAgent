@@ -8,10 +8,14 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { type LocalProject } from "@/context/layout"
+import { useNotification } from "@/context/notification"
+import { usePermission } from "@/context/permission"
 import { pathKey } from "@/utils/path-key"
 import { sessionTitle } from "@/utils/session-title"
+import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { displayName } from "./helpers"
 import { ProjectActionsMenu } from "./project-actions-menu"
 
@@ -48,6 +52,63 @@ const compactRelativeTime = (value: number) => {
   if (weeks < 5) return `${weeks}w`
 
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+}
+
+type SessionActivityGlow = "working" | "done" | "needs-input" | "failed" | undefined
+
+const ProjectSessionButton = (props: {
+  session: Session
+  active: Accessor<boolean>
+  onOpen: () => void
+}) => {
+  const globalSync = useGlobalSync()
+  const notification = useNotification()
+  const permission = usePermission()
+  const [sessionStore] = globalSync.child(props.session.directory, { bootstrap: false })
+  const messages = createMemo(() => sessionStore.message[props.session.id] ?? [])
+  const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
+  const hasPermissions = createMemo(() => {
+    return !!sessionPermissionRequest(sessionStore.session, sessionStore.permission, props.session.id, (item) => {
+      return !permission.autoResponds(item, props.session.directory)
+    })
+  })
+  const hasError = createMemo(() => notification.session.unseenHasError(props.session.id))
+  const isWorking = createMemo(() => {
+    if (hasPermissions() || hasError()) return false
+    const pending = messages().findLast(
+      (message) =>
+        message.role === "assistant" &&
+        typeof (message as { time?: { completed?: unknown } }).time?.completed !== "number",
+    )
+    const status = sessionStore.session_status[props.session.id]
+    return pending !== undefined || (status !== undefined && status.type !== "idle")
+  })
+  const glow = createMemo<SessionActivityGlow>(() => {
+    if (hasError()) return "failed"
+    if (hasPermissions()) return "needs-input"
+    if (isWorking()) return "working"
+    if (unseenCount() > 0) return "done"
+    return undefined
+  })
+
+  return (
+    <button
+      type="button"
+      data-component="sidebar-session-row"
+      data-session-glow={glow()}
+      class="flex w-full items-center gap-2 rounded-[18px] px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover"
+      classList={{
+        "bg-surface-base-active": props.active() && glow() !== "working",
+        "hover:bg-transparent": glow() === "working",
+      }}
+      onClick={props.onOpen}
+    >
+      <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
+        {sessionTitle(props.session.title) || getFilename(props.session.directory)}
+      </span>
+      <span class="type-prose-md shrink-0 text-text-weak">{compactRelativeTime(updatedAt(props.session))}</span>
+    </button>
+  )
 }
 
 const SidebarAction = (props: {
@@ -197,19 +258,11 @@ const ProjectSection = (props: {
                             pathKey(props.currentDir()) === pathKey(session.directory)
 
                           return (
-                            <button
-                              type="button"
-                              class="flex w-full items-center gap-2 rounded-2xl px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover"
-                              classList={{ "bg-surface-base-active": active() }}
-                              onClick={() => props.onOpenSession(session)}
-                            >
-                              <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
-                                {sessionTitle(session.title) || getFilename(session.directory)}
-                              </span>
-                              <span class="type-prose-md shrink-0 text-text-weak">
-                                {compactRelativeTime(updatedAt(session))}
-                              </span>
-                            </button>
+                            <ProjectSessionButton
+                              session={session}
+                              active={active}
+                              onOpen={() => props.onOpenSession(session)}
+                            />
                           )
                         }}
                       </For>

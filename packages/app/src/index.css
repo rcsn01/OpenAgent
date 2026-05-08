@@ -48,6 +48,78 @@
     will-change: clip-path;
   }
 
+  @keyframes sidebar-session-working-glow {
+    0% {
+      transform: translateX(-110%);
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateX(280%);
+      opacity: 1;
+    }
+  }
+
+  [data-component="sidebar-session-row"] {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  [data-component="sidebar-session-row"] > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  [data-component="sidebar-session-row"]::before,
+  [data-component="sidebar-session-row"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 160ms ease;
+  }
+
+  [data-component="sidebar-session-row"]::before,
+  [data-component="sidebar-session-row"]::after {
+    border-radius: inherit;
+  }
+
+  [data-component="sidebar-session-row"][data-session-glow="done"]::before {
+    opacity: 1;
+    background: rgb(from var(--icon-success-base) r g b / 0.22);
+    box-shadow: none;
+  }
+
+  [data-component="sidebar-session-row"][data-session-glow="needs-input"]::before {
+    opacity: 1;
+    background: rgb(from var(--icon-success-base) r g b / 0.22);
+    box-shadow: none;
+  }
+
+  [data-component="sidebar-session-row"][data-session-glow="failed"]::before {
+    opacity: 1;
+    background: rgb(from var(--icon-success-base) r g b / 0.22);
+    box-shadow: none;
+  }
+
+  [data-component="sidebar-session-row"][data-session-glow="working"]::before {
+    opacity: 1;
+    background: var(--background-base);
+    box-shadow: none;
+  }
+
+  [data-component="sidebar-session-row"][data-session-glow="working"]::after {
+    width: 42%;
+    opacity: 1;
+    background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.03) 8%, rgb(255 255 255 / 0.07) 16%, rgb(255 255 255 / 0.13) 24%, rgb(255 255 255 / 0.22) 32%, rgb(255 255 255 / 0.34) 40%, rgb(255 255 255 / 0.54) 47%, rgb(255 255 255 / 0.72) 50%, rgb(255 255 255 / 0.54) 53%, rgb(255 255 255 / 0.34) 60%, rgb(255 255 255 / 0.22) 68%, rgb(255 255 255 / 0.13) 76%, rgb(255 255 255 / 0.07) 84%, rgb(255 255 255 / 0.03) 92%, transparent 100%);
+    filter: blur(6px);
+    animation: sidebar-session-working-glow 1.55s linear infinite;
+    box-shadow: 0 0 24px rgb(255 255 255 / 0.24);
+    will-change: transform, opacity;
+  }
+
   [data-component="getting-started"] {
     container-type: inline-size;
     container-name: getting-started;
