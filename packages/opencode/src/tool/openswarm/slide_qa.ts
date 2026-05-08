@@ -24,13 +24,13 @@ export type OverflowIssue = {
 }
 
 const DEFAULT_THEME: Required<ThemeSpec> = {
-  name: "OpenAgent Clean",
-  background: "#ffffff",
-  foreground: "#172033",
-  accent: "#2563eb",
-  fontFamily: "Arial",
-  titleSize: 34,
-  bodySize: 20,
+  name: "OpenAgent Editorial",
+  background: "#101418",
+  foreground: "#F4F1EA",
+  accent: "#35D0BA",
+  fontFamily: "Aptos",
+  titleSize: 44,
+  bodySize: 22,
 }
 
 function escapeXml(value: string) {
@@ -67,8 +67,30 @@ export function normalizeTheme(input?: ThemeSpec): Required<ThemeSpec> {
   }
 }
 
+function hasVisualTheme(input?: ThemeSpec) {
+  return !!input && Object.keys(input).some((key) => key !== "name" && input[key as keyof ThemeSpec] !== undefined)
+}
+
+export function inferTheme(input?: { task?: string; title?: string; theme?: ThemeSpec }) {
+  if (hasVisualTheme(input?.theme)) return normalizeTheme(input?.theme)
+  const text = `${input?.task ?? ""} ${input?.title ?? ""} ${input?.theme?.name ?? ""}`.toLowerCase()
+  if (/(dark|ai|agent|cli|code|developer|deepseek|kimi|technical|platform)/.test(text)) {
+    return normalizeTheme({
+      ...input?.theme,
+      name: input?.theme?.name ?? "Editorial Tech",
+      background: "#0B1117",
+      foreground: "#F6F2E8",
+      accent: /(comparison| vs |versus)/.test(text) ? "#8B5CF6" : "#35D0BA",
+      fontFamily: "Aptos",
+      titleSize: 46,
+      bodySize: 21,
+    })
+  }
+  return normalizeTheme(input?.theme)
+}
+
 export function themeCssVariables(input?: ThemeSpec) {
-  const theme = normalizeTheme(input)
+  const theme = inferTheme({ theme: input })
   return {
     "--slide-bg": theme.background,
     "--slide-fg": theme.foreground,
@@ -80,43 +102,71 @@ export function themeCssVariables(input?: ThemeSpec) {
 }
 
 export function renderSlideSvg(input: { slide: SlidePreviewSpec; theme?: ThemeSpec; index?: number }) {
-  const theme = normalizeTheme(input.theme)
+  const theme = inferTheme({ theme: input.theme, title: input.slide.title })
   const width = 1280
   const height = 720
-  const titleLines = wrapWords(input.slide.title, 34, 2)
-  const bodyLines = wrapWords(input.slide.body ?? "", 68, 5)
-  const bullets = (input.slide.bullets ?? []).slice(0, 7)
-  const titleSize = Math.max(20, Math.min(theme.titleSize, 56))
-  const bodySize = Math.max(14, Math.min(theme.bodySize, 32))
-  const bulletStartY = 275 + bodyLines.length * (bodySize + 10)
+  const isDivider = !input.slide.body && !(input.slide.bullets?.length)
+  const titleLines = wrapWords(input.slide.title, isDivider ? 22 : 32, isDivider ? 3 : 2)
+  const bodyLines = wrapWords(input.slide.body ?? "", 62, 5)
+  const bullets = (input.slide.bullets ?? []).slice(0, 8)
+  const titleSize = Math.max(24, Math.min(theme.titleSize, isDivider ? 64 : 54))
+  const bodySize = Math.max(15, Math.min(theme.bodySize, 30))
+  const bulletStartY = 285 + bodyLines.length * (bodySize + 12)
   const label = input.index === undefined ? "" : `Slide ${input.index + 1}`
+  const accent = escapeXml(theme.accent)
+  const background = escapeXml(theme.background)
+  const foreground = escapeXml(theme.foreground)
+  const font = escapeXml(theme.fontFamily)
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
+  if (isDivider) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="${width}" height="${height}" fill="${escapeXml(theme.background)}"/>
-  <rect x="0" y="0" width="18" height="${height}" fill="${escapeXml(theme.accent)}"/>
-  <text x="70" y="64" font-family="${escapeXml(theme.fontFamily)}" font-size="18" fill="${escapeXml(theme.accent)}">${escapeXml(label || theme.name)}</text>
+  <rect width="${width}" height="${height}" fill="${background}"/>
+  <rect x="68" y="74" width="92" height="6" rx="3" fill="${accent}"/>
+  <text x="68" y="118" font-family="${font}" font-size="18" font-weight="700" fill="${accent}">${escapeXml(label || theme.name)}</text>
+  <text x="940" y="600" font-family="${font}" font-size="170" font-weight="700" opacity="0.10" fill="${foreground}">${escapeXml(String((input.index ?? 0) + 1).padStart(2, "0"))}</text>
   ${titleLines
     .map(
       (line, i) =>
-        `<text x="70" y="${145 + i * (titleSize + 8)}" font-family="${escapeXml(theme.fontFamily)}" font-size="${titleSize}" font-weight="700" fill="${escapeXml(theme.foreground)}">${escapeXml(line)}</text>`,
+        `<text x="68" y="${300 + i * (titleSize + 12)}" font-family="${font}" font-size="${titleSize}" font-weight="800" fill="${foreground}">${escapeXml(line)}</text>`,
+    )
+    .join("\n  ")}
+  <rect x="68" y="642" width="1144" height="1" fill="${accent}" opacity="0.45"/>
+</svg>
+`
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="${width}" height="${height}" fill="${background}"/>
+  <rect x="48" y="50" width="1184" height="620" rx="24" fill="${foreground}" opacity="0.06"/>
+  <rect x="70" y="72" width="78" height="6" rx="3" fill="${accent}"/>
+  <text x="70" y="116" font-family="${font}" font-size="17" font-weight="700" fill="${accent}">${escapeXml(label || theme.name)}</text>
+  ${titleLines
+    .map(
+      (line, i) =>
+        `<text x="70" y="${178 + i * (titleSize + 8)}" font-family="${font}" font-size="${titleSize}" font-weight="800" fill="${foreground}">${escapeXml(line)}</text>`,
     )
     .join("\n  ")}
   ${bodyLines
     .map(
       (line, i) =>
-        `<text x="84" y="${260 + i * (bodySize + 10)}" font-family="${escapeXml(theme.fontFamily)}" font-size="${bodySize}" fill="${escapeXml(theme.foreground)}">${escapeXml(line)}</text>`,
+        `<text x="82" y="${262 + i * (bodySize + 12)}" font-family="${font}" font-size="${bodySize}" fill="${foreground}" opacity="0.86">${escapeXml(line)}</text>`,
     )
     .join("\n  ")}
   ${bullets
     .flatMap((bullet, i) => {
-      const y = bulletStartY + i * (bodySize + 16)
-      const lines = wrapWords(bullet, 66, 2)
+      const priorLines = bullets
+        .slice(0, i)
+        .reduce((sum, prior) => sum + wrapWords(prior, 58, 2).length, 0)
+      const y = bulletStartY + i * 20 + priorLines * (bodySize + 10)
+      const lines = wrapWords(bullet, 58, 2)
       return [
-        `<circle cx="91" cy="${y - 8}" r="5" fill="${escapeXml(theme.accent)}"/>`,
+        `<rect x="82" y="${y - 23}" width="1010" height="${Math.max(42, lines.length * (bodySize + 10) + 14)}" rx="14" fill="${foreground}" opacity="${i === 0 ? "0.11" : "0.045"}"/>`,
+        `<circle cx="108" cy="${y - 8}" r="5" fill="${accent}"/>`,
         ...lines.map(
           (line, lineIndex) =>
-            `<text x="114" y="${y + lineIndex * (bodySize + 8)}" font-family="${escapeXml(theme.fontFamily)}" font-size="${bodySize}" fill="${escapeXml(theme.foreground)}">${escapeXml(line)}</text>`,
+            `<text x="130" y="${y + lineIndex * (bodySize + 8)}" font-family="${font}" font-size="${bodySize}" fill="${foreground}">${escapeXml(line)}</text>`,
         ),
       ]
     })

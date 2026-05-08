@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { ExperimentalExtensionsListResponse, McpStatus } from "@opencode-ai/sdk/v2/client"
-import { buildExtensionsPanelModel } from "./session-extensions-panel-model"
+import { buildExtensionsPanelModel } from "./model"
 import type { ExtensionRegistryEntry } from "@/extensions/registry"
 
 const registryEntry = (input: Partial<ExtensionRegistryEntry> & Pick<ExtensionRegistryEntry, "id" | "version" | "name">) =>

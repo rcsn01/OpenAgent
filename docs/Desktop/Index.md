@@ -32,7 +32,7 @@ The native `chat` agent has been removed. Hidden general-chat workspaces now use
 | `packages/app/src/context/app-route.tsx` | Resolves `/chat/:id` to the hidden backing directory |
 | `packages/app/src/pages/session-route-host.tsx` | Persistent session shell mounted across route changes |
 | `packages/app/src/context/general-chat-route-cache.ts` | Caches chat-to-directory route metadata |
-| `packages/app/src/pages/session/session-subagents-panel.tsx` | Subagent graph panel UI |
+| `packages/app/src/pages/session/side-panel/subagents/index.tsx` | Subagent graph panel UI |
 | `packages/app/src/pages/layout/sidebar-hub.tsx` | Expanded sidebar with project controls |
 
 ## Related

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { Session, SessionGraphsResponse } from "@opencode-ai/sdk/v2"
-import { buildSubagentsPanelModel } from "./session-subagents-panel-model"
+import { buildSubagentsPanelModel } from "./model"
 
 const session = (input: { id: string; parentID?: string; created?: number; title?: string }): Session => ({
   id: input.id,

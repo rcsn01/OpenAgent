@@ -1,5 +1,5 @@
 import { Agent } from "@/agent/agent"
-import { isSpawnableAgent, spawnableAgentError } from "@/agent/spawnable"
+import { isSpawnableAgentForCaller, spawnableAgentError } from "@/agent/spawnable"
 import { Config } from "@/config/config"
 import { ModelID, ProviderID } from "@/provider/schema"
 import type { Permission } from "@/permission"
@@ -80,6 +80,11 @@ export const layer = Layer.effect(
 
     const prepare: Interface["prepare"] = Effect.fn("TaskExecution.prepare")(function* (input) {
       const cfg = yield* config.get()
+      const message = yield* Effect.sync(() =>
+        MessageV2.get({ sessionID: input.parentSessionID, messageID: input.parentMessageID }),
+      )
+      if (message.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
+      const assistant = message.info
 
       if (!input.bypassAgentCheck) {
         yield* input.ask({
@@ -97,7 +102,7 @@ export const layer = Layer.effect(
       if (!next) {
         return yield* Effect.fail(new Error(`Unknown agent type: ${input.task.subagent_type} is not a valid agent type`))
       }
-      if (!isSpawnableAgent(next)) return yield* Effect.fail(spawnableAgentError(next.name))
+      if (!isSpawnableAgentForCaller(assistant.agent, next)) return yield* Effect.fail(spawnableAgentError(next.name))
 
       const canTask = next.permission.some((rule) => rule.permission === taskPermission)
       const canTodo = next.permission.some((rule) => rule.permission === "todowrite")
@@ -137,12 +142,6 @@ export const layer = Layer.effect(
           ],
         }))
 
-      const message = yield* Effect.sync(() =>
-        MessageV2.get({ sessionID: input.parentSessionID, messageID: input.parentMessageID }),
-      )
-      if (message.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
-
-      const assistant = message.info
       const model = next.model ?? {
         modelID: assistant.modelID,
         providerID: assistant.providerID,

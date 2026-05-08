@@ -9,7 +9,7 @@ Use this skill when the user asks you to commit changes, write a commit message,
 
 ## Process
 
-1. **Read the diffs first.** Use `git status`, `git diff`, and `git diff --cached` to see what changed. Use `git log --oneline -10` to match the repo's commit style.
+1. **Always re-read the latest diffs.** Run `git status`, `git diff`, `git diff --cached`, and `git log --oneline -10` fresh every time — never rely on prior reads from earlier in the conversation. The user may have made changes in a separate session or terminal outside your view.
 2. **Stage files explicitly.** Never use `git commit -a` unless the user says so. Stage only the files relevant to the change.
 3. **Write the message.** Follow the format below. If the user wants to review first, write the message as a proposal.
 

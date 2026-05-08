@@ -406,7 +406,13 @@ export const layer = Layer.effect(
             prompt: specialistPrompt(
               "Slides Agent",
               "presentation creation, editing, visual polish, HTML decks, and PPTX export",
-              "slide deck creation and export workflows",
+              [
+                "OpenSwarm-style slide production workflows.",
+                "Use `slides_plan` to create a substantive storyline before export.",
+                "Use `slides_modify` to enrich individual title-only or weak slides with concrete content.",
+                "Use `slides_theme`, `slide_screenshot`, and `slide_overflow_check` for visual QA.",
+                "Use `slides` only after slides contain body text or concrete bullets; never export a mostly title-only deck.",
+              ].join(" "),
             ),
             color: "warning",
           },

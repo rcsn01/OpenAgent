@@ -11,9 +11,19 @@ import { ModelID, ProviderID } from "@/provider/schema"
 import { allowedRecipients } from "@/agent/communication"
 import { SendMessageTool } from "@/tool/send_message"
 import { TransferTool } from "@/tool/transfer"
-import { ComposioTool, DocsTool, SlideOverflowCheckTool, SlideScreenshotTool, SlidesThemeTool, SlidesTool } from "@/tool/openswarm_stub"
+import {
+  ComposioTool,
+  DocsTool,
+  SlideOverflowCheckTool,
+  SlideScreenshotTool,
+  SlidesModifyTool,
+  SlidesPlanTool,
+  SlidesThemeTool,
+  SlidesTool,
+} from "@/tool/openswarm_stub"
 import { IntegrationAuth } from "@/integration/auth"
 import { OpenSwarmArtifacts } from "@/tool/openswarm/artifact"
+import { validatePptxPackage } from "@/tool/openswarm/office"
 import { ToolRegistry } from "@/tool/registry"
 import { Truncate } from "@/tool/truncate"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
@@ -157,6 +167,8 @@ describe("openswarm native routing", () => {
         const slidesAgent = yield* agents.get("slides-agent")
         const slidesTools = new Set((yield* registry.tools({ ...ref, agent: slidesAgent })).map((tool) => tool.id))
         expect(slidesTools.has("slides")).toBe(true)
+        expect(slidesTools.has("slides_plan")).toBe(true)
+        expect(slidesTools.has("slides_modify")).toBe(true)
         expect(slidesTools.has("slides_theme")).toBe(true)
         expect(slidesTools.has("slide_screenshot")).toBe(true)
         expect(slidesTools.has("slide_overflow_check")).toBe(true)
@@ -438,8 +450,81 @@ describe("openswarm native routing", () => {
             .map((x) => String.fromCharCode(x))
             .join(""),
         )
+        const deckBytes = yield* Effect.promise(async () => new Uint8Array(await Bun.file(deck.metadata.outputPath!).arrayBuffer()))
+        const deckSource = yield* Effect.promise(async () => Bun.file(deck.metadata.sourcePath!).text())
+        const html = yield* Effect.promise(async () => Bun.file(deck.metadata.htmlPaths![0]).text())
         expect(docHeader).toBe("PK")
         expect(deckHeader).toBe("PK")
+        expect(validatePptxPackage(deckBytes)).toBe(true)
+        expect(deckSource).toContain('"html"')
+        expect(html).toContain("<!doctype html>")
+        expect(deckSource).toContain('"inputSlides"')
+        expect(deckSource).toContain('"quality"')
+        expect(deck.metadata.exportMode).toMatch(/^(playwright-png|svg-fallback)$/)
+      }),
+    ),
+  )
+
+  it.live("slides plan and modify tools enrich title-only slide requests", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const plan = yield* SlidesPlanTool
+        const modify = yield* SlidesModifyTool
+        const slides = yield* SlidesTool
+        const planDef = yield* plan.init()
+        const modifyDef = yield* modify.init()
+        const slidesDef = yield* slides.init()
+        const ctx = {
+          sessionID: "ses_test" as any,
+          messageID: "msg_test" as any,
+          agent: "slides-agent",
+          abort: new AbortController().signal,
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        }
+
+        const planned = yield* planDef.execute(
+          {
+            task: "Create a professional presentation comparing DeepSeek v4 Pro vs Kimi CLI",
+            title: "DeepSeek v4 Pro vs Kimi CLI",
+            slide_count: 6,
+          },
+          ctx,
+        )
+        const plannedBody = JSON.parse(planned.output)
+        expect(planned.metadata.slideCount).toBeGreaterThan(0)
+        expect(planned.metadata.titleOnlyCount).toBe(0)
+        expect(plannedBody.slides[1].bullets.length).toBeGreaterThan(0)
+
+        const modified = yield* modifyDef.execute(
+          {
+            task: "Explain DeepSeek v4 Pro with concrete architecture and workflow implications.",
+            title: "DeepSeek v4 Pro vs Kimi CLI",
+            slide: { title: "Overview: DeepSeek V4 Pro" },
+          },
+          ctx,
+        )
+        const modifiedSlide = JSON.parse(modified.output)
+        expect(modified.metadata.substantive).toBe(true)
+        expect(modifiedSlide.bullets.length).toBeGreaterThan(1)
+
+        const deck = yield* slidesDef.execute(
+          {
+            task: "Create a professional presentation comparing DeepSeek v4 Pro vs Kimi CLI",
+            title: "DeepSeek v4 Pro vs Kimi CLI",
+            output_path: "deliverables/title-only-fixed.pptx",
+            slides: [
+              { title: "DeepSeek v4 Pro vs Kimi CLI" },
+              { title: "Overview: DeepSeek V4 Pro" },
+              { title: "Overview: Kimi CLI" },
+            ],
+          },
+          ctx,
+        )
+        const deckSource = yield* Effect.promise(async () => Bun.file(deck.metadata.sourcePath!).text())
+        expect(deckSource).toContain("Central question")
+        expect(deckSource).toContain("inputSlides")
       }),
     ),
   )

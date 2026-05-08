@@ -31,9 +31,9 @@ At runtime, managed extension skills are normal skills. MCP tools are normal MCP
 |------|------|
 | `packages/app/src/extensions/registry.ts` | Official app-bundled extension registry |
 | `packages/app/src/extensions/registry.test.ts` | Registry shape and install-action tests |
-| `packages/app/src/pages/session/session-extensions-panel.tsx` | Session right-side Extensions panel |
-| `packages/app/src/pages/session/session-extensions-panel-model.ts` | Merges registry, installed state, and live MCP state |
-| `packages/app/src/pages/session/session-extensions-install.ts` | Install follow-up orchestration: install, auth/connect, refresh |
+| `packages/app/src/pages/session/side-panel/extensions/index.tsx` | Session right-side Extensions panel |
+| `packages/app/src/pages/session/side-panel/extensions/model.ts` | Merges registry, installed state, and live MCP state |
+| `packages/app/src/pages/session/side-panel/extensions/install.ts` | Install follow-up orchestration: install, auth/connect, refresh |
 | `packages/opencode/src/extension/index.ts` | Server-side install/remove/list/live-reload module |
 | `packages/opencode/src/config/extension.ts` | `Config.Info.extensions` schema |
 | `packages/opencode/src/mcp/index.ts` | MCP runtime, local HTTP spawning, OAuth handling, status/tools |
@@ -130,7 +130,7 @@ The app flow is:
 The testable helper is:
 
 ```text
-packages/app/src/pages/session/session-extensions-install.ts
+packages/app/src/pages/session/side-panel/extensions/install.ts
 ```
 
 The registry action classifier should return `authenticate` for:
@@ -370,7 +370,7 @@ Useful focused commands:
 
 ```sh
 cd packages/app
-bun test --preload ./happydom.ts ./src/extensions/registry.test.ts ./src/pages/session/session-extensions-install.test.ts ./src/pages/session/session-extensions-panel-model.test.ts
+bun test --preload ./happydom.ts ./src/extensions/registry.test.ts ./src/pages/session/side-panel/extensions/install.test.ts ./src/pages/session/side-panel/extensions/model.test.ts
 bun typecheck
 ```
 

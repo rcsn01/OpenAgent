@@ -152,6 +152,7 @@ describe("tool.task", () => {
           const first = yield* get(assistant)
           const second = yield* get(assistant)
           const ids = (yield* registry.ids()).sort()
+          const buildDescription = buildTools.find((tool) => tool.id === TaskTool.id)?.description ?? ""
 
           expect(first).toEqual(second)
           expect(buildTools.find((tool) => tool.id === BackgroundTaskTool.id)).toBeUndefined()
@@ -160,6 +161,10 @@ describe("tool.task", () => {
           expect(first.task).not.toContain("- plan:")
           expect(first.task).not.toContain("- assistant:")
           expect(first.task).not.toContain("- chat:")
+          expect(first.task).toContain("- slides-agent:")
+          expect(buildDescription).not.toContain("- slides-agent:")
+          expect(buildDescription).not.toContain("- docs-agent:")
+          expect(buildDescription).not.toContain("- deep-research:")
 
           const alpha = first.task.indexOf("- alpha: Alpha agent")
           const explore = first.task.indexOf("- explore:")
@@ -207,8 +212,10 @@ describe("tool.task", () => {
           expect(buildTools.find((tool) => tool.id === TaskTool.id)).toBeDefined()
           expect(buildDescription).toContain("- alpha: Alpha agent")
           expect(buildDescription).not.toContain("- zebra: Zebra agent")
+          expect(buildDescription).not.toContain("- slides-agent:")
           expect(description).toContain("- alpha: Alpha agent")
           expect(description).not.toContain("- zebra: Zebra agent")
+          expect(description).toContain("- slides-agent:")
           expect(backgroundDescription).toContain("- alpha: Alpha agent")
           expect(backgroundDescription).not.toContain("- zebra: Zebra agent")
         }),
@@ -351,6 +358,39 @@ describe("tool.task", () => {
         expect(seen?.agent).toBe("general")
         expect(seen?.sessionID).toBe(kids[0]?.id)
         expect(result.output).toContain("general complete")
+      }),
+    ),
+  )
+
+  it.live("build cannot execute OpenAgent specialist subagents through task", () =>
+    provideTmpdirInstance(() =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed("Build specialist block", "build")
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        const promptOps = stubOps()
+
+        const exit = yield* def
+          .execute(
+            {
+              description: "make slides",
+              prompt: "create a slide deck",
+              subagent_type: "slides-agent",
+            },
+            {
+              sessionID: chat.id,
+              messageID: assistant.id,
+              agent: "build",
+              abort: new AbortController().signal,
+              extra: { promptOps, bypassAgentCheck: true },
+              messages: [],
+              metadata: () => Effect.void,
+              ask: () => Effect.void,
+            },
+          )
+          .pipe(Effect.exit)
+
+        expect(exit._tag).toBe("Failure")
       }),
     ),
   )

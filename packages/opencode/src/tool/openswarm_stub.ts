@@ -1,8 +1,20 @@
 import { Effect, Schema } from "effect"
 import { IntegrationAuth } from "@/integration/auth"
+import type { Artifact } from "./openswarm/artifact"
 import { OpenSwarmArtifacts } from "./openswarm/artifact"
-import { createDocx, createPptx } from "./openswarm/office"
-import { checkSlideOverflow, renderSlideSvg, themeCssVariables } from "./openswarm/slide_qa"
+import { createDocx, createImagePptx, validatePptxPackage } from "./openswarm/office"
+import {
+  enrichSlides,
+  htmlSlidePaths,
+  planSlides,
+  slideHtml,
+  slideProjectDir,
+  slideSubstanceReport,
+  slideThemeCss,
+  svgSlideImages,
+  tryRenderHtmlSlides,
+} from "./openswarm/slides_html"
+import { checkSlideOverflow, inferTheme, renderSlideSvg, themeCssVariables } from "./openswarm/slide_qa"
 import * as Tool from "./tool"
 
 const MissingMetadata = Schema.Struct({ missing: Schema.Array(Schema.String) })
@@ -128,6 +140,13 @@ type ArtifactMetadata = {
   outputPath?: string
   sourcePath?: string
   missing?: string[]
+}
+
+type SlidesMetadata = ArtifactMetadata & {
+  projectDir?: string
+  htmlPaths?: string[]
+  previewPaths?: string[]
+  exportMode?: "playwright-png" | "svg-fallback"
 }
 
 export const DeepResearchTool = Tool.define<
@@ -326,43 +345,226 @@ const SlideTheme = Schema.Struct({
 const SlidesParameters = Schema.Struct({
   task: Schema.String.annotate({ description: "Presentation generation task." }),
   slides: Schema.Array(SlideSpec).annotate({ description: "Ordered slide definitions." }),
+  theme: Schema.optional(SlideTheme).annotate({ description: "Optional theme tokens used for HTML, preview, and PPTX export." }),
   output_path: Schema.optional(Schema.String).annotate({
     description: "Workspace-relative .pptx output path. Defaults to deliverables/deck.pptx.",
   }),
   source_path: Schema.optional(Schema.String).annotate({
-    description: "Optional JSON source path. Defaults to deliverables/deck.json.",
+    description: "Optional JSON source path. Defaults to the generated HTML project deck.json.",
+  }),
+  project_dir: Schema.optional(Schema.String).annotate({
+    description: "Optional workspace-relative HTML project directory. Defaults to deliverables/presentations/<deck-name>.",
   }),
   title: Schema.optional(Schema.String).annotate({ description: "Optional deck title." }),
 })
 
-export const SlidesTool = Tool.define<typeof SlidesParameters, ArtifactMetadata, OpenSwarmArtifacts.Service>(
+const SlidesPlanParameters = Schema.Struct({
+  task: Schema.String.annotate({
+    description: "Presentation request or topic. Include audience, goal, and known facts when available.",
+  }),
+  title: Schema.optional(Schema.String).annotate({ description: "Optional deck title." }),
+  slide_count: Schema.optional(Schema.Number).annotate({
+    description: "Approximate slide count. Defaults to 8 for comparisons and 6 for general decks.",
+  }),
+})
+
+type SlidesPlanMetadata = {
+  slideCount: number
+  titleOnlyCount: number
+  titleOnlyRatio: number
+}
+
+export const SlidesPlanTool = Tool.define<typeof SlidesPlanParameters, SlidesPlanMetadata, never>(
+  "slides_plan",
+  Effect.sync(() => ({
+    description:
+      "Create an OpenSwarm-style slide plan from a presentation request. Produces a substantive deck outline that should be passed to slides_modify or slides.",
+    parameters: SlidesPlanParameters,
+    execute: (params) =>
+      Effect.sync(() => {
+        const planned = enrichSlides({
+          task: params.task,
+          title: params.title,
+          slides: planSlides({ task: params.task, title: params.title, slideCount: params.slide_count }),
+        })
+        const report = slideSubstanceReport(planned)
+        return {
+          title: "Slide plan created",
+          metadata: {
+            slideCount: planned.length,
+            titleOnlyCount: report.titleOnly,
+            titleOnlyRatio: report.titleOnlyRatio,
+          },
+          output: JSON.stringify({ title: params.title, slides: planned }, null, 2),
+        }
+      }),
+  })),
+)
+
+const SlidesModifyParameters = Schema.Struct({
+  task: Schema.String.annotate({
+    description:
+      "A fully self-contained modification brief. Include concrete content, facts, items, desired emphasis, and any visual direction.",
+  }),
+  slide: SlideSpec.annotate({ description: "Slide to enrich or modify." }),
+  title: Schema.optional(Schema.String).annotate({ description: "Optional deck title used for context." }),
+})
+
+type SlidesModifyMetadata = {
+  changed: boolean
+  substantive: boolean
+}
+
+export const SlidesModifyTool = Tool.define<typeof SlidesModifyParameters, SlidesModifyMetadata, never>(
+  "slides_modify",
+  Effect.sync(() => ({
+    description:
+      "Enrich or repair one slide from a self-contained brief. Use this after slides_plan, one slide at a time, before final PPTX export.",
+    parameters: SlidesModifyParameters,
+    execute: (params) =>
+      Effect.sync(() => {
+        const [slide] = enrichSlides({
+          task: params.task,
+          title: params.title,
+          slides: [params.slide],
+        })
+        return {
+          title: "Slide modified",
+          metadata: {
+            changed: JSON.stringify(slide) !== JSON.stringify(params.slide),
+            substantive: slideSubstanceReport([slide]).ok,
+          },
+          output: JSON.stringify(slide, null, 2),
+        }
+      }),
+  })),
+)
+
+export const SlidesTool = Tool.define<typeof SlidesParameters, SlidesMetadata, OpenSwarmArtifacts.Service>(
   "slides",
   Effect.gen(function* () {
     const artifacts = yield* OpenSwarmArtifacts.Service
     return {
-      description: "Create a native PPTX slide deck plus editable JSON source.",
+      description:
+        "Create an OpenSwarm-style HTML slide project, render slide previews, and export a valid image-backed PPTX artifact.",
       parameters: SlidesParameters,
       execute: (params) =>
         Effect.gen(function* () {
           if (params.slides.length === 0) throw new Error("slides must include at least one slide")
+          const plannedSlides = enrichSlides({ task: params.task, title: params.title, slides: params.slides })
+          const substance = slideSubstanceReport(plannedSlides)
+          if (!substance.ok) {
+            throw new Error(
+              `slides are not substantive enough to export: ${substance.titleOnly}/${substance.total} slides are title-only`,
+            )
+          }
           const outputPath = params.output_path ?? "deliverables/deck.pptx"
+          const projectDir = slideProjectDir({
+            title: params.title,
+            task: params.task,
+            outputPath,
+            projectDir: params.project_dir,
+          })
+          const sourcePath = params.source_path ?? `${projectDir}/deck.json`
+          const themePath = `${projectDir}/_theme.css`
+          const previewDir = `${projectDir}/previews`
+          const htmlPaths = htmlSlidePaths(projectDir, plannedSlides.length)
+          const resolvedTheme = inferTheme({ task: params.task, title: params.title, theme: params.theme })
+
           const source = yield* artifacts.writeText({
-            path: params.source_path ?? "deliverables/deck.json",
-            content: JSON.stringify({ title: params.title, slides: params.slides }, null, 2),
+            path: sourcePath,
+            content: JSON.stringify(
+              {
+                task: params.task,
+                title: params.title,
+                theme: resolvedTheme,
+                slides: plannedSlides,
+                inputSlides: params.slides,
+                quality: substance,
+                html: htmlPaths,
+              },
+              null,
+              2,
+            ),
             mime: "application/json",
           })
+          const theme = yield* artifacts.writeText({
+            path: themePath,
+            content: slideThemeCss(resolvedTheme),
+            mime: "text/css",
+          })
+          const html: Artifact[] = []
+          for (const [index, slide] of plannedSlides.entries()) {
+            html.push(
+              yield* artifacts.writeText({
+                path: htmlPaths[index],
+                content: slideHtml({
+                  deckTitle: params.title,
+                  slide,
+                  slideNumber: index + 1,
+                  slideCount: plannedSlides.length,
+                }),
+                mime: "text/html",
+              }),
+            )
+          }
+
+          const rendered = yield* Effect.promise(async () =>
+            tryRenderHtmlSlides({
+              htmlPaths: html.map((item) => item.path),
+              previewDir,
+            }),
+          )
+          const images = rendered ?? svgSlideImages({ slides: plannedSlides, theme: resolvedTheme, previewDir })
+          const previews = []
+          for (const image of images) {
+            previews.push(
+              typeof image.content === "string"
+                ? yield* artifacts.writeText({
+                    path: image.previewPath,
+                    content: image.content,
+                    mime: image.mime,
+                  })
+                : yield* artifacts.writeBytes({
+                    path: image.previewPath,
+                    content: image.content,
+                    mime: image.mime,
+                  }),
+            )
+          }
+
+          const bytes = createImagePptx({ title: params.title, slides: images })
+          if (!validatePptxPackage(bytes)) throw new Error("generated PPTX failed package validation")
           const pptx = yield* artifacts.writeBytes({
             path: outputPath,
-            content: createPptx({ title: params.title, slides: params.slides }),
+            content: bytes,
             mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
           })
+          const exportMode = rendered ? "playwright-png" as const : "svg-fallback" as const
           return {
             title: "Slide deck created",
-            metadata: { outputPath: pptx.path, sourcePath: source.path },
-            output: `Created slide deck.\nPPTX: ${pptx.path}\nSlide source: ${source.path}`,
+            metadata: {
+              outputPath: pptx.path,
+              sourcePath: source.path,
+              projectDir,
+              htmlPaths: html.map((item) => item.path),
+              previewPaths: previews.map((item) => item.path),
+              exportMode,
+            },
+            output: [
+              "Created slide deck from an editable HTML slide project.",
+              `PPTX: ${pptx.path}`,
+              `Project: ${projectDir}`,
+              `Deck source: ${source.path}`,
+              `Theme CSS: ${theme.path}`,
+              ...html.map((item) => `HTML: ${item.path}`),
+              ...previews.map((item) => `Preview: ${item.path}`),
+              `Export mode: ${exportMode}`,
+            ].join("\n"),
             attachments: [
               { type: "file" as const, url: pptx.url, mime: pptx.mime, filename: pptx.filename },
               { type: "file" as const, url: source.url, mime: source.mime, filename: source.filename },
+              { type: "file" as const, url: theme.url, mime: theme.mime, filename: theme.filename },
             ],
           }
         }).pipe(Effect.orDie),
@@ -388,11 +590,12 @@ export const SlidesThemeTool = Tool.define<typeof SlidesThemeParameters, Artifac
       parameters: SlidesThemeParameters,
       execute: (params) =>
         Effect.gen(function* () {
+          const resolvedTheme = inferTheme({ task: params.task, theme: params.theme })
           const content = JSON.stringify(
             {
               task: params.task,
-              theme: params.theme,
-              cssVariables: themeCssVariables(params.theme),
+              theme: resolvedTheme,
+              cssVariables: themeCssVariables(resolvedTheme),
             },
             null,
             2,

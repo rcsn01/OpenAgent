@@ -29,7 +29,7 @@ This section is about the practical extension mechanisms:
 | `packages/opencode/src/plugin/index.ts` | Loads plugins and waits for their dependencies |
 | `packages/opencode/src/extension/index.ts` | Installs, removes, lists, and live-reloads project-scoped extensions |
 | `packages/app/src/extensions/registry.ts` | Bundles official extension marketplace entries in the app |
-| `packages/app/src/pages/session/session-extensions-panel.tsx` | Renders the project-scoped Extensions side panel |
+| `packages/app/src/pages/session/side-panel/extensions/index.tsx` | Renders the project-scoped Extensions side panel |
 | `packages/opencode/src/config/config.ts` | Installs dependencies for config directories and merges their config |
 | `packages/opencode/src/session/instruction.ts` | Injects `AGENTS.md` and the shared chat profile instructions |
 | `packages/opencode/src/integration/auth.ts` | Stores per-user integration credentials for specialist tools |

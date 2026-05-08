@@ -15,7 +15,7 @@ The Subagents side panel now renders each graph as a clickable header.
 
 Main file:
 
-- `packages/app/src/pages/session/session-subagents-panel.tsx`
+- `packages/app/src/pages/session/side-panel/subagents/index.tsx`
 
 ### Completed Graph Retention
 
@@ -46,7 +46,7 @@ Graph lists now prefer newest-first ordering.
 Main files:
 
 - `packages/opencode/src/session/task-graph.ts`
-- `packages/app/src/pages/session/session-subagents-panel-model.ts`
+- `packages/app/src/pages/session/side-panel/subagents/model.ts`
 
 ### Web Tool Guidance
 
@@ -112,12 +112,12 @@ Focused coverage was added for:
 
 Test files:
 
-- `packages/app/src/pages/session/session-subagents-panel-model.test.ts`
+- `packages/app/src/pages/session/side-panel/subagents/model.test.ts`
 - `packages/opencode/test/session/task-graph.test.ts`
 
 Verification commands run from package directories:
 
-- `bun test --preload ./happydom.ts ./src/pages/session/session-subagents-panel-model.test.ts`
+- `bun test --preload ./happydom.ts ./src/pages/session/side-panel/subagents/model.test.ts`
 - `bun test test/session/task-graph.test.ts`
 - `bun typecheck` in `packages/app`
 - `bun typecheck` in `packages/opencode`
@@ -126,8 +126,8 @@ Verification commands run from package directories:
 
 | File | Role |
 |------|------|
-| `packages/app/src/pages/session/session-subagents-panel.tsx` | Subagents side panel UI, compact/expanded graph state |
-| `packages/app/src/pages/session/session-subagents-panel-model.ts` | Converts graph API response into panel groups, sorting, default selection |
+| `packages/app/src/pages/session/side-panel/subagents/index.tsx` | Subagents side panel UI, compact/expanded graph state |
+| `packages/app/src/pages/session/side-panel/subagents/model.ts` | Converts graph API response into panel groups, sorting, default selection |
 | `packages/opencode/src/session/task-graph.ts` | In-memory graph lifecycle, retention, listing, delivery cleanup |
 | `packages/opencode/src/tool/background_task.ts` | Synthetic delivery reminder for one-off background subagents |
 | `packages/opencode/src/tool/background_task_graph.ts` | Synthetic delivery reminder for graph-backed background subagents |

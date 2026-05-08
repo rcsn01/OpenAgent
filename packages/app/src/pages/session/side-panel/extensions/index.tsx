@@ -12,8 +12,8 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { OFFICIAL_EXTENSIONS } from "@/extensions/registry"
 import { formatServerError } from "@/utils/server-errors"
-import { buildExtensionsPanelModel, type ExtensionPanelItem } from "./session-extensions-panel-model"
-import { installExtension } from "./session-extensions-install"
+import { installExtension } from "./install"
+import { buildExtensionsPanelModel, type ExtensionPanelItem } from "./model"
 
 function statusTone(status: ExtensionPanelItem["servers"][number]["status"]["status"]) {
   if (status === "connected") return "text-icon-success-base"

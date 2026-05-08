@@ -14,6 +14,8 @@ import {
   ImageGenerationTool,
   SlideOverflowCheckTool,
   SlideScreenshotTool,
+  SlidesModifyTool,
+  SlidesPlanTool,
   SlidesThemeTool,
   SlidesTool,
   VideoGenerationTool,
@@ -68,7 +70,7 @@ import { Agent } from "../agent/agent"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
 import { allowedRecipients } from "@/agent/communication"
-import { isSpawnableAgent } from "@/agent/spawnable"
+import { isSpawnableAgentForCaller } from "@/agent/spawnable"
 import { IntegrationAuth } from "@/integration/auth"
 import { OpenSwarmArtifacts } from "./openswarm/artifact"
 
@@ -92,6 +94,8 @@ const openswarmToolOwners: Record<string, string[]> = {
   deep_research: ["deep-research"],
   data_kernel: ["data-analyst"],
   slides: ["slides-agent"],
+  slides_plan: ["slides-agent"],
+  slides_modify: ["slides-agent"],
   slides_theme: ["slides-agent"],
   slide_screenshot: ["slides-agent"],
   slide_overflow_check: ["slides-agent"],
@@ -183,6 +187,8 @@ export const layer: Layer.Layer<
     const deepResearch = yield* DeepResearchTool
     const dataKernel = yield* DataKernelTool
     const slides = yield* SlidesTool
+    const slidesPlan = yield* SlidesPlanTool
+    const slidesModify = yield* SlidesModifyTool
     const slidesTheme = yield* SlidesThemeTool
     const slideScreenshot = yield* SlideScreenshotTool
     const slideOverflowCheck = yield* SlideOverflowCheckTool
@@ -287,6 +293,8 @@ export const layer: Layer.Layer<
           deepResearch: Tool.init(deepResearch),
           dataKernel: Tool.init(dataKernel),
           slides: Tool.init(slides),
+          slidesPlan: Tool.init(slidesPlan),
+          slidesModify: Tool.init(slidesModify),
           slidesTheme: Tool.init(slidesTheme),
           slideScreenshot: Tool.init(slideScreenshot),
           slideOverflowCheck: Tool.init(slideOverflowCheck),
@@ -329,6 +337,8 @@ export const layer: Layer.Layer<
             tool.deepResearch,
             tool.dataKernel,
             tool.slides,
+            tool.slidesPlan,
+            tool.slidesModify,
             tool.slidesTheme,
             tool.slideScreenshot,
             tool.slideOverflowCheck,
@@ -374,7 +384,7 @@ export const layer: Layer.Layer<
     })
 
     const describeTask = Effect.fn("ToolRegistry.describeTask")(function* (agent: Agent.Info) {
-      const items = (yield* agents.list()).filter(isSpawnableAgent)
+      const items = (yield* agents.list()).filter((item) => isSpawnableAgentForCaller(agent.name, item))
       const filtered = items.filter(
         (item) => Permission.evaluate("task", item.name, agent.permission).action !== "deny",
       )

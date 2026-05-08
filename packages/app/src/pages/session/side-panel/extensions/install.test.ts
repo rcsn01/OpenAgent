@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { ExtensionBundle } from "@/extensions/registry"
-import { installExtension } from "./session-extensions-install"
+import { installExtension } from "./install"
 
 function googleBundle() {
   return {

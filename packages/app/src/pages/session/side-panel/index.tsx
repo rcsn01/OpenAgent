@@ -22,13 +22,13 @@ import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
-import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
-import { FileTabContent } from "@/pages/session/file-tabs"
 import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { setSessionHandoff } from "@/pages/session/handoff"
-import { SessionExtensionsPanel } from "@/pages/session/session-extensions-panel"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { SessionSubagentsPanel } from "@/pages/session/session-subagents-panel"
+import { createFileTabListSync } from "./file-tab-scroll"
+import { FileTabContent } from "./file-tabs"
+import { SessionExtensionsPanel } from "./extensions"
+import { SessionSubagentsPanel } from "./subagents"
 
 export function SessionSidePanel(props: {
   sessionID?: string

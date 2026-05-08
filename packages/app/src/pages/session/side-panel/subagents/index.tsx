@@ -12,11 +12,7 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { pathKey } from "@/utils/path-key"
 import { sessionTitle } from "@/utils/session-title"
-import {
-  buildSubagentsPanelModel,
-  type SubagentNodeRow,
-  type SubagentSelection,
-} from "./session-subagents-panel-model"
+import { buildSubagentsPanelModel, type SubagentNodeRow, type SubagentSelection } from "./model"
 
 function nodeStatusClass(status: SubagentNodeRow["node"]["status"]) {
   if (status === "running") return "text-icon-warning-base"
