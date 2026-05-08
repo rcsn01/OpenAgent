@@ -40,6 +40,7 @@ import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
+import { usePlatform } from "@/context/platform"
 import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
 import { createSessionComposerState, SessionComposerRegion } from "@/pages/session/composer"
 import {
@@ -347,6 +348,7 @@ export default function Page() {
   const language = useLanguage()
   const sdk = useSDK()
   const settings = useSettings()
+  const platform = usePlatform()
   const prompt = usePrompt()
   const comments = useComments()
   const terminal = useTerminal()
@@ -424,8 +426,14 @@ export default function Page() {
   const desktopMainPanelOpen = createMemo(
     () => desktopReviewOpen() || desktopSubagentsOpen() || desktopExtensionsOpen(),
   )
-  const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
-  const desktopSidePanelOpen = createMemo(() => desktopMainPanelOpen() || desktopFileTreeOpen())
+  const fileTreeShown = createMemo(
+    () =>
+      platform.platform !== "desktop" ||
+      import.meta.env.VITE_OPENCODE_CHANNEL !== "beta" ||
+      settings.general.showFileTree(),
+  )
+  const desktopFileTreeOpen = createMemo(() => desktopReviewOpen() && fileTreeShown() && layout.fileTree.opened())
+  const desktopSidePanelOpen = createMemo(() => desktopMainPanelOpen())
   const reviewResizeMax = () => {
     if (typeof window === "undefined") return 1000
     const sidebarWidth = layout.sidebar.opened() ? layout.sidebar.width() : COLLAPSED_SIDEBAR_WIDTH
@@ -434,8 +442,7 @@ export default function Page() {
   }
   const sessionPanelWidth = createMemo(() => {
     if (!desktopSidePanelOpen()) return "100%"
-    if (desktopMainPanelOpen()) return `${layout.session.width()}px`
-    return `calc(100% - ${layout.fileTree.width()}px)`
+    return `${layout.session.width()}px`
   })
   const centered = createMemo(() => isDesktop() && !desktopMainPanelOpen())
 
@@ -1370,7 +1377,7 @@ export default function Page() {
   createEffect(() => {
     const dir = sdk.directory
     if (!isDesktop()) return
-    if (!layout.fileTree.opened()) return
+    if (!desktopFileTreeOpen()) return
     if (sync.status === "loading") return
 
     fileTreeTab()

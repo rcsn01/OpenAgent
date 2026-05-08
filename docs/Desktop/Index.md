@@ -13,6 +13,7 @@ The native `chat` agent has been removed. Hidden general-chat workspaces now use
 - [[Desktop/Hidden Workspaces]] — where chat directories live, how they are allocated, and whether chat-only `AGENTS.md` or skills can be used
 - [[Desktop/Shared Chat Profile]] — the first-class shared config bundle for all GUI chats
 - [[Desktop/Session Switching]] — implementation history for seamless project/chat session switching, persistent UI shell, sidebar highlighting, and audio-toggle visibility
+- [[Desktop/Session Side Panels]] — Review, Extensions, and Subagents panel structure; Review-owned file tree behavior
 - [[Desktop/Subagent Graph Panel and Prompt Updates]] — compact graph groups, completed graph retention, newest-first ordering, web tool guidance, and minimal subagent completion updates
 - [[Desktop/Project Sidebar Controls]] — expanded-sidebar project controls for compact/expanded sessions, organize/sort/show, and add project actions
 
@@ -32,6 +33,8 @@ The native `chat` agent has been removed. Hidden general-chat workspaces now use
 | `packages/app/src/context/app-route.tsx` | Resolves `/chat/:id` to the hidden backing directory |
 | `packages/app/src/pages/session-route-host.tsx` | Persistent session shell mounted across route changes |
 | `packages/app/src/context/general-chat-route-cache.ts` | Caches chat-to-directory route metadata |
+| `packages/app/src/pages/session/side-panel/index.tsx` | Shared right-side panel shell and mode switcher |
+| `packages/app/src/pages/session/side-panel/review/index.tsx` | Git/Review panel, file tabs, and optional nested file tree |
 | `packages/app/src/pages/session/side-panel/subagents/index.tsx` | Subagent graph panel UI |
 | `packages/app/src/pages/layout/sidebar-hub.tsx` | Expanded sidebar with project controls |
 

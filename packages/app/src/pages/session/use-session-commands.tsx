@@ -725,7 +725,11 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
             id: "fileTree.toggle",
             title: language.t("command.fileTree.toggle"),
             keybind: "mod+\\",
-            onSelect: () => layout.fileTree.toggle(),
+            disabled: !view().reviewPanel.opened(),
+            onSelect: () => {
+              if (!view().reviewPanel.opened()) return
+              layout.fileTree.toggle()
+            },
           }),
         ]
       : []),
