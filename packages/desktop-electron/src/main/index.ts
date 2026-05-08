@@ -36,6 +36,7 @@ const { autoUpdater } = pkg
 
 import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
+import { startComputerUseBridge, type ComputerUseBridge } from "./computer-use-bridge"
 import { CHANNEL, UPDATER_ENABLED } from "./constants"
 import { registerIpcHandlers, sendDeepLinks, sendMenuCommand, sendSqliteMigrationProgress } from "./ipc"
 import { initLogging } from "./logging"
@@ -58,6 +59,7 @@ let initStep: InitStep = { phase: "server_waiting" }
 
 let mainWindow: BrowserWindow | null = null
 let server: Server.Listener | null = null
+let computerUseBridge: ComputerUseBridge | null = null
 const loadingComplete = defer<void>()
 
 const pendingDeepLinks: string[] = []
@@ -179,6 +181,10 @@ async function initialize() {
     }
 
     logger.log("spawning sidecar", { url })
+    computerUseBridge = await startComputerUseBridge()
+    process.env.OPENAGENT_COMPUTER_USE_BRIDGE_URL = computerUseBridge.url
+    process.env.OPENAGENT_COMPUTER_USE_BRIDGE_TOKEN = computerUseBridge.token
+    logger.log("computer use bridge started", { url: computerUseBridge.url })
     const { listener, health } = await spawnLocalServer(hostname, port, password)
     server = listener
     serverReady.resolve({
@@ -271,9 +277,14 @@ registerIpcHandlers({
 })
 
 function killSidecar() {
-  if (!server) return
-  server.stop()
-  server = null
+  if (server) {
+    server.stop()
+    server = null
+  }
+  if (computerUseBridge) {
+    void computerUseBridge.close().catch((error) => logger.error("failed to close computer use bridge", error))
+    computerUseBridge = null
+  }
 }
 
 function ensureLoopbackNoProxy() {

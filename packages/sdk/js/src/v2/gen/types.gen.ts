@@ -1432,6 +1432,17 @@ export type McpOAuthConfig = {
   redirectUri?: string
 }
 
+export type McpToolFilterConfig = {
+  /**
+   * Only expose MCP tools whose names start with one of these prefixes.
+   */
+  allow_prefixes?: Array<string>
+  /**
+   * Hide MCP tools whose names start with one of these prefixes.
+   */
+  deny_prefixes?: Array<string>
+}
+
 export type McpLocalConfig = {
   /**
    * Type of MCP server connection
@@ -1460,6 +1471,10 @@ export type McpLocalConfig = {
    * Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.
    */
   timeout?: number
+  /**
+   * Optional MCP tool exposure filter applied after tools/list.
+   */
+  tool_filter?: McpToolFilterConfig
 }
 
 export type McpRemoteConfig = {
@@ -1489,6 +1504,33 @@ export type McpRemoteConfig = {
    * Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.
    */
   timeout?: number
+  /**
+   * Optional MCP tool exposure filter applied after tools/list.
+   */
+  tool_filter?: McpToolFilterConfig
+}
+
+export type McpBuiltinConfig = {
+  /**
+   * Built-in MCP server implemented by OpenAgent
+   */
+  type: "builtin"
+  /**
+   * Built-in MCP capability identifier
+   */
+  id: "computer-use"
+  /**
+   * Enable or disable the built-in MCP server on startup
+   */
+  enabled?: boolean
+  /**
+   * Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.
+   */
+  timeout?: number
+  /**
+   * Optional MCP tool exposure filter applied after tools/list.
+   */
+  tool_filter?: McpToolFilterConfig
 }
 
 /**
@@ -1633,6 +1675,7 @@ export type Config = {
     [key: string]:
       | McpLocalConfig
       | McpRemoteConfig
+      | McpBuiltinConfig
       | {
           enabled: boolean
         }
@@ -3260,7 +3303,7 @@ export type ExperimentalExtensionsInstallData = {
     name: string
     description?: string
     mcp: {
-      [key: string]: McpLocalConfig | McpRemoteConfig
+      [key: string]: McpLocalConfig | McpRemoteConfig | McpBuiltinConfig
     }
     skills: Array<{
       path: string
@@ -5327,7 +5370,7 @@ export type McpStatusResponse = McpStatusResponses[keyof McpStatusResponses]
 export type McpAddData = {
   body?: {
     name: string
-    config: McpLocalConfig | McpRemoteConfig
+    config: McpLocalConfig | McpRemoteConfig | McpBuiltinConfig
   }
   path?: never
   query?: {

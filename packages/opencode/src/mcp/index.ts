@@ -73,6 +73,7 @@ export const Failed = NamedError.create(
 )
 
 type MCPClient = Client
+type McpToolFilter = NonNullable<ConfigMCP.Info["tool_filter"]>
 
 const StatusConnected = Schema.Struct({ status: Schema.Literal("connected") }).annotate({
   identifier: "MCPStatusConnected",
@@ -139,11 +140,24 @@ function localHTTPTransport(mcp: ConfigMCP.Local) {
 
 function supportsOAuthConfig(mcp: ConfigMCP.Info) {
   if (mcp.type === "remote") return mcp.oauth !== false
+  if (mcp.type === "builtin") return false
   return !!localHTTPTransport(mcp) && typeof mcp.oauth === "object"
 }
 
 function oauthConfig(mcp: ConfigMCP.Info) {
+  if (mcp.type === "builtin") return undefined
   return typeof mcp.oauth === "object" ? mcp.oauth : undefined
+}
+
+function applyToolFilter(tools: MCPToolDef[], filter?: McpToolFilter) {
+  if (!filter) return tools
+  const allow = filter.allow_prefixes?.filter(Boolean) ?? []
+  const deny = filter.deny_prefixes?.filter(Boolean) ?? []
+  return tools.filter((tool) => {
+    if (allow.length && !allow.some((prefix) => tool.name.startsWith(prefix))) return false
+    if (deny.some((prefix) => tool.name.startsWith(prefix))) return false
+    return true
+  })
 }
 
 function missingLocalOAuthEnvironment(mcp: ConfigMCP.Local) {
@@ -169,6 +183,182 @@ function localHTTPPath(value: string) {
 
 function stableLocalOAuthServerURL(name: string, transport: ConfigMCP.LocalTransportStreamableHTTP) {
   return `local-streamable-http://${encodeURIComponent(name)}${localHTTPPath(transport.path)}`
+}
+
+const COMPUTER_USE_SETUP_GUIDANCE = [
+  "Computer Use is installed, but the native OpenAgent desktop bridge is not reachable.",
+  "Computer Use requires macOS Accessibility and Screen Recording permissions before it can read or operate apps.",
+  "Restart the OpenAgent desktop app, enable those permissions in System Settings > Privacy & Security, then reconnect the computer_use MCP server.",
+].join("\n")
+
+async function callComputerUseBridge(tool: string, args: Record<string, unknown>) {
+  const url = process.env.OPENAGENT_COMPUTER_USE_BRIDGE_URL
+  const token = process.env.OPENAGENT_COMPUTER_USE_BRIDGE_TOKEN
+  if (!url || !token) {
+    return {
+      isError: true,
+      content: [{ type: "text", text: COMPUTER_USE_SETUP_GUIDANCE }],
+    }
+  }
+
+  let endpoint: URL
+  try {
+    endpoint = new URL("/tool", url)
+  } catch {
+    return {
+      isError: true,
+      content: [{ type: "text", text: COMPUTER_USE_SETUP_GUIDANCE }],
+    }
+  }
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ tool, arguments: args }),
+      signal: AbortSignal.timeout(20_000),
+    })
+    const payload = (await response.json().catch(() => undefined)) as
+      | { result?: unknown; isError?: boolean; error?: string }
+      | undefined
+    if (!response.ok || !payload) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: `Computer Use bridge request failed: HTTP ${response.status}` }],
+      }
+    }
+    if (payload.isError) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: payload.error ?? "Computer Use bridge request failed" }],
+      }
+    }
+    return {
+      content: [{ type: "text", text: JSON.stringify(payload.result ?? null, null, 2) }],
+    }
+  } catch (error) {
+    return {
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: `${COMPUTER_USE_SETUP_GUIDANCE}\n\nBridge error: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ],
+    }
+  }
+}
+
+function computerUseTool(
+  name: string,
+  description: string,
+  properties: Record<string, object> = {},
+  required: string[] = [],
+): MCPToolDef {
+  return {
+    name,
+    description,
+    inputSchema: {
+      type: "object",
+      properties,
+      ...(required.length > 0 ? { required } : {}),
+      additionalProperties: false,
+    },
+  }
+}
+
+const COMPUTER_USE_TOOLS: MCPToolDef[] = [
+  computerUseTool("list_apps", "List local apps that Computer Use can inspect or control."),
+  computerUseTool("get_app_state", "Read the current UI state for a local app.", {
+    app: { type: "string", description: "App name or bundle identifier." },
+    include_screenshot: { type: "boolean", description: "Include a base64 PNG screenshot. Defaults to true. Set false only when screenshot is unnecessary." },
+  }, ["app"]),
+  computerUseTool("click", "Click a visible UI element by element_index/element_id, or click absolute screen coordinates with x and y. Element indexes come from the latest get_app_state snapshot and may change after every UI action; re-read state before the next indexed click.", {
+    app: { type: "string", description: "Target app name or bundle identifier." },
+    element_index: { type: "string", description: "Accessible element index from the latest get_app_state snapshot. Do not reuse after the UI changes." },
+    element_id: { type: "string", description: "Accessible element identifier or ref from the latest get_app_state snapshot. Alias for element_index." },
+    x: { type: "number", description: "Absolute screen x coordinate from get_app_state positions." },
+    y: { type: "number", description: "Absolute screen y coordinate from get_app_state positions." },
+    click_count: { type: "number", description: "Number of clicks. Defaults to 1." },
+    mouse_button: { type: "string", enum: ["left", "right", "middle"], description: "Mouse button. Defaults to left." },
+  }, ["app"]),
+  computerUseTool("perform_secondary_action", "Perform a secondary action on a visible UI element.", {
+    app: { type: "string", description: "Target app name or bundle identifier." },
+    element_index: { type: "string", description: "Accessible element index from get_app_state." },
+    element_id: { type: "string", description: "Accessible element identifier or ref. Alias for element_index." },
+    action: { type: "string", description: "Accessibility action name. Defaults to AXShowMenu." },
+  }, ["app"]),
+  computerUseTool("scroll", "Scroll a local app or UI region.", {
+    app: { type: "string", description: "Target app name or bundle identifier." },
+    element_index: { type: "string", description: "Accessible element index from get_app_state." },
+    element_id: { type: "string", description: "Accessible element identifier or ref. Alias for element_index." },
+    direction: { type: "string", enum: ["up", "down", "left", "right"] },
+  }, ["app", "direction"]),
+  computerUseTool("drag", "Drag between absolute screen coordinates.", {
+    app: { type: "string", description: "Target app name or bundle identifier." },
+    from_x: { type: "number", description: "Start absolute screen x coordinate." },
+    from_y: { type: "number", description: "Start absolute screen y coordinate." },
+    to_x: { type: "number", description: "End absolute screen x coordinate." },
+    to_y: { type: "number", description: "End absolute screen y coordinate." },
+  }, ["app", "from_x", "from_y", "to_x", "to_y"]),
+  computerUseTool("type_text", "Type text into a local app. Provide app whenever targeting a specific app; the bridge activates that app before typing. Prefer this for Calculator/keypad-style apps when keyboard input is supported, then verify the display with get_app_state.", {
+    app: { type: "string", description: "Target app name or bundle identifier. Strongly recommended so text does not go to the wrong focused app." },
+    text: { type: "string", description: "Text to type." },
+  }, ["app", "text"]),
+  computerUseTool("press_key", "Press a keyboard key or shortcut.", {
+    app: { type: "string", description: "Target app name or bundle identifier. Strongly recommended so the keypress does not go to the wrong focused app." },
+    key: { type: "string", description: "Key or shortcut to press." },
+  }, ["app", "key"]),
+  computerUseTool("set_value", "Set the value of a supported UI element.", {
+    app: { type: "string", description: "Target app name or bundle identifier." },
+    element_index: { type: "string", description: "Accessible element index from get_app_state." },
+    element_id: { type: "string", description: "Accessible element identifier or ref. Alias for element_index." },
+    value: { type: "string", description: "Value to set." },
+  }, ["app", "value"]),
+]
+
+function createBuiltinClient(key: string, mcp: ConfigMCP.Builtin): CreateResult {
+  if (mcp.id !== "computer-use") {
+    return { status: { status: "failed", error: `Unknown built-in MCP server: ${mcp.id}` } }
+  }
+
+  if (process.platform !== "darwin") {
+    return {
+      status: {
+        status: "failed",
+        error: "Computer Use is currently macOS-only. This built-in MCP server is unavailable on this platform.",
+      },
+    }
+  }
+
+  const listed = applyToolFilter(COMPUTER_USE_TOOLS, mcp.tool_filter)
+  const client = {
+    async listTools() {
+      return { tools: listed }
+    },
+    async callTool(input: { name: string; arguments?: Record<string, unknown> }) {
+      const tool = listed.find((item) => item.name === input.name)
+      if (!tool) throw new Error(`Tool ${input.name} is not exposed by ${key}`)
+      return callComputerUseBridge(input.name, input.arguments ?? {})
+    },
+    setNotificationHandler() {},
+    async listPrompts() {
+      return { prompts: [] }
+    },
+    async listResources() {
+      return { resources: [] }
+    },
+    async close() {},
+  } as unknown as MCPClient
+
+  return {
+    mcpClient: client,
+    status: { status: "connected" },
+    defs: listed,
+  }
 }
 
 // Convert MCP tool definition to AI SDK Tool type
@@ -202,12 +392,12 @@ function convertMcpTool(mcpTool: MCPToolDef, client: MCPClient, timeout?: number
   })
 }
 
-function defs(key: string, client: MCPClient, timeout?: number) {
+function defs(key: string, client: MCPClient, timeout?: number, filter?: McpToolFilter) {
   return Effect.tryPromise({
     try: () => withTimeout(client.listTools(), timeout ?? DEFAULT_TIMEOUT),
     catch: (err) => (err instanceof Error ? err : new Error(String(err))),
   }).pipe(
-    Effect.map((result) => result.tools),
+    Effect.map((result) => applyToolFilter(result.tools, filter)),
     Effect.catch((err) => {
       log.error("failed to get tools from client", { key, error: err })
       return Effect.succeed(undefined)
@@ -767,16 +957,18 @@ export const layer = Layer.effect(
       log.info("found", { key, type: mcp.type })
 
       const result: CreateResult =
-        mcp.type === "remote"
-          ? yield* connectRemote(key, mcp as ConfigMCP.Info & { type: "remote" })
-          : yield* connectLocal(key, mcp as ConfigMCP.Info & { type: "local" })
+        mcp.type === "builtin"
+          ? createBuiltinClient(key, mcp as ConfigMCP.Builtin)
+          : mcp.type === "remote"
+            ? yield* connectRemote(key, mcp as ConfigMCP.Info & { type: "remote" })
+            : yield* connectLocal(key, mcp as ConfigMCP.Info & { type: "local" })
 
       if (!result.mcpClient) {
         return { status: result.status } satisfies CreateResult
       }
       const client = result.mcpClient
 
-      const listed = yield* defs(key, client, mcp.timeout)
+      const listed = result.defs ?? (yield* defs(key, client, mcp.timeout, mcp.tool_filter))
       if (!listed) {
         yield* Effect.tryPromise(() => client.close()).pipe(Effect.ignore)
         yield* (result.cleanup ?? Effect.void)
@@ -826,12 +1018,19 @@ export const layer = Layer.effect(
       yield* (cleanup ?? Effect.void)
     })
 
-    function watch(s: State, name: string, client: MCPClient, bridge: EffectBridge.Shape, timeout?: number) {
+    function watch(
+      s: State,
+      name: string,
+      client: MCPClient,
+      bridge: EffectBridge.Shape,
+      timeout?: number,
+      filter?: McpToolFilter,
+    ) {
       client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
         log.info("tools list changed notification received", { server: name })
         if (s.clients[name] !== client || s.status[name]?.status !== "connected") return
 
-        const listed = await bridge.promise(defs(name, client, timeout))
+        const listed = await bridge.promise(defs(name, client, timeout, filter))
         if (!listed) return
         if (s.clients[name] !== client || s.status[name]?.status !== "connected") return
 
@@ -874,7 +1073,7 @@ export const layer = Layer.effect(
                 s.clients[key] = result.mcpClient
                 s.defs[key] = result.defs!
                 s.cleanups[key] = result.cleanup ?? Effect.void
-                watch(s, key, result.mcpClient, bridge, mcp.timeout)
+                watch(s, key, result.mcpClient, bridge, mcp.timeout, mcp.tool_filter)
               }
             }),
           { concurrency: "unbounded" },
@@ -929,7 +1128,10 @@ export const layer = Layer.effect(
       s.clients[name] = client
       s.defs[name] = listed
       s.cleanups[name] = cleanup ?? Effect.void
-      watch(s, name, client, bridge, timeout)
+      const cfg = yield* cfgSvc.get()
+      const mcpConfig = cfg.mcp?.[name]
+      const filter = mcpConfig && isMcpConfigured(mcpConfig) ? mcpConfig.tool_filter : undefined
+      watch(s, name, client, bridge, timeout, filter)
       return s.status[name]
     })
 
@@ -1126,6 +1328,10 @@ export const layer = Layer.effect(
         })
       }
 
+      if (mcpConfig.type === "builtin") {
+        throw new Error(`MCP server ${mcpName} does not support OAuth`)
+      }
+
       const local = yield* connectLocalHTTPProcess(mcpName, mcpConfig)
       return yield* startOAuthTransport(mcpName, {
         cleanup: local.cleanup,
@@ -1157,7 +1363,7 @@ export const layer = Layer.effect(
           return { status: "failed", error: "MCP config not found after auth" } as Status
         }
 
-        const listed = client ? yield* defs(mcpName, client, mcpConfig.timeout) : undefined
+        const listed = client ? yield* defs(mcpName, client, mcpConfig.timeout, mcpConfig.tool_filter) : undefined
         if (!client || !listed) {
           yield* Effect.tryPromise(() => client?.close() ?? Promise.resolve()).pipe(Effect.ignore)
           yield* (result.cleanup ?? Effect.void)
@@ -1275,7 +1481,7 @@ export const layer = Layer.effect(
         }
         const client = connected.client
 
-        const listed = yield* defs(mcpName, client, mcpConfig.timeout)
+        const listed = yield* defs(mcpName, client, mcpConfig.timeout, mcpConfig.tool_filter)
         if (!listed) {
           yield* Effect.tryPromise(() => client.close()).pipe(Effect.ignore)
           yield* session.cleanup

@@ -51,6 +51,7 @@ const getBase = (): Configuration => ({
     extendInfo: {
       NSMicrophoneUsageDescription: "OpenCode uses microphone access for hands-free local voice input.",
       NSSpeechRecognitionUsageDescription: "OpenCode uses speech recognition for native local voice transcription.",
+      NSAppleEventsUsageDescription: "OpenCode uses Apple Events to inspect and control local apps when Computer Use is enabled.",
     },
     notarize: true,
     target: ["dmg", "zip"],

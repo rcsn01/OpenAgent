@@ -317,6 +317,86 @@ test(
   ),
 )
 
+test(
+  "built-in computer use MCP exposes setup-aware native tools on macOS",
+  withInstance(
+    {
+      computer_use: {
+        type: "builtin",
+        id: "computer-use",
+      },
+    },
+    (mcp) =>
+      Effect.gen(function* () {
+        const status = yield* mcp.status()
+
+        if (process.platform !== "darwin") {
+          expect(status.computer_use?.status).toBe("failed")
+          return
+        }
+
+        expect(status.computer_use?.status).toBe("connected")
+        const definitions = yield* mcp.definitions()
+        expect(definitions.computer_use?.map((tool) => tool.name)).toEqual([
+          "list_apps",
+          "get_app_state",
+          "click",
+          "perform_secondary_action",
+          "scroll",
+          "drag",
+          "type_text",
+          "press_key",
+          "set_value",
+        ])
+
+        const tools = yield* mcp.tools()
+        expect(Object.keys(tools)).toContain("computer_use_list_apps")
+        const result = yield* Effect.promise(() =>
+          tools.computer_use_list_apps!.execute!({}, { toolCallId: "test", messages: [] } as any),
+        )
+        expect(result).toMatchObject({
+          isError: true,
+          content: [{ type: "text", text: expect.stringContaining("native OpenAgent desktop bridge") }],
+        })
+      }),
+  ),
+)
+
+test(
+  "MCP tool filters hide disallowed tools from definitions and tools()",
+  withInstance(
+    {
+      filtered: {
+        type: "local",
+        command: ["echo", "test"],
+        tool_filter: {
+          allow_prefixes: ["mail_", "calendar_"],
+          deny_prefixes: ["calendar_delete"],
+        },
+      },
+    },
+    (mcp) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "filtered"
+        const serverState = getOrCreateClientState("filtered")
+        serverState.tools = [
+          { name: "mail_read", description: "read", inputSchema: { type: "object", properties: {} } },
+          { name: "calendar_list", description: "list", inputSchema: { type: "object", properties: {} } },
+          { name: "calendar_delete", description: "delete", inputSchema: { type: "object", properties: {} } },
+          { name: "teams_send", description: "send", inputSchema: { type: "object", properties: {} } },
+        ]
+
+        yield* mcp.connect("filtered")
+
+        const definitions = yield* mcp.definitions()
+        expect(definitions.filtered?.map((tool) => tool.name)).toEqual(["mail_read", "calendar_list"])
+
+        const tools = yield* mcp.tools()
+        expect(Object.keys(tools)).toEqual(["filtered_mail_read", "filtered_calendar_list"])
+      }),
+  ),
+)
+
 // ========================================================================
 // Test: tool change notifications refresh the cache
 // ========================================================================

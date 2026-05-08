@@ -76,6 +76,7 @@ function installedSkills(item: InstalledExtension, bundle?: ExtensionRegistryEnt
 function isOAuthCapable(config: ExtensionBundle["mcp"][string] | undefined) {
   if (!config) return false
   if (config.type === "remote") return config.oauth !== false
+  if (config.type === "builtin") return false
   return config.transport?.type === "streamable-http" && !!config.oauth
 }
 

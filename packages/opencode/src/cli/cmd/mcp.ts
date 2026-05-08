@@ -58,6 +58,12 @@ function configuredServers(config: Config.Info) {
   return Object.entries(config.mcp ?? {}).filter((entry): entry is [string, McpConfigured] => isMcpConfigured(entry[1]))
 }
 
+function serverTarget(config: McpConfigured) {
+  if (config.type === "remote") return config.url
+  if (config.type === "builtin") return `builtin:${config.id}`
+  return config.command.join(" ")
+}
+
 function oauthServers(config: Config.Info) {
   return configuredServers(config).filter(
     (entry): entry is [string, McpRemote] => isMcpRemote(entry[1]) && entry[1].oauth !== false,
@@ -163,7 +169,7 @@ export const McpListCommand = cmd({
             hint = "\n    " + status.error
           }
 
-          const typeHint = serverConfig.type === "remote" ? serverConfig.url : serverConfig.command.join(" ")
+          const typeHint = serverTarget(serverConfig)
           prompts.log.info(
             `${statusIcon} ${name} ${UI.Style.TEXT_DIM}${statusText}${hint}\n    ${UI.Style.TEXT_DIM}${typeHint}`,
           )

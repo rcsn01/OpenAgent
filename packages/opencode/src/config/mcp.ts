@@ -36,6 +36,18 @@ export const OAuth = Schema.Struct({
   .pipe(withStatics((s) => ({ zod: zod(s) })))
 export type OAuth = Schema.Schema.Type<typeof OAuth>
 
+export const ToolFilter = Schema.Struct({
+  allow_prefixes: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+    description: "Only expose MCP tools whose names start with one of these prefixes.",
+  }),
+  deny_prefixes: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
+    description: "Hide MCP tools whose names start with one of these prefixes.",
+  }),
+})
+  .annotate({ identifier: "McpToolFilterConfig" })
+  .pipe(withStatics((s) => ({ zod: zod(s) })))
+export type ToolFilter = Schema.Schema.Type<typeof ToolFilter>
+
 export const Local = Schema.Struct({
   type: Schema.Literal("local").annotate({ description: "Type of MCP server connection" }),
   command: Schema.mutable(Schema.Array(Schema.String)).annotate({
@@ -57,6 +69,9 @@ export const Local = Schema.Struct({
   timeout: Schema.optional(PositiveInt).annotate({
     description: "Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.",
   }),
+  tool_filter: Schema.optional(ToolFilter).annotate({
+    description: "Optional MCP tool exposure filter applied after tools/list.",
+  }),
 })
   .annotate({ identifier: "McpLocalConfig" })
   .pipe(withStatics((s) => ({ zod: zod(s) })))
@@ -77,12 +92,32 @@ export const Remote = Schema.Struct({
   timeout: Schema.optional(PositiveInt).annotate({
     description: "Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.",
   }),
+  tool_filter: Schema.optional(ToolFilter).annotate({
+    description: "Optional MCP tool exposure filter applied after tools/list.",
+  }),
 })
   .annotate({ identifier: "McpRemoteConfig" })
   .pipe(withStatics((s) => ({ zod: zod(s) })))
 export type Remote = Schema.Schema.Type<typeof Remote>
 
-export const Info = Schema.Union([Local, Remote])
+export const Builtin = Schema.Struct({
+  type: Schema.Literal("builtin").annotate({ description: "Built-in MCP server implemented by OpenAgent" }),
+  id: Schema.Literal("computer-use").annotate({ description: "Built-in MCP capability identifier" }),
+  enabled: Schema.optional(Schema.Boolean).annotate({
+    description: "Enable or disable the built-in MCP server on startup",
+  }),
+  timeout: Schema.optional(PositiveInt).annotate({
+    description: "Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.",
+  }),
+  tool_filter: Schema.optional(ToolFilter).annotate({
+    description: "Optional MCP tool exposure filter applied after tools/list.",
+  }),
+})
+  .annotate({ identifier: "McpBuiltinConfig" })
+  .pipe(withStatics((s) => ({ zod: zod(s) })))
+export type Builtin = Schema.Schema.Type<typeof Builtin>
+
+export const Info = Schema.Union([Local, Remote, Builtin])
   .annotate({ discriminator: "type" })
   .pipe(withStatics((s) => ({ zod: zod(s) })))
 export type Info = Schema.Schema.Type<typeof Info>

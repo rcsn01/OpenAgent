@@ -15,7 +15,24 @@ import { formatServerError } from "@/utils/server-errors"
 import { installExtension } from "./install"
 import { buildExtensionsPanelModel, type ExtensionPanelItem } from "./model"
 
+type ExtensionBrowseKind = "skills" | "mcp" | "extensions"
 type ExtensionFilter = "all" | "installed" | "available"
+type ExtensionListEntry = {
+  id: string
+  kind: ExtensionBrowseKind
+  extension: ExtensionPanelItem
+  title: string
+  description?: string
+  meta: string[]
+  installed: boolean
+  search: string
+}
+
+const browseLabels: Record<ExtensionBrowseKind, string> = {
+  skills: "Skills",
+  mcp: "MCP",
+  extensions: "Extensions",
+}
 
 const filterLabels: Record<ExtensionFilter, string> = {
   all: "All",
@@ -65,6 +82,12 @@ function itemStatus(item: ExtensionPanelItem) {
   return "Installed"
 }
 
+function filterItem<T extends { installed: boolean }>(item: T, filter: ExtensionFilter) {
+  if (filter === "installed") return item.installed
+  if (filter === "available") return !item.installed
+  return true
+}
+
 export function SessionExtensionsPanel() {
   const sdk = useSDK()
   const sync = useSync()
@@ -77,8 +100,10 @@ export function SessionExtensionsPanel() {
     server: undefined as string | undefined,
   })
   const [view, setView] = createStore({
+    kind: "skills" as ExtensionBrowseKind,
     filter: "all" as ExtensionFilter,
     selected: undefined as string | undefined,
+    selectedKind: undefined as ExtensionBrowseKind | undefined,
   })
 
   const query = createQuery(() => ({
@@ -93,10 +118,52 @@ export function SessionExtensionsPanel() {
       live: sync.data.mcp ?? {},
     }),
   )
-  const filteredModel = createMemo(() => {
-    if (view.filter === "installed") return model().filter((item) => item.installed)
-    if (view.filter === "available") return model().filter((item) => !item.installed)
-    return model()
+  const entries = createMemo<ExtensionListEntry[]>(() => {
+    if (view.kind === "extensions") {
+      return model().map((item) => ({
+        id: item.id,
+        kind: "extensions",
+        extension: item,
+        title: item.name,
+        description: item.description,
+        meta: [itemStatus(item), `${item.servers.length} MCP`, `${item.skills.length} skills`, ...item.tags.slice(0, 3)],
+        installed: item.installed,
+        search: item.search,
+      }))
+    }
+
+    if (view.kind === "mcp") {
+      return model().flatMap((item) =>
+        item.servers.map((server) => ({
+          id: `${item.id}:mcp:${server.key}`,
+          kind: "mcp" as const,
+          extension: item,
+          title: server.key,
+          description: `${statusLabel(server.status.status)} in ${item.name}`,
+          meta: [item.name, itemStatus(item), `${server.tools.length} tools`],
+          installed: item.installed,
+          search: [item.search, server.key, statusLabel(server.status.status), ...server.tools.map((tool) => tool.name)]
+            .filter(Boolean)
+            .join(" "),
+        })),
+      )
+    }
+
+    return model().flatMap((item) =>
+      item.skills.map((skill) => ({
+        id: `${item.id}:skill:${skill.location ?? skill.name}`,
+        kind: "skills" as const,
+        extension: item,
+        title: skill.name,
+        description: skill.description,
+        meta: [item.name, itemStatus(item)],
+        installed: item.installed,
+        search: [item.search, skill.name, skill.description, skill.location].filter(Boolean).join(" "),
+      })),
+    )
+  })
+  const filteredEntries = createMemo(() => {
+    return entries().filter((entry) => filterItem(entry, view.filter))
   })
   const selected = createMemo(() => model().find((item) => item.id === view.selected))
   const busy = createMemo(() => pending.install !== undefined || pending.remove !== undefined || pending.server !== undefined)
@@ -147,7 +214,7 @@ export function SessionExtensionsPanel() {
     setPending("remove", item.id)
     try {
       await client().remove({ id: item.id })
-      setView("selected", undefined)
+      setView({ selected: undefined, selectedKind: undefined })
       await refresh()
     } catch (error) {
       fail(error)
@@ -195,10 +262,10 @@ export function SessionExtensionsPanel() {
     </Switch>
   )
 
-  const ExtensionDetails = (props: { item: ExtensionPanelItem }) => (
+  const ExtensionDetails = (props: { item: ExtensionPanelItem; sourceKind: ExtensionBrowseKind | undefined }) => (
     <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
       <div class="border-b border-border-weaker-base bg-background-stronger px-4 py-3">
-        <Button size="small" variant="ghost" class="mb-3 -ml-2" onClick={() => setView("selected", undefined)}>
+        <Button size="small" variant="ghost" class="mb-3 -ml-2" onClick={() => setView({ selected: undefined, selectedKind: undefined })}>
           Back
         </Button>
         <div class="flex items-start justify-between gap-3">
@@ -214,7 +281,9 @@ export function SessionExtensionsPanel() {
               <For each={props.item.tags}>{(tag) => <span>{tag}</span>}</For>
             </div>
           </div>
-          <ExtensionAction item={props.item} />
+          <Show when={props.sourceKind === "extensions"}>
+            <ExtensionAction item={props.item} />
+          </Show>
         </div>
       </div>
 
@@ -345,6 +414,32 @@ export function SessionExtensionsPanel() {
     </div>
   )
 
+  const SegmentGroup = <T extends string>(props: {
+    entries: Array<[T, string]>
+    value: T
+    onChange: (value: T) => void
+  }) => (
+    <div class="grid gap-2" style={{ "grid-template-columns": `repeat(${props.entries.length}, minmax(0, 1fr))` }}>
+      <For each={props.entries}>
+        {([value, label]) => <SegmentButton active={props.value === value} onClick={() => props.onChange(value)}>{label}</SegmentButton>}
+      </For>
+    </div>
+  )
+
+  const SegmentButton = (props: { active: boolean; onClick: () => void; children: string }) => (
+    <button
+      type="button"
+      class="min-h-9 rounded-lg px-2 py-2 text-12-medium transition-colors"
+      classList={{
+        "bg-surface-base-active text-text-strong": props.active,
+        "bg-surface-raised-base text-text-weak hover:bg-surface-base-hover hover:text-text-strong": !props.active,
+      }}
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  )
+
   return (
     <div id="extensions-panel" class="size-full min-w-0 flex flex-col overflow-hidden bg-background-base">
       <Show
@@ -372,67 +467,89 @@ export function SessionExtensionsPanel() {
                 </div>
               </Show>
 
-              <div class="mt-3 flex gap-1 rounded-lg bg-surface-raised-base p-1">
-                <For each={Object.entries(filterLabels) as Array<[ExtensionFilter, string]>}>
-                  {([filter, label]) => (
-                    <button
-                      type="button"
-                      class="flex-1 rounded-md px-2 py-1 text-12-medium transition-colors"
-                      classList={{
-                        "bg-surface-base-active text-text-strong": view.filter === filter,
-                        "text-text-weak hover:text-text-strong": view.filter !== filter,
-                      }}
-                      onClick={() => setView("filter", filter)}
-                    >
-                      {label}
-                    </button>
-                  )}
-                </For>
+              <div class="mt-3">
+                <SegmentGroup
+                  entries={Object.entries(browseLabels) as Array<[ExtensionBrowseKind, string]>}
+                  value={view.kind}
+                  onChange={(kind) => setView("kind", kind)}
+                />
+              </div>
+
+              <div class="mt-2">
+                <SegmentGroup
+                  entries={Object.entries(filterLabels) as Array<[ExtensionFilter, string]>}
+                  value={view.filter}
+                  onChange={(filter) => setView("filter", filter)}
+                />
               </div>
             </div>
 
             <List
-              class="flex-1 min-h-0 [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0"
+              class="flex-1 min-h-0 [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0 [&_[data-slot=list-items]]:gap-3 [&_[data-slot=list-item]]:p-0 [&_[data-slot=list-item][data-active=true]]:bg-transparent"
               search={{ placeholder: "Search extensions", autofocus: false }}
-              emptyMessage={query.isLoading ? "Loading extensions..." : "No extensions match this filter."}
-              key={(item) => item.id}
-              items={filteredModel}
+              emptyMessage={query.isLoading ? "Loading extensions..." : `No ${browseLabels[view.kind].toLowerCase()} match this filter.`}
+              key={(entry) => entry.id}
+              items={filteredEntries}
               filterKeys={["search"]}
             >
-              {(item) => (
+              {(entry) => (
                 <div
                   role="button"
                   tabIndex={0}
-                  class="w-full rounded-lg border border-border-weaker-base bg-background-stronger px-3 py-3 text-left transition-colors hover:bg-surface-base-hover focus:outline-none focus-visible:border-border-focus"
-                  onClick={() => setView("selected", item.id)}
+                  class="w-full rounded-lg border px-3 py-3 text-left transition-colors hover:bg-surface-base-hover focus:outline-none focus-visible:border-border-focus"
+                  classList={{
+                    "border-border-weaker-base bg-background-stronger": entry.kind === "extensions",
+                    "border-border-weaker-base bg-background-base": entry.kind !== "extensions",
+                  }}
+                  onClick={() => setView({ selected: entry.extension.id, selectedKind: entry.kind })}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return
                     event.preventDefault()
-                    setView("selected", item.id)
+                    setView({ selected: entry.extension.id, selectedKind: entry.kind })
                   }}
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0 flex-1">
                       <div class="flex min-w-0 items-center gap-2">
-                        <div class="truncate text-14-medium text-text-strong">{item.name}</div>
-                        <span class="rounded-full bg-surface-raised-base px-2 py-0.5 text-10-medium uppercase text-text-weak">
-                          {item.installed ? "installed" : "not installed"}
+                        <div
+                          class="truncate text-14-medium"
+                          classList={{
+                            "text-text-strong": entry.kind === "extensions",
+                            "text-text-weak": entry.kind !== "extensions",
+                          }}
+                        >
+                          {entry.title}
+                        </div>
+                        <span
+                          class="rounded-full px-2 py-0.5 text-10-medium uppercase"
+                          classList={{
+                            "bg-surface-raised-base text-text-weak": entry.kind === "extensions",
+                            "bg-surface-raised-base text-text-weaker": entry.kind !== "extensions",
+                          }}
+                        >
+                          {entry.installed ? "installed" : "not installed"}
                         </span>
                       </div>
-                      <Show when={item.description}>
-                        <div class="mt-1 line-clamp-2 text-12-regular text-text-weak">{item.description}</div>
+                      <Show when={entry.description}>
+                        <div class="mt-1 line-clamp-2 text-12-regular text-text-weak">{entry.description}</div>
                       </Show>
                       <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-11-regular text-text-weaker">
-                        <span>{itemStatus(item)}</span>
-                        <span>{item.servers.length} servers</span>
-                        <span>{item.skills.length} skills</span>
-                        <For each={item.tags.slice(0, 3)}>{(tag) => <span>{tag}</span>}</For>
+                        <For each={entry.meta}>{(meta) => <span>{meta}</span>}</For>
                       </div>
                     </div>
 
-                    <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                      <ExtensionAction item={item} />
-                    </div>
+                    <Show
+                      when={entry.kind === "extensions"}
+                      fallback={
+                        <div class="shrink-0 max-w-28 text-right text-11-regular text-text-weaker">
+                          Part of {entry.extension.name}
+                        </div>
+                      }
+                    >
+                      <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <ExtensionAction item={entry.extension} />
+                      </div>
+                    </Show>
                   </div>
                 </div>
               )}
@@ -440,7 +557,7 @@ export function SessionExtensionsPanel() {
           </>
         }
       >
-        {(item) => <ExtensionDetails item={item} />}
+        {(item) => <ExtensionDetails item={item} sourceKind={view.selectedKind} />}
       </Show>
     </div>
   )

@@ -156,6 +156,27 @@ describe("tool.bash", () => {
     })
   })
 
+  each("blocks hidden Messages automation", async () => {
+    await Instance.provide({
+      directory: projectRoot,
+      fn: async () => {
+        const bash = await initBash()
+        const result = await Effect.runPromise(
+          bash.execute(
+            {
+              command: `osascript -e ${squote('tell application "Messages" to send "hi" to buddy "Mina"')}`,
+              description: "Send hidden Messages automation",
+            },
+            ctx,
+          ),
+        )
+        expect(result.metadata.exit).toBe(126)
+        expect(result.output).toContain("Blocked hidden Messages/iMessage GUI automation")
+        expect(result.output).toContain("Use the Computer Use tools directly")
+      },
+    })
+  })
+
   test("falls back from terminal-only configured shell", async () => {
     await using tmp = await tmpdir({
       config: { shell: "fish" },

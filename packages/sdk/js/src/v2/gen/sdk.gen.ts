@@ -89,6 +89,7 @@ import type {
   McpAuthStartResponses,
   McpConnectResponses,
   McpDisconnectResponses,
+  McpBuiltinConfig,
   McpLocalConfig,
   McpRemoteConfig,
   McpStatusResponses,
@@ -1176,7 +1177,7 @@ export class Extensions extends HeyApiClient {
       name?: string
       description?: string
       mcp?: {
-        [key: string]: McpLocalConfig | McpRemoteConfig
+        [key: string]: McpLocalConfig | McpRemoteConfig | McpBuiltinConfig
       }
       skills?: Array<{
         path: string
@@ -4090,7 +4091,7 @@ export class Mcp extends HeyApiClient {
       directory?: string
       workspace?: string
       name?: string
-      config?: McpLocalConfig | McpRemoteConfig
+      config?: McpLocalConfig | McpRemoteConfig | McpBuiltinConfig
     },
     options?: Options<never, ThrowOnError>,
   ) {

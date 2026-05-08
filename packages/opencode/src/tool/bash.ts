@@ -219,6 +219,38 @@ function preview(text: string) {
   return "...\n\n" + text.slice(-MAX_METADATA_LENGTH)
 }
 
+function blockedGuiAutomation(command: string) {
+  const normalized = command.toLowerCase()
+  const targetsMessages =
+    normalized.includes("messages") || normalized.includes("imessage") || normalized.includes("mobilesms")
+  if (!targetsMessages) return
+
+  const hiddenAutomation = [
+    "osascript",
+    "system events",
+    "tell application",
+    "key code",
+    "keystroke",
+    "cgevent",
+    "cgeventpost",
+    "cgeventcreatemouseevent",
+    "applicationservices",
+    "quartz.cgevent",
+    "pyautogui",
+    "pynput",
+    "cliclick",
+    "xdotool",
+  ]
+
+  if (!hiddenAutomation.some((item) => normalized.includes(item))) return
+
+  return [
+    "Blocked hidden Messages/iMessage GUI automation.",
+    "Use the Computer Use tools directly for this request: list_apps/get_app_state, click, type_text, press_key, and then verify the sent bubble/state with get_app_state.",
+    "Do not infer success from shell commands, AppleScript, compiled click helpers, or no command output.",
+  ].join(" ")
+}
+
 function tail(text: string, maxLines: number, maxBytes: number) {
   const lines = text.split("\n")
   if (lines.length <= maxLines && Buffer.byteLength(text, "utf-8") <= maxBytes) {
@@ -606,6 +638,25 @@ export const BashTool = Tool.define(
               }
               const timeout = params.timeout ?? DEFAULT_TIMEOUT
               const ps = Shell.ps(shell)
+              const blocked = blockedGuiAutomation(params.command)
+              if (blocked) {
+                yield* ctx.metadata({
+                  metadata: {
+                    output: blocked,
+                    description: params.description,
+                  },
+                })
+                return {
+                  title: params.description,
+                  metadata: {
+                    output: blocked,
+                    exit: 126,
+                    description: params.description,
+                    truncated: false,
+                  },
+                  output: blocked,
+                }
+              }
               yield* Effect.scoped(
                 Effect.gen(function* () {
                   const tree = yield* Effect.acquireRelease(parse(params.command, ps), (tree) =>
