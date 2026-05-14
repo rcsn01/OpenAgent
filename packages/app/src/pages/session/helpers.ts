@@ -101,6 +101,21 @@ export const shouldFocusTerminalOnKeyDown = (event: Pick<KeyboardEvent, "key" | 
   return !(event.ctrlKey || event.metaKey || event.altKey)
 }
 
+export const rootSessionID = (sessions: { id: string; parentID?: string }[], sessionID: string | undefined) => {
+  if (!sessionID) return
+  const byID = new Map(sessions.map((session) => [session.id, session]))
+  let currentID = sessionID
+  const seen = new Set([currentID])
+
+  while (true) {
+    const parentID = byID.get(currentID)?.parentID
+    if (!parentID) return currentID
+    if (seen.has(parentID)) return sessionID
+    currentID = parentID
+    seen.add(currentID)
+  }
+}
+
 export const createOpenReviewFile = (input: {
   showAllFiles: () => void
   tabForPath: (path: string) => string

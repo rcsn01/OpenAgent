@@ -7,6 +7,7 @@ import {
   createSessionTabs,
   focusTerminalById,
   getTabReorderIndex,
+  rootSessionID,
   shouldFocusTerminalOnKeyDown,
 } from "./helpers"
 
@@ -104,6 +105,38 @@ describe("shouldFocusTerminalOnKeyDown", () => {
   test("keeps plain typing focused on terminal", () => {
     expect(shouldFocusTerminalOnKeyDown(new KeyboardEvent("keydown", { key: "a" }))).toBe(true)
     expect(shouldFocusTerminalOnKeyDown(new KeyboardEvent("keydown", { key: "A", shiftKey: true }))).toBe(true)
+  })
+})
+
+describe("rootSessionID", () => {
+  test("returns the top-most parent for a child session", () => {
+    expect(
+      rootSessionID(
+        [
+          { id: "root" },
+          { id: "child", parentID: "root" },
+          { id: "grandchild", parentID: "child" },
+        ],
+        "grandchild",
+      ),
+    ).toBe("root")
+  })
+
+  test("returns the current session when it has no known parent", () => {
+    expect(rootSessionID([{ id: "root" }], "root")).toBe("root")
+    expect(rootSessionID([], "missing")).toBe("missing")
+  })
+
+  test("stops on cycles", () => {
+    expect(
+      rootSessionID(
+        [
+          { id: "a", parentID: "b" },
+          { id: "b", parentID: "a" },
+        ],
+        "a",
+      ),
+    ).toBe("a")
   })
 })
 

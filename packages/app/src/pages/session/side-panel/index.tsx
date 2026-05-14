@@ -9,6 +9,8 @@ import { SessionExtensionsPanel } from "./extensions"
 import { SessionReviewPanel } from "./review"
 import { SessionSubagentsPanel } from "./subagents"
 
+const MIN_SIDE_PANEL_WIDTH = 360
+
 export function SessionSidePanel(props: {
   sessionID?: string
   canReview: () => boolean
@@ -34,7 +36,7 @@ export function SessionSidePanel(props: {
   const open = createMemo(() => reviewOpen() || subagentsOpen() || extensionsOpen())
   const panelWidth = createMemo(() => {
     if (!open()) return "0px"
-    return `calc(100% - ${layout.session.width()}px)`
+    return `max(${MIN_SIDE_PANEL_WIDTH}px, calc(100% - ${layout.session.width()}px))`
   })
 
   return (
@@ -50,7 +52,7 @@ export function SessionSidePanel(props: {
         }
         aria-hidden={!open()}
         inert={!open()}
-        class="relative min-w-0 h-full flex shrink-0 overflow-hidden bg-background-base"
+        class="relative h-full flex shrink-0 overflow-hidden bg-background-base"
         classList={{
           "pointer-events-none": !open(),
           "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":

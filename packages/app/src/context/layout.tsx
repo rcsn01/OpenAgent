@@ -19,6 +19,10 @@ const LEGACY_DEFAULT_SIDEBAR_WIDTH = 344
 const DEFAULT_FILE_TREE_WIDTH = 200
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
+const MIN_SIDEBAR_WIDTH = 160
+const MIN_FILE_TREE_WIDTH = 200
+const MIN_SESSION_WIDTH = 420
+const MIN_TERMINAL_HEIGHT = 120
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
 
 export function getAvatarColors(key?: string) {
@@ -613,7 +617,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         width: createMemo(() => store.sidebar.width),
         resize(width: number) {
-          setStore("sidebar", "width", width)
+          setStore("sidebar", "width", Math.max(MIN_SIDEBAR_WIDTH, width))
         },
         workspaces(directory: string) {
           return () => store.sidebar.workspaces[directory] ?? store.sidebar.workspacesDefault ?? false
@@ -629,7 +633,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       terminal: {
         height: createMemo(() => store.terminal.height),
         resize(height: number) {
-          setStore("terminal", "height", height)
+          setStore("terminal", "height", Math.max(MIN_TERMINAL_HEIGHT, height))
         },
       },
       review: {
@@ -678,21 +682,23 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("fileTree", "opened", (x) => !x)
         },
         resize(width: number) {
+          const next = Math.max(MIN_FILE_TREE_WIDTH, width)
           if (!store.fileTree) {
-            setStore("fileTree", { opened: true, width, tab: "changes" })
+            setStore("fileTree", { opened: true, width: next, tab: "changes" })
             return
           }
-          setStore("fileTree", "width", width)
+          setStore("fileTree", "width", next)
         },
       },
       session: {
         width: createMemo(() => store.session?.width ?? DEFAULT_SESSION_WIDTH),
         resize(width: number) {
+          const next = Math.max(MIN_SESSION_WIDTH, width)
           if (!store.session) {
-            setStore("session", { width })
+            setStore("session", { width: next })
             return
           }
-          setStore("session", "width", width)
+          setStore("session", "width", next)
         },
       },
       mobileSidebar: {

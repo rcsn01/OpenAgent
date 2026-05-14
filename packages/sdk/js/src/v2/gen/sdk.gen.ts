@@ -13,6 +13,17 @@ import type {
   AuthRemoveResponses,
   AuthSetErrors,
   AuthSetResponses,
+  AutomationCreateErrors,
+  AutomationCreateResponses,
+  AutomationDeleteErrors,
+  AutomationDeleteResponses,
+  AutomationListResponses,
+  AutomationRunErrors,
+  AutomationRunResponses,
+  AutomationRunsErrors,
+  AutomationRunsResponses,
+  AutomationUpdateErrors,
+  AutomationUpdateResponses,
   CommandListResponses,
   Config as Config3,
   ConfigGetResponses,
@@ -76,6 +87,15 @@ import type {
   GlobalUpgradeErrors,
   GlobalUpgradeResponses,
   InstanceDisposeResponses,
+  IntegrationListResponses,
+  IntegrationOauthCallbackErrors,
+  IntegrationOauthCallbackResponses,
+  IntegrationOauthStartErrors,
+  IntegrationOauthStartResponses,
+  IntegrationRevokeErrors,
+  IntegrationRevokeResponses,
+  IntegrationStatusErrors,
+  IntegrationStatusResponses,
   LspStatusResponses,
   McpAddErrors,
   McpAddResponses,
@@ -87,9 +107,9 @@ import type {
   McpAuthRemoveResponses,
   McpAuthStartErrors,
   McpAuthStartResponses,
+  McpBuiltinConfig,
   McpConnectResponses,
   McpDisconnectResponses,
-  McpBuiltinConfig,
   McpLocalConfig,
   McpRemoteConfig,
   McpStatusResponses,
@@ -3546,6 +3566,461 @@ export class Provider extends HeyApiClient {
   }
 }
 
+export class Oauth2 extends HeyApiClient {
+  /**
+   * Start integration OAuth
+   *
+   * Start a per-user OAuth flow for an external integration.
+   */
+  public start<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      provider?: "composio" | "google" | "fal" | "openai"
+      accountID?: string
+      connectionID?: string
+      scopes?: Array<string>
+      redirectURI?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "provider" },
+            { in: "body", key: "accountID" },
+            { in: "body", key: "connectionID" },
+            { in: "body", key: "scopes" },
+            { in: "body", key: "redirectURI" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      IntegrationOauthStartResponses,
+      IntegrationOauthStartErrors,
+      ThrowOnError
+    >({
+      url: "/integration/oauth/start",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Complete integration OAuth
+   *
+   * Complete a per-user OAuth flow and store the resulting connection.
+   */
+  public callback<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      provider?: "composio" | "google" | "fal" | "openai"
+      state?: string
+      code?: string
+      accountID?: string
+      connectionID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "provider" },
+            { in: "body", key: "state" },
+            { in: "body", key: "code" },
+            { in: "body", key: "accountID" },
+            { in: "body", key: "connectionID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      IntegrationOauthCallbackResponses,
+      IntegrationOauthCallbackErrors,
+      ThrowOnError
+    >({
+      url: "/integration/oauth/callback",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Integration extends HeyApiClient {
+  /**
+   * List integration connections
+   *
+   * List per-user external integration connections without exposing raw tokens.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      accountID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "accountID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<IntegrationListResponses, unknown, ThrowOnError>({
+      url: "/integration",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Get integration status
+   *
+   * Report whether an integration is connected and provide setup guidance when missing.
+   */
+  public status<ThrowOnError extends boolean = false>(
+    parameters: {
+      provider: "composio" | "google" | "fal" | "openai"
+      directory?: string
+      workspace?: string
+      accountID?: string
+      connectionID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "provider" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "accountID" },
+            { in: "query", key: "connectionID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<IntegrationStatusResponses, IntegrationStatusErrors, ThrowOnError>({
+      url: "/integration/{provider}/status",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Revoke integration
+   *
+   * Remove a per-user integration connection.
+   */
+  public revoke<ThrowOnError extends boolean = false>(
+    parameters: {
+      provider: "composio" | "google" | "fal" | "openai"
+      directory?: string
+      workspace?: string
+      accountID?: string
+      connectionID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "provider" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "accountID" },
+            { in: "query", key: "connectionID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<IntegrationRevokeResponses, IntegrationRevokeErrors, ThrowOnError>({
+      url: "/integration/{provider}",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _oauth?: Oauth2
+  get oauth(): Oauth2 {
+    return (this._oauth ??= new Oauth2({ client: this.client }))
+  }
+}
+
+export class Automation extends HeyApiClient {
+  /**
+   * List automations
+   *
+   * List recurring local automations for the current directory.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<AutomationListResponses, unknown, ThrowOnError>({
+      url: "/automation",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create automation
+   *
+   * Create a recurring local automation for the current directory.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      name?: string
+      prompt?: string
+      schedule?:
+        | {
+            type: "daily"
+            time: string
+          }
+        | {
+            type: "weekly"
+            day: number
+            time: string
+          }
+        | {
+            type: "interval"
+            minutes: number
+          }
+      status?: "active" | "paused"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "schedule" },
+            { in: "body", key: "status" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<AutomationCreateResponses, AutomationCreateErrors, ThrowOnError>({
+      url: "/automation",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete automation
+   *
+   * Delete an automation and its run history.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      automationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "automationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<AutomationDeleteResponses, AutomationDeleteErrors, ThrowOnError>({
+      url: "/automation/{automationID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update automation
+   *
+   * Update an existing automation.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      automationID: string
+      directory?: string
+      workspace?: string
+      name?: string
+      prompt?: string
+      schedule?:
+        | {
+            type: "daily"
+            time: string
+          }
+        | {
+            type: "weekly"
+            day: number
+            time: string
+          }
+        | {
+            type: "interval"
+            minutes: number
+          }
+      status?: "active" | "paused"
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "automationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "name" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "schedule" },
+            { in: "body", key: "status" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<AutomationUpdateResponses, AutomationUpdateErrors, ThrowOnError>({
+      url: "/automation/{automationID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Run automation now
+   *
+   * Run an automation immediately and return the run record.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters: {
+      automationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "automationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<AutomationRunResponses, AutomationRunErrors, ThrowOnError>({
+      url: "/automation/{automationID}/run",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List automation runs
+   *
+   * List recent run records for an automation.
+   */
+  public runs<ThrowOnError extends boolean = false>(
+    parameters: {
+      automationID: string
+      directory?: string
+      workspace?: string
+      limit?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "automationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<AutomationRunsResponses, AutomationRunsErrors, ThrowOnError>({
+      url: "/automation/{automationID}/runs",
+      ...options,
+      ...params,
+    })
+  }
+}
+
 export class History extends HeyApiClient {
   /**
    * List sync events
@@ -4933,6 +5408,16 @@ export class OpencodeClient extends HeyApiClient {
   private _provider?: Provider
   get provider(): Provider {
     return (this._provider ??= new Provider({ client: this.client }))
+  }
+
+  private _integration?: Integration
+  get integration(): Integration {
+    return (this._integration ??= new Integration({ client: this.client }))
+  }
+
+  private _automation?: Automation
+  get automation(): Automation {
+    return (this._automation ??= new Automation({ client: this.client }))
   }
 
   private _sync?: Sync

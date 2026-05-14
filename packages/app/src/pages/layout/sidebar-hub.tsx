@@ -165,6 +165,8 @@ const ProjectSection = (props: {
   onArchiveProjectChats: (project: LocalProject) => void
   onRemoveProject: (project: LocalProject) => void
   onOpenSession: (session: Session) => void
+  hasMoreProjectSessions: (project: LocalProject) => boolean
+  onLoadMoreProjectSessions: (project: LocalProject) => Promise<void>
   showSessions: Accessor<boolean>
   sortMode: Accessor<ProjectSortMode>
   editorOpen: (id: string) => boolean
@@ -172,7 +174,8 @@ const ProjectSection = (props: {
 }) => {
   const language = useLanguage()
   const touch = createMediaQuery("(hover: none)")
-  const [expanded, setExpanded] = createStore({} as Record<string, boolean>)
+  const [visibleCount, setVisibleCount] = createStore({} as Record<string, number>)
+  const projectVisibleCount = (project: LocalProject) => visibleCount[project.worktree] ?? 5
 
   return (
     <Show when={props.projects().length > 0}>
@@ -189,7 +192,27 @@ const ProjectSection = (props: {
                   props.sortMode() === "created" ? b.time.created - a.time.created : updatedAt(b) - updatedAt(a),
                 ),
             )
-            const visible = () => (expanded[project.worktree] ? sessions() : sessions().slice(0, 5))
+            const visible = () => sessions().slice(0, projectVisibleCount(project))
+            const sessionsVisible = () => projectVisibleCount(project) > 0
+            const hasMore = () => props.hasMoreProjectSessions(project)
+            const canShowMore = () => projectVisibleCount(project) < sessions().length || hasMore()
+            const canShowLess = () => projectVisibleCount(project) > 5
+            const showMoreControl = () => canShowMore() || canShowLess()
+            const toggleProjectSessions = () => {
+              if (sessionsVisible()) {
+                setVisibleCount(project.worktree, 0)
+                return
+              }
+              setVisibleCount(project.worktree, 5)
+            }
+            const showMore = async () => {
+              const current = projectVisibleCount(project)
+              if (current >= sessions().length && hasMore()) await props.onLoadMoreProjectSessions(project)
+              setVisibleCount(project.worktree, current + 5)
+            }
+            const showLess = () => {
+              setVisibleCount(project.worktree, Math.max(5, projectVisibleCount(project) - 5))
+            }
 
             return (
               <section class="group/project space-y-1">
@@ -197,7 +220,7 @@ const ProjectSection = (props: {
                   <button
                     type="button"
                     class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1 text-left transition-colors hover:bg-surface-base-hover"
-                    onClick={() => props.onOpenProject(project)}
+                    onClick={toggleProjectSessions}
                   >
                     <span class="flex size-5 shrink-0 items-center justify-center text-icon-base">
                       <Icon name="folder" />
@@ -242,7 +265,7 @@ const ProjectSection = (props: {
                   </div>
                 </div>
 
-                <Show when={props.showSessions()}>
+                <Show when={props.showSessions() && sessionsVisible()}>
                   <div class="space-y-0.5 pl-7">
                     <Show
                       when={sessions().length > 0}
@@ -264,14 +287,27 @@ const ProjectSection = (props: {
                         }}
                       </For>
                     </Show>
-                    <Show when={sessions().length > 5}>
-                      <button
-                        type="button"
-                        class="type-prose-md px-3 py-0.5 text-text-weaker transition-colors hover:text-text-strong"
-                        onClick={() => setExpanded(project.worktree, (value) => !value)}
-                      >
-                        {expanded[project.worktree] ? "Show less" : "Show more"}
-                      </button>
+                    <Show when={showMoreControl()}>
+                      <div class="flex items-center justify-between gap-2 px-3 py-0.5">
+                        <Show when={canShowMore()}>
+                          <button
+                            type="button"
+                            class="type-prose-md text-text-weaker transition-colors hover:text-text-strong"
+                            onClick={() => void showMore()}
+                          >
+                            Show more
+                          </button>
+                        </Show>
+                        <Show when={canShowLess()}>
+                          <button
+                            type="button"
+                            class="type-prose-md ml-auto text-text-weaker transition-colors hover:text-text-strong"
+                            onClick={showLess}
+                          >
+                            Show less
+                          </button>
+                        </Show>
+                      </div>
                     </Show>
                   </div>
                 </Show>
@@ -299,6 +335,8 @@ export const SidebarHub = (props: {
   onArchiveProjectChats: (project: LocalProject) => void
   onRemoveProject: (project: LocalProject) => void
   onOpenSession: (session: Session) => void
+  hasMoreProjectSessions: (project: LocalProject) => boolean
+  onLoadMoreProjectSessions: (project: LocalProject) => Promise<void>
   onNewChat: () => void
   onSearch: () => void
   onPlugins: () => void
@@ -340,7 +378,7 @@ export const SidebarHub = (props: {
 
   return (
     <div class="flex h-full min-h-0 w-full min-w-0 flex-col border-r border-border-weaker-base bg-background-base px-4 pb-3 pt-2">
-      <div class="shrink-0 space-y-1">
+      <div class="shrink-0 space-y-0.5">
         <SidebarAction icon="new-session" label="New session" onClick={props.onNewChat} />
         <SidebarAction icon="magnifying-glass" label="Search" onClick={props.onSearch} />
         <SidebarAction icon="providers" label="Plugins" onClick={props.onPlugins} />
@@ -497,6 +535,8 @@ export const SidebarHub = (props: {
                     onArchiveProjectChats={props.onArchiveProjectChats}
                     onRemoveProject={props.onRemoveProject}
                     onOpenSession={props.onOpenSession}
+                    hasMoreProjectSessions={props.hasMoreProjectSessions}
+                    onLoadMoreProjectSessions={props.onLoadMoreProjectSessions}
                     showSessions={() => view.showSessions}
                     sortMode={() => view.sort}
                     editorOpen={props.editorOpen}
@@ -520,6 +560,8 @@ export const SidebarHub = (props: {
                   onArchiveProjectChats={props.onArchiveProjectChats}
                   onRemoveProject={props.onRemoveProject}
                   onOpenSession={props.onOpenSession}
+                  hasMoreProjectSessions={props.hasMoreProjectSessions}
+                  onLoadMoreProjectSessions={props.onLoadMoreProjectSessions}
                   showSessions={() => view.showSessions}
                   sortMode={() => view.sort}
                   editorOpen={props.editorOpen}
@@ -540,6 +582,8 @@ export const SidebarHub = (props: {
                   onArchiveProjectChats={props.onArchiveProjectChats}
                   onRemoveProject={props.onRemoveProject}
                   onOpenSession={props.onOpenSession}
+                  hasMoreProjectSessions={props.hasMoreProjectSessions}
+                  onLoadMoreProjectSessions={props.onLoadMoreProjectSessions}
                   showSessions={() => view.showSessions}
                   sortMode={() => view.sort}
                   editorOpen={props.editorOpen}

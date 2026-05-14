@@ -28,7 +28,7 @@ import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
 import { Button } from "@opencode-ai/ui/button"
 import { showToast } from "@opencode-ai/ui/toast"
 import { checksum } from "@opencode-ai/core/util/encode"
-import { useSearchParams } from "@solidjs/router"
+import { useNavigate, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
 import { useComments } from "@/context/comments"
 import { getSessionPrefetch, SESSION_PREFETCH_TTL } from "@/context/global-sync/session-prefetch"
@@ -48,6 +48,7 @@ import {
   createSessionTabs,
   createSizing,
   focusTerminalById,
+  rootSessionID,
   shouldFocusTerminalOnKeyDown,
 } from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/message-timeline"
@@ -88,6 +89,8 @@ const emptyFollowupState = (): FollowupState => ({
 })
 const COLLAPSED_SIDEBAR_WIDTH = 64
 const MIN_REVIEW_COLUMN_WIDTH = 200
+const MIN_SESSION_COLUMN_WIDTH = 420
+const MIN_SIDE_PANEL_WIDTH = 360
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -352,8 +355,9 @@ export default function Page() {
   const prompt = usePrompt()
   const comments = useComments()
   const terminal = useTerminal()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams<{ prompt?: string }>()
-  const { params, sessionKey, tabs, view } = useSessionLayout()
+  const { params, sessionKey, tabs, view, href } = useSessionLayout()
 
   createEffect(() => {
     if (!prompt.ready()) return
@@ -437,12 +441,13 @@ export default function Page() {
   const reviewResizeMax = () => {
     if (typeof window === "undefined") return 1000
     const sidebarWidth = layout.sidebar.opened() ? layout.sidebar.width() : COLLAPSED_SIDEBAR_WIDTH
-    const reserve = desktopFileTreeOpen() ? layout.fileTree.width() + MIN_REVIEW_COLUMN_WIDTH : MIN_REVIEW_COLUMN_WIDTH
-    return Math.max(MIN_REVIEW_COLUMN_WIDTH, window.innerWidth - sidebarWidth - reserve)
+    const fileTreeReserve = desktopFileTreeOpen() ? layout.fileTree.width() : 0
+    const reserve = fileTreeReserve + MIN_SIDE_PANEL_WIDTH
+    return Math.max(MIN_SESSION_COLUMN_WIDTH, window.innerWidth - sidebarWidth - reserve)
   }
   const sessionPanelWidth = createMemo(() => {
     if (!desktopSidePanelOpen()) return "100%"
-    return `${layout.session.width()}px`
+    return `${Math.max(MIN_SESSION_COLUMN_WIDTH, layout.session.width())}px`
   })
   const centered = createMemo(() => isDesktop() && !desktopMainPanelOpen())
 
@@ -469,6 +474,7 @@ export default function Page() {
 
   const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
   const isChildSession = createMemo(() => !!info()?.parentID)
+  const mainSessionID = createMemo(() => rootSessionID(sync.data.session, params.id))
   const diffs = createMemo(() => (params.id ? list(sync.data.session_diff[params.id]) : []))
   const canReview = createMemo(() => !!sync.project)
   const reviewTab = createMemo(() => isDesktop())
@@ -1038,6 +1044,19 @@ export default function Page() {
 
     if (activeElement === inputRef) {
       if (event.key === "Escape") inputRef?.blur()
+      return
+    }
+
+    if (
+      isChildSession() &&
+      (event.key === "Escape" || event.key === "ArrowUp") &&
+      !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
+    ) {
+      const sessionID = mainSessionID()
+      if (!sessionID || sessionID === params.id) return
+      event.preventDefault()
+      event.stopPropagation()
+      navigate(href(sessionID))
       return
     }
 
@@ -2051,7 +2070,7 @@ export default function Page() {
               <ResizeHandle
                 direction="horizontal"
                 size={layout.session.width()}
-                min={MIN_REVIEW_COLUMN_WIDTH}
+                min={MIN_SESSION_COLUMN_WIDTH}
                 max={reviewResizeMax()}
                 onResize={(width) => {
                   size.touch()

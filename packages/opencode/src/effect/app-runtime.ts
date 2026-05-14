@@ -54,6 +54,7 @@ import { Installation } from "@/installation"
 import { ShareNext } from "@/share/share-next"
 import { SessionShare } from "@/share/session"
 import { SyncEvent } from "@/sync"
+import * as Automation from "@/automation/automation"
 import { Npm } from "@opencode-ai/core/npm"
 import { memoMap } from "@opencode-ai/core/effect/memo-map"
 
@@ -119,7 +120,10 @@ const AppLayerTools = Layer.mergeAll(
   SyncEvent.defaultLayer,
 )
 
-export const AppLayer = Layer.mergeAll(AppLayerCore, AppLayerSession, AppLayerTools).pipe(
+const AppLayerBase = Layer.mergeAll(AppLayerCore, AppLayerSession, AppLayerTools)
+
+export const AppLayer = Automation.defaultLayer.pipe(
+  Layer.provideMerge(AppLayerBase),
   Layer.provideMerge(Observability.layer),
 )
 

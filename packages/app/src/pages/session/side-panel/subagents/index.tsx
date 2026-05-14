@@ -1,10 +1,9 @@
 import { base64Encode } from "@opencode-ai/core/util/encode"
-import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { useNavigate } from "@solidjs/router"
 import { createQuery } from "@tanstack/solid-query"
-import { createEffect, createMemo, For, Match, Show, Switch } from "solid-js"
+import { createMemo, For, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useAppRoute } from "@/context/app-route"
 import { useLanguage } from "@/context/language"
@@ -12,7 +11,7 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { pathKey } from "@/utils/path-key"
 import { sessionTitle } from "@/utils/session-title"
-import { buildSubagentsPanelModel, type SubagentNodeRow, type SubagentSelection } from "./model"
+import { buildSubagentsPanelModel, type SubagentNodeRow } from "./model"
 
 function nodeStatusClass(status: SubagentNodeRow["node"]["status"]) {
   if (status === "running") return "text-icon-warning-base"
@@ -33,20 +32,6 @@ function sessionLabel(input: { title?: string; id: string }) {
   return sessionTitle(input.title) ?? input.title ?? input.id
 }
 
-function sameSelection(left: SubagentSelection | undefined, right: SubagentSelection | undefined) {
-  if (!left || !right) return left === right
-  if (left.type !== right.type) return false
-  if (left.type === "node" && right.type === "node") return left.graphID === right.graphID && left.nodeID === right.nodeID
-  if (left.type === "session" && right.type === "session") return left.sessionID === right.sessionID
-  return false
-}
-
-function selectionKey(selection: SubagentSelection | undefined) {
-  if (!selection) return ""
-  if (selection.type === "node") return `node:${selection.graphID}:${selection.nodeID}`
-  return `session:${selection.sessionID}`
-}
-
 export function SessionSubagentsPanel(props: { sessionID?: string }) {
   const sdk = useSDK()
   const sync = useSync()
@@ -54,7 +39,6 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
   const navigate = useNavigate()
   const language = useLanguage()
   const [store, setStore] = createStore({
-    selection: undefined as SubagentSelection | undefined,
     expandedGraphs: {} as Record<string, boolean>,
   })
 
@@ -79,34 +63,6 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
     }),
   )
 
-  createEffect(() => {
-    const current = store.selection
-    const next = model().defaultSelection
-    if (sameSelection(current, next)) return
-    if (current?.type === "node") {
-      const graph = model().graphs.find((item) => item.graph.graphID === current.graphID)
-      if (graph?.nodes.some((item) => item.node.nodeID === current.nodeID)) return
-    }
-    if (current?.type === "session" && model().childSessions.some((item) => item.id === current.sessionID)) return
-    setStore("selection", next)
-  })
-
-  const selectedNode = createMemo(() => {
-    const selection = store.selection
-    if (selection?.type !== "node") return
-    return model()
-      .graphs.find((item) => item.graph.graphID === selection.graphID)
-      ?.nodes.find((item) => item.node.nodeID === selection.nodeID)
-  })
-
-  const selectedSession = createMemo(() => {
-    const node = selectedNode()
-    if (node?.session) return node.session
-    const selection = store.selection
-    if (selection?.type !== "session") return
-    return model().childSessions.find((item) => item.id === selection.sessionID)
-  })
-
   const openSession = (sessionID: string | undefined) => {
     if (!sessionID) return
     if (route.isChat() && pathKey(route.directory()) === pathKey(sdk.directory)) {
@@ -120,19 +76,16 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
   const toggleGraph = (graphID: string) => setStore("expandedGraphs", graphID, !graphExpanded(graphID))
 
   const nodeButton = (row: SubagentNodeRow) => {
-    const selected = () =>
-      store.selection?.type === "node" &&
-      store.selection.graphID === row.graphID &&
-      store.selection.nodeID === row.node.nodeID
+    const sessionID = () => row.session?.id ?? row.node.sessionID
     return (
       <button
         type="button"
-        class="w-full rounded-md px-3 py-2 text-left transition-colors"
+        class="w-full rounded-md px-3 py-2 text-left text-text-base transition-colors hover:bg-surface-raised-base-hover disabled:cursor-default disabled:opacity-70 disabled:hover:bg-transparent"
         classList={{
-          "bg-surface-raised-base text-text-strong": selected(),
-          "hover:bg-surface-raised-base-hover text-text-base": !selected(),
+          "cursor-pointer": !!sessionID(),
         }}
-        onClick={() => setStore("selection", { type: "node", graphID: row.graphID, nodeID: row.node.nodeID })}
+        disabled={!sessionID()}
+        onClick={() => openSession(sessionID())}
       >
         <div class="flex min-w-0 items-center gap-2">
           <span class={`text-12-medium ${nodeStatusClass(row.node.status)}`}>●</span>
@@ -153,8 +106,8 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
   }
 
   return (
-    <div id="subagents-panel" class="size-full min-w-0 flex overflow-hidden bg-background-base">
-      <div class="w-[44%] min-w-[240px] max-w-[360px] shrink-0 border-r border-border-weaker-base bg-background-stronger overflow-auto">
+    <div id="subagents-panel" class="size-full min-w-0 overflow-auto bg-background-stronger">
+      <div class="min-w-0">
         <div class="sticky top-0 z-10 border-b border-border-weaker-base bg-background-stronger px-4 py-3">
           <div class="flex items-center gap-2 text-14-medium text-text-strong">
             <Icon name="branch" size="small" class="text-icon-base" />
@@ -240,123 +193,22 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
                 </div>
                 <div class="flex flex-col gap-1">
                   <For each={model().ungrouped}>
-                    {(session) => {
-                      const selected = () => store.selection?.type === "session" && store.selection.sessionID === session.id
-                      return (
-                        <button
-                          type="button"
-                          class="w-full rounded-md px-3 py-2 text-left transition-colors"
-                          classList={{
-                            "bg-surface-raised-base text-text-strong": selected(),
-                            "hover:bg-surface-raised-base-hover text-text-base": !selected(),
-                          }}
-                          onClick={() => setStore("selection", { type: "session", sessionID: session.id })}
-                        >
-                          <div class="truncate text-13-medium">{sessionLabel(session)}</div>
-                          <div class="mt-1 truncate text-11-regular text-text-weak">{session.id}</div>
-                        </button>
-                      )
-                    }}
+                    {(session) => (
+                      <button
+                        type="button"
+                        class="w-full rounded-md px-3 py-2 text-left text-text-base transition-colors hover:bg-surface-raised-base-hover"
+                        onClick={() => openSession(session.id)}
+                      >
+                        <div class="truncate text-13-medium">{sessionLabel(session)}</div>
+                        <div class="mt-1 truncate text-11-regular text-text-weak">{session.id}</div>
+                      </button>
+                    )}
                   </For>
                 </div>
               </section>
             </Show>
           </Show>
         </div>
-      </div>
-
-      <div class="min-w-0 flex-1 overflow-auto p-5">
-        <Switch
-          fallback={
-            <div class="h-full flex items-center justify-center text-center text-14-regular text-text-weak">
-              {language.t("session.subagents.inspect.empty")}
-            </div>
-          }
-        >
-          <Match when={selectedNode()}>
-            {(row) => (
-              <div class="flex max-w-2xl flex-col gap-5">
-                <div>
-                  <div class="text-11-medium uppercase text-text-weaker">{language.t("session.subagents.inspect.node")}</div>
-                  <div class="mt-1 text-18-medium text-text-strong">{row().node.description}</div>
-                  <div class="mt-1 flex flex-wrap gap-2 text-12-regular text-text-weak">
-                    <span>{row().node.nodeID}</span>
-                    <span>@{row().node.agent}</span>
-                    <span class={nodeStatusClass(row().node.status)}>{row().node.status}</span>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3 text-12-regular">
-                  <div class="rounded-md bg-surface-panel p-3">
-                    <div class="text-text-weaker">{language.t("session.subagents.inspect.dependencies")}</div>
-                    <div class="mt-1 break-words text-text-base">
-                      {row().node.dependencies.length > 0 ? row().node.dependencies.join(", ") : language.t("common.none")}
-                    </div>
-                  </div>
-                  <div class="rounded-md bg-surface-panel p-3">
-                    <div class="text-text-weaker">{language.t("session.subagents.inspect.blockedBy")}</div>
-                    <div class="mt-1 break-words text-text-base">
-                      {(row().node.blockedBy?.length ?? 0) > 0 ? row().node.blockedBy?.join(", ") : language.t("common.none")}
-                    </div>
-                  </div>
-                </div>
-
-                <Show when={row().session}>
-                  {(session) => (
-                    <div class="rounded-md bg-surface-panel p-3">
-                      <div class="text-11-medium uppercase text-text-weaker">{language.t("session.subagents.inspect.session")}</div>
-                      <div class="mt-1 text-13-medium text-text-strong">{sessionLabel(session())}</div>
-                      <div class="mt-1 break-all text-12-regular text-text-weak">{session().id}</div>
-                      <Button class="mt-3" variant="secondary" onClick={() => openSession(session().id)}>
-                        {language.t("session.subagents.openSession")}
-                      </Button>
-                    </div>
-                  )}
-                </Show>
-
-                <Show when={row().node.title}>
-                  <div>
-                    <div class="text-11-medium uppercase text-text-weaker">{language.t("session.subagents.inspect.title")}</div>
-                    <div class="mt-1 text-13-regular text-text-base">{row().node.title}</div>
-                  </div>
-                </Show>
-
-                <Show when={row().node.output}>
-                  <div>
-                    <div class="text-11-medium uppercase text-text-weaker">{language.t("session.subagents.inspect.output")}</div>
-                    <pre class="mt-1 whitespace-pre-wrap break-words text-12-regular text-text-base">{row().node.output}</pre>
-                  </div>
-                </Show>
-
-                <Show when={row().node.error}>
-                  <div>
-                    <div class="text-11-medium uppercase text-text-weaker">{language.t("session.subagents.inspect.error")}</div>
-                    <pre class="mt-1 whitespace-pre-wrap break-words text-12-regular text-text-danger-base">
-                      {row().node.error}
-                    </pre>
-                  </div>
-                </Show>
-              </div>
-            )}
-          </Match>
-
-          <Match when={selectedSession()}>
-            {(session) => (
-              <div class="flex max-w-2xl flex-col gap-4">
-                <div>
-                  <div class="text-11-medium uppercase text-text-weaker">{language.t("session.subagents.inspect.session")}</div>
-                  <div class="mt-1 text-18-medium text-text-strong">{sessionLabel(session())}</div>
-                  <div class="mt-1 break-all text-12-regular text-text-weak">{session().id}</div>
-                </div>
-                <Button variant="secondary" onClick={() => openSession(session().id)}>
-                  {language.t("session.subagents.openSession")}
-                </Button>
-              </div>
-            )}
-          </Match>
-        </Switch>
-
-        <div class="hidden" data-selection={selectionKey(store.selection)} />
       </div>
     </div>
   )

@@ -1432,6 +1432,9 @@ export type McpOAuthConfig = {
   redirectUri?: string
 }
 
+/**
+ * Optional MCP tool exposure filter applied after tools/list.
+ */
 export type McpToolFilterConfig = {
   /**
    * Only expose MCP tools whose names start with one of these prefixes.
@@ -1471,9 +1474,6 @@ export type McpLocalConfig = {
    * Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.
    */
   timeout?: number
-  /**
-   * Optional MCP tool exposure filter applied after tools/list.
-   */
   tool_filter?: McpToolFilterConfig
 }
 
@@ -1504,9 +1504,6 @@ export type McpRemoteConfig = {
    * Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.
    */
   timeout?: number
-  /**
-   * Optional MCP tool exposure filter applied after tools/list.
-   */
   tool_filter?: McpToolFilterConfig
 }
 
@@ -1527,9 +1524,6 @@ export type McpBuiltinConfig = {
    * Timeout in ms for MCP server requests. Defaults to 5000 (5 seconds) if not specified.
    */
   timeout?: number
-  /**
-   * Optional MCP tool exposure filter applied after tools/list.
-   */
   tool_filter?: McpToolFilterConfig
 }
 
@@ -1661,6 +1655,16 @@ export type Config = {
     summary?: AgentConfig
     compaction?: AgentConfig
     [key: string]: AgentConfig | undefined
+  }
+  agent_communication?: {
+    /**
+     * Directional agent communication flows. When omitted, OpenSwarm defaults are used: assistant send_message/transfer to specialists.
+     */
+    flows?: Array<{
+      from: string
+      to: string
+      modes: Array<"send_message" | "transfer">
+    }>
   }
   /**
    * Custom provider configurations and model overrides
@@ -5090,6 +5094,482 @@ export type ProviderOauthCallbackResponses = {
 }
 
 export type ProviderOauthCallbackResponse = ProviderOauthCallbackResponses[keyof ProviderOauthCallbackResponses]
+
+export type IntegrationListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+    accountID?: string
+  }
+  url: "/integration"
+}
+
+export type IntegrationListResponses = {
+  /**
+   * Connections
+   */
+  200: Array<{
+    [key: string]: unknown
+  }>
+}
+
+export type IntegrationListResponse = IntegrationListResponses[keyof IntegrationListResponses]
+
+export type IntegrationStatusData = {
+  body?: never
+  path: {
+    provider: "composio" | "google" | "fal" | "openai"
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    accountID?: string
+    connectionID?: string
+  }
+  url: "/integration/{provider}/status"
+}
+
+export type IntegrationStatusErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type IntegrationStatusError = IntegrationStatusErrors[keyof IntegrationStatusErrors]
+
+export type IntegrationStatusResponses = {
+  /**
+   * Integration status
+   */
+  200: {
+    [key: string]: unknown
+  }
+}
+
+export type IntegrationStatusResponse = IntegrationStatusResponses[keyof IntegrationStatusResponses]
+
+export type IntegrationOauthStartData = {
+  body?: {
+    provider: "composio" | "google" | "fal" | "openai"
+    accountID?: string
+    connectionID?: string
+    scopes?: Array<string>
+    redirectURI?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/integration/oauth/start"
+}
+
+export type IntegrationOauthStartErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type IntegrationOauthStartError = IntegrationOauthStartErrors[keyof IntegrationOauthStartErrors]
+
+export type IntegrationOauthStartResponses = {
+  /**
+   * OAuth flow
+   */
+  200: {
+    [key: string]: unknown
+  }
+}
+
+export type IntegrationOauthStartResponse = IntegrationOauthStartResponses[keyof IntegrationOauthStartResponses]
+
+export type IntegrationOauthCallbackData = {
+  body?: {
+    provider: "composio" | "google" | "fal" | "openai"
+    state: string
+    code: string
+    accountID?: string
+    connectionID?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/integration/oauth/callback"
+}
+
+export type IntegrationOauthCallbackErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type IntegrationOauthCallbackError = IntegrationOauthCallbackErrors[keyof IntegrationOauthCallbackErrors]
+
+export type IntegrationOauthCallbackResponses = {
+  /**
+   * Connected integration
+   */
+  200: {
+    [key: string]: unknown
+  }
+}
+
+export type IntegrationOauthCallbackResponse =
+  IntegrationOauthCallbackResponses[keyof IntegrationOauthCallbackResponses]
+
+export type IntegrationRevokeData = {
+  body?: never
+  path: {
+    provider: "composio" | "google" | "fal" | "openai"
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    accountID?: string
+    connectionID?: string
+  }
+  url: "/integration/{provider}"
+}
+
+export type IntegrationRevokeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type IntegrationRevokeError = IntegrationRevokeErrors[keyof IntegrationRevokeErrors]
+
+export type IntegrationRevokeResponses = {
+  /**
+   * Revocation result
+   */
+  200: {
+    revoked: boolean
+  }
+}
+
+export type IntegrationRevokeResponse = IntegrationRevokeResponses[keyof IntegrationRevokeResponses]
+
+export type AutomationListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation"
+}
+
+export type AutomationListResponses = {
+  /**
+   * List of automations
+   */
+  200: Array<{
+    id: string
+    projectID: string
+    directory: string
+    name: string
+    prompt: string
+    schedule:
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          day: number
+          time: string
+        }
+      | {
+          type: "interval"
+          minutes: number
+        }
+    status: "active" | "paused"
+    nextRunAt: number
+    lastRunAt?: number
+    time: {
+      created: number
+      updated: number
+    }
+  }>
+}
+
+export type AutomationListResponse = AutomationListResponses[keyof AutomationListResponses]
+
+export type AutomationCreateData = {
+  body?: {
+    name: string
+    prompt: string
+    schedule:
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          day: number
+          time: string
+        }
+      | {
+          type: "interval"
+          minutes: number
+        }
+    status?: "active" | "paused"
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation"
+}
+
+export type AutomationCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type AutomationCreateError = AutomationCreateErrors[keyof AutomationCreateErrors]
+
+export type AutomationCreateResponses = {
+  /**
+   * Created automation
+   */
+  200: {
+    id: string
+    projectID: string
+    directory: string
+    name: string
+    prompt: string
+    schedule:
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          day: number
+          time: string
+        }
+      | {
+          type: "interval"
+          minutes: number
+        }
+    status: "active" | "paused"
+    nextRunAt: number
+    lastRunAt?: number
+    time: {
+      created: number
+      updated: number
+    }
+  }
+}
+
+export type AutomationCreateResponse = AutomationCreateResponses[keyof AutomationCreateResponses]
+
+export type AutomationDeleteData = {
+  body?: never
+  path: {
+    automationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation/{automationID}"
+}
+
+export type AutomationDeleteErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type AutomationDeleteError = AutomationDeleteErrors[keyof AutomationDeleteErrors]
+
+export type AutomationDeleteResponses = {
+  /**
+   * Automation deleted
+   */
+  200: boolean
+}
+
+export type AutomationDeleteResponse = AutomationDeleteResponses[keyof AutomationDeleteResponses]
+
+export type AutomationUpdateData = {
+  body?: {
+    name?: string
+    prompt?: string
+    schedule?:
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          day: number
+          time: string
+        }
+      | {
+          type: "interval"
+          minutes: number
+        }
+    status?: "active" | "paused"
+  }
+  path: {
+    automationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation/{automationID}"
+}
+
+export type AutomationUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type AutomationUpdateError = AutomationUpdateErrors[keyof AutomationUpdateErrors]
+
+export type AutomationUpdateResponses = {
+  /**
+   * Updated automation
+   */
+  200: {
+    id: string
+    projectID: string
+    directory: string
+    name: string
+    prompt: string
+    schedule:
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekly"
+          day: number
+          time: string
+        }
+      | {
+          type: "interval"
+          minutes: number
+        }
+    status: "active" | "paused"
+    nextRunAt: number
+    lastRunAt?: number
+    time: {
+      created: number
+      updated: number
+    }
+  }
+}
+
+export type AutomationUpdateResponse = AutomationUpdateResponses[keyof AutomationUpdateResponses]
+
+export type AutomationRunData = {
+  body?: never
+  path: {
+    automationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation/{automationID}/run"
+}
+
+export type AutomationRunErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type AutomationRunError = AutomationRunErrors[keyof AutomationRunErrors]
+
+export type AutomationRunResponses = {
+  /**
+   * Automation run
+   */
+  200: {
+    id: string
+    automationID: string
+    sessionID?: string
+    status: "running" | "succeeded" | "failed" | "cancelled"
+    error?: string
+    startedAt: number
+    completedAt?: number
+    time: {
+      created: number
+      updated: number
+    }
+  }
+}
+
+export type AutomationRunResponse = AutomationRunResponses[keyof AutomationRunResponses]
+
+export type AutomationRunsData = {
+  body?: never
+  path: {
+    automationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    limit?: number
+  }
+  url: "/automation/{automationID}/runs"
+}
+
+export type AutomationRunsErrors = {
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type AutomationRunsError = AutomationRunsErrors[keyof AutomationRunsErrors]
+
+export type AutomationRunsResponses = {
+  /**
+   * Automation runs
+   */
+  200: Array<{
+    id: string
+    automationID: string
+    sessionID?: string
+    status: "running" | "succeeded" | "failed" | "cancelled"
+    error?: string
+    startedAt: number
+    completedAt?: number
+    time: {
+      created: number
+      updated: number
+    }
+  }>
+}
+
+export type AutomationRunsResponse = AutomationRunsResponses[keyof AutomationRunsResponses]
 
 export type SyncStartData = {
   body?: never

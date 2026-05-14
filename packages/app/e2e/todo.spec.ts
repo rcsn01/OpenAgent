@@ -57,7 +57,9 @@ test("exposes the left sidebar global navigation outcomes", async ({ page }) => 
   await expect(page.getByText("Plugins are managed per workspace.", { exact: true })).toBeVisible()
 
   await page.getByRole("button", { name: "Automations" }).click()
-  await expect(page.getByText("Automations aren't available yet", { exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Automations" })).toBeVisible()
+  await expect(page.getByText("Recurring prompts that create reviewable sessions.", { exact: true })).toBeVisible()
+  await page.keyboard.press("Escape")
 
   await page.getByRole("button", { name: "Settings", exact: true }).click()
   await expect(page.getByRole("tab", { name: "General" })).toBeVisible()

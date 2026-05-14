@@ -60,6 +60,7 @@ import { useCommand, type CommandOption } from "@/context/command"
 import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
 import { Titlebar } from "@/components/titlebar"
+import { DialogAutomations } from "@/components/dialog-automations"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
@@ -159,6 +160,7 @@ export default function Layout(props: ParentProps) {
     sizing: false,
     peek: undefined as string | undefined,
     peeked: false,
+    mainPanel: undefined as "automations" | undefined,
   })
 
   const editor = createInlineEditorController()
@@ -313,6 +315,7 @@ export default function Layout(props: ParentProps) {
 
   const navigateWithSidebarReset = (href: string) => {
     clearSidebarHoverState()
+    setState("mainPanel", undefined)
     navigate(href)
     layout.mobileSidebar.hide()
   }
@@ -2057,6 +2060,31 @@ export default function Layout(props: ParentProps) {
   const projectSessionDirectories = (project: LocalProject) =>
     [...new Map(workspaceIds(project).map((directory) => [pathKey(directory), directory])).values()]
 
+  function projectHasMoreSessions(project: LocalProject) {
+    return projectSessionDirectories(project).some((directory) => {
+      const [store] = globalSync.child(directory, { bootstrap: false })
+      const count = sortedRootSessions(store, sortNow()).length
+      return store.sessionTotal > count
+    })
+  }
+
+  async function loadMoreProjectSessions(project: LocalProject) {
+    const directories = projectSessionDirectories(project).filter((directory) => {
+      const [store] = globalSync.child(directory, { bootstrap: false })
+      const count = sortedRootSessions(store, sortNow()).length
+      return store.sessionTotal > count
+    })
+    if (directories.length === 0) return
+
+    await Promise.all(
+      directories.map(async (directory) => {
+        const [, setStore] = globalSync.child(directory, { bootstrap: false })
+        setStore("limit", (limit) => (limit ?? 0) + 5)
+        await globalSync.project.loadSessions(directory)
+      }),
+    )
+  }
+
   const listProjectRootSessions = (project: LocalProject) =>
     Promise.all(
       projectSessionDirectories(project).map((directory) =>
@@ -2200,11 +2228,10 @@ export default function Layout(props: ParentProps) {
     navigateWithSidebarReset(`/${base64Encode(directory)}/session`)
   }
 
-  function openAutomationPlaceholder() {
-    showToast({
-      title: "Automations aren't available yet",
-      description: "This button is a placeholder until OpenCode adds automation support.",
-    })
+  function openAutomations() {
+    clearSidebarHoverState()
+    setState("mainPanel", "automations")
+    layout.mobileSidebar.hide()
   }
 
   const sidebarProject = createMemo(() => {
@@ -2609,10 +2636,12 @@ export default function Layout(props: ParentProps) {
           onArchiveProjectChats={(project) => void showArchiveProjectChatsDialog(project)}
           onRemoveProject={(project) => closeProject(project.worktree)}
           onOpenSession={navigateToSession}
+          hasMoreProjectSessions={projectHasMoreSessions}
+          onLoadMoreProjectSessions={loadMoreProjectSessions}
           onNewChat={openSidebarNewChat}
           onSearch={openSessionList}
           onPlugins={openPluginsManager}
-          onAutomations={openAutomationPlaceholder}
+          onAutomations={openAutomations}
           onSettings={openSettings}
           onStartProject={() => void chooseProject()}
           onOpenProjectChooser={() => void chooseProject()}
@@ -2735,7 +2764,19 @@ export default function Layout(props: ParentProps) {
             <Titlebar embedded />
             <div class="flex-1 min-h-0 min-w-0 w-full">
               <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
-                {props.children}
+                <Show
+                  when={state.mainPanel === "automations"}
+                  fallback={props.children}
+                >
+                  <DialogAutomations
+                    projects={layout.projects.list()}
+                    currentDir={currentDir()}
+                    embedded
+                    onOpenSession={(session) =>
+                      navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
+                    }
+                  />
+                </Show>
               </Show>
             </div>
           </main>
