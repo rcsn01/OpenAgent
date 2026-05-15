@@ -2,6 +2,7 @@ import z from "zod"
 import { and, asc, desc, eq, lte } from "drizzle-orm"
 import { Effect, Context, Layer, Schedule, Duration, Scope, Cause } from "effect"
 import * as Log from "@opencode-ai/core/util/log"
+import { Global } from "@opencode-ai/core/global"
 import { ascending } from "@/id/id"
 import { Database } from "@/storage/db"
 import { InstanceState } from "@/effect/instance-state"
@@ -9,10 +10,13 @@ import { InstanceRef } from "@/effect/instance-ref"
 import { Project } from "@/project/project"
 import { Session } from "@/session/session"
 import { SessionPrompt } from "@/session/prompt"
+import { Permission } from "@/permission"
 import { AutomationRunTable, AutomationTable } from "./automation.sql"
 import { SessionID } from "@/session/schema"
 import { ProjectID } from "@/project/schema"
 import { ModelID, ProviderID } from "@/provider/schema"
+import fs from "fs/promises"
+import path from "path"
 
 const log = Log.create({ service: "automation" })
 
@@ -116,6 +120,57 @@ export namespace Automation {
 
 type AutomationRow = typeof AutomationTable.$inferSelect
 type RunRow = typeof AutomationRunTable.$inferSelect
+
+export function automationMemoryDir(automationID: AutomationID) {
+  return path.join(Global.Path.data, "automations", automationID)
+}
+
+export function automationMemoryFile(automationID: AutomationID) {
+  return path.join(automationMemoryDir(automationID), "memory.md")
+}
+
+export async function ensureAutomationMemoryFile(automationID: AutomationID) {
+  const dir = automationMemoryDir(automationID)
+  const file = automationMemoryFile(automationID)
+  await fs.mkdir(dir, { recursive: true })
+  await fs.writeFile(file, "", { flag: "a" })
+  return file
+}
+
+export async function removeAutomationMemory(automationID: AutomationID) {
+  await fs.rm(automationMemoryDir(automationID), { recursive: true, force: true })
+}
+
+export function automationMemoryPermission(input: { memoryFile: string; worktree: string }): Permission.Ruleset {
+  const memoryDir = path.dirname(input.memoryFile)
+  const editPattern = path.relative(input.worktree, input.memoryFile)
+  return Permission.fromConfig({
+    external_directory: {
+      [path.join(memoryDir, "*")]: "allow",
+    },
+    read: {
+      [input.memoryFile]: "allow",
+    },
+    edit: {
+      [editPattern]: "allow",
+    },
+  })
+}
+
+export function automationPrompt(input: { automation: Automation.Info; memoryFile: string }) {
+  return [
+    `Automation: ${input.automation.name}`,
+    `Automation ID: ${input.automation.id}`,
+    `Automation memory: ${input.memoryFile}`,
+    `Last run: ${input.automation.lastRunAt ? new Date(input.automation.lastRunAt).toISOString() : "never"}`,
+    "",
+    "Before doing work, read the automation memory file if it exists.",
+    "At the end of the run, update the memory file with only durable, useful information for future runs.",
+    "Keep it concise. Do not store full transcripts, temporary reasoning, secrets, or irrelevant details.",
+    "",
+    input.automation.prompt,
+  ].join("\n")
+}
 
 function toInfo(row: AutomationRow): Automation.Info {
   return {
@@ -245,6 +300,7 @@ export const layer = Layer.effect(
         time_updated: now,
       } satisfies typeof AutomationTable.$inferInsert
       Database.use((db) => db.insert(AutomationTable).values(value).run())
+      yield* Effect.promise(() => ensureAutomationMemoryFile(value.id))
       return yield* get(value.id)
     })
 
@@ -276,6 +332,7 @@ export const layer = Layer.effect(
 
     const remove: Interface["remove"] = Effect.fn("Automation.remove")(function* (automationID) {
       Database.use((db) => db.delete(AutomationTable).where(eq(AutomationTable.id, automationID)).run())
+      yield* Effect.promise(() => removeAutomationMemory(automationID))
       return true
     })
 
@@ -337,11 +394,16 @@ export const layer = Layer.effect(
         worktree: context.sandbox,
         project: context.project,
       }
+      const memoryFile = yield* Effect.promise(() => ensureAutomationMemoryFile(automation.id))
 
       yield* Effect.gen(function* () {
         const session = yield* sessionSvc.create({
           title: `[Automation] ${automation.name} - ${new Date().toLocaleString()}`,
           source: "automation",
+          permission: automationMemoryPermission({
+            memoryFile,
+            worktree: instance.worktree,
+          }),
         })
         Database.use((db) =>
           db
@@ -355,7 +417,7 @@ export const layer = Layer.effect(
             sessionID: session.id,
             model: automation.model,
             variant: automation.variant,
-            parts: [{ type: "text", text: automation.prompt }],
+            parts: [{ type: "text", text: automationPrompt({ automation, memoryFile }) }],
           })
           .pipe(
             Effect.tap(() => Effect.sync(() => finalize({ status: "succeeded" }))),

@@ -2,6 +2,7 @@ import { Match, Show, Switch, createMemo } from "solid-js"
 import { Tooltip, TooltipKeybind, type TooltipProps } from "@opencode-ai/ui/tooltip"
 import { ProgressCircle } from "@opencode-ai/ui/progress-circle"
 import { Button } from "@opencode-ai/ui/button"
+import { Icon } from "@opencode-ai/ui/icon"
 
 import { useSync } from "@/context/sync"
 import { useLanguage } from "@/context/language"
@@ -51,6 +52,17 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
     </div>
   )
 
+  const sessionInfoIcon = () => (
+    <Icon
+      name="status"
+      size="small"
+      classList={{
+        "text-icon-strong": view().context.opened(),
+        "text-icon-weak": !view().context.opened(),
+      }}
+    />
+  )
+
   const tooltipValue = () => (
     <div>
       <Show when={context()}>
@@ -91,7 +103,7 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
           aria-controls="context-panel"
           disabled={!params.id}
         >
-          {circle()}
+          {sessionInfoIcon()}
         </Button>
       </Match>
     </Switch>
