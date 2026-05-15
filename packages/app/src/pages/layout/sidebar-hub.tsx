@@ -38,6 +38,7 @@ const isAutomationSession = (session: Session) =>
 type ProjectOrganizeMode = "project" | "recent" | "chronological"
 type ProjectSortMode = "created" | "updated"
 type ProjectShowMode = "all" | "relevant"
+const sidebarItemGapClass = "space-y-1"
 
 const compactRelativeTime = (value: number) => {
   const diff = Math.max(0, Date.now() - value)
@@ -181,7 +182,7 @@ const ProjectSection = (props: {
 
   return (
     <Show when={props.projects().length > 0}>
-      <div class="space-y-3">
+      <div class={sidebarItemGapClass}>
         <Show when={props.label}>
           {(label) => <div class="type-prose-md px-2 pb-2 text-text-weaker">{label()}</div>}
         </Show>
@@ -388,15 +389,15 @@ export const SidebarHub = (props: {
 
   return (
     <div class="flex h-full min-h-0 w-full min-w-0 flex-col border-r border-border-weaker-base bg-background-base px-4 pb-3 pt-2">
-      <div class="shrink-0 space-y-0.5">
+      <div class={`shrink-0 ${sidebarItemGapClass}`}>
         <SidebarAction icon="new-session" label="New session" onClick={props.onNewChat} />
         <SidebarAction icon="magnifying-glass" label="Search" onClick={props.onSearch} />
         <SidebarAction icon="providers" label="Plugins" onClick={props.onPlugins} />
         <SidebarAction icon="checklist" label="Automations" onClick={props.onAutomations} />
       </div>
 
-      <div class="mt-4 flex-1 min-h-0 overflow-y-auto pr-1 no-scrollbar">
-        <div class="space-y-4 pb-4">
+      <div class="mt-1 flex-1 min-h-0 overflow-y-auto pr-1 no-scrollbar">
+        <div class={`${sidebarItemGapClass} pb-4`}>
           <Show
             when={props.projects().length > 0}
             fallback={
@@ -413,7 +414,7 @@ export const SidebarHub = (props: {
               </div>
             }
           >
-            <div class="space-y-4">
+            <div class={sidebarItemGapClass}>
               <div class="group/project-header flex items-center justify-between gap-2 px-2">
                 <div class="type-prose-md text-text-weaker">{language.t("sidebar.project.projectsSection")}</div>
                 <div class="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover/project-header:opacity-100 group-hover/project-header:pointer-events-auto group-focus-within/project-header:opacity-100 group-focus-within/project-header:pointer-events-auto">
