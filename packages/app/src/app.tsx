@@ -69,7 +69,7 @@ const RedirectHomeRoute = () => <Navigate href="/" />
 const PersistentSessionRoute = () => {
   const route = useAppRoute()
   return (
-    <Show when={route.kind() === "workspace"}>
+    <Show when={route.kind() === "workspace" && (route.page() === "session" || route.page() === "new-session")}>
       <SessionRouteHost>
         <SessionRoute />
       </SessionRouteHost>
@@ -336,6 +336,7 @@ export function AppInterface(props: {
                   <Route path="/chat/:id?" component={RedirectHomeRoute} />
                   <Route path="/:dir" component={SessionIndexRoute} />
                   <Route path="/:dir/session/:id?" component={EmptyRoute} />
+                  <Route path="/:dir/automations/:automationID?" component={EmptyRoute} />
                 </Dynamic>
               </GlobalSyncProvider>
             </GlobalSDKProvider>

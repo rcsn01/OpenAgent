@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, onCleanup, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { Button } from "@opencode-ai/ui/button"
@@ -16,6 +16,7 @@ type Schedule = Automation["schedule"]
 type ScheduleKind = "minute" | "hourly" | "daily" | "weekday" | "weekly"
 type AutomationModel = NonNullable<Automation["model"]>
 type SaveSnapshot = {
+  requestID: number
   editing?: Automation
   name: string
   prompt: string
@@ -66,7 +67,10 @@ function decodeModel(value: string): AutomationModel | undefined {
 export function DialogAutomations(props: {
   projects: LocalProject[]
   currentDir?: string
+  automationID?: string
   embedded?: boolean
+  onOpenAutomations?: (input?: { replace?: boolean }) => void
+  onOpenAutomation?: (input: { directory: string; id: string }) => void
   onOpenSession: (input: { directory: string; id: string }) => void
 }) {
   const dialog = useDialog()
@@ -74,8 +78,10 @@ export function DialogAutomations(props: {
   const models = useModels()
   const queryClient = useQueryClient()
   const firstProject = () => props.projects[0]
-  const [directory, setDirectory] = createSignal(props.currentDir || firstProject()?.worktree || "")
-  const client = createMemo(() => globalSDK.createClient({ directory: directory(), throwOnError: true }))
+  const initialDirectory = () => props.currentDir || firstProject()?.worktree || ""
+  const [draftDirectory, setDraftDirectory] = createSignal(initialDirectory())
+  const apiDirectory = createMemo(() => initialDirectory())
+  const client = createMemo(() => globalSDK.createClient({ directory: apiDirectory(), throwOnError: true }))
   const key = () => ["automation"]
 
   const [mode, setMode] = createSignal<"list" | "editor">("list")
@@ -89,15 +95,18 @@ export function DialogAutomations(props: {
   const [minutes, setMinutes] = createSignal("5")
   const [model, setModel] = createSignal<Automation["model"]>()
   const [variant, setVariant] = createSignal<string | undefined>()
+  let saveRequestID = 0
+  let queuedSave = false
+  let projectSelect: HTMLSelectElement | undefined
 
   const automations = useQuery(() => ({
     queryKey: key(),
     queryFn: () => client().automation.list().then((x) => x.data ?? []),
-    enabled: !!directory(),
+    enabled: !!apiDirectory(),
   }))
 
   const runs = useQuery(() => ({
-    queryKey: [directory(), editing()?.id, "automation", "runs"],
+    queryKey: [editing()?.id, "automation", "runs"],
     queryFn: () => {
       const current = editing()
       if (!current) return []
@@ -114,6 +123,13 @@ export function DialogAutomations(props: {
     return worktree.split(/[\\/]/).filter(Boolean).at(-1) ?? worktree
   }
 
+  createEffect(() => {
+    const select = projectSelect
+    if (!select) return
+    const next = draftDirectory()
+    if (select.value !== next) select.value = next
+  })
+
   const setSchedule = (schedule: Schedule) => {
     if (schedule.type === "interval") {
       setScheduleKind(schedule.minutes === 60 ? "hourly" : "minute")
@@ -127,6 +143,7 @@ export function DialogAutomations(props: {
 
   const resetForm = () => {
     setEditing(undefined)
+    setDraftDirectory(initialDirectory())
     setName("")
     setPrompt("")
     setStatus("active")
@@ -138,7 +155,7 @@ export function DialogAutomations(props: {
   const openEditor = (input?: { item?: Automation }) => {
     resetForm()
     if (input?.item) {
-      setDirectory(input.item.directory)
+      setDraftDirectory(input.item.directory)
       setEditing(input.item)
       setName(input.item.name)
       setPrompt(input.item.prompt)
@@ -149,6 +166,26 @@ export function DialogAutomations(props: {
     }
     setMode("editor")
   }
+
+  createEffect(() => {
+    const automationID = props.automationID
+    const data = automations.data
+    if (!automationID) {
+      if (editing()) {
+        setMode("list")
+        resetForm()
+      }
+      return
+    }
+
+    const item = data?.find((entry) => entry.id === automationID)
+    if (item) {
+      if (editing()?.id !== item.id) openEditor({ item })
+      return
+    }
+
+    if (data && !automations.isLoading) props.onOpenAutomations?.({ replace: true })
+  })
 
   const schedule = (): Schedule => {
     if (scheduleKind() === "minute") return { type: "interval", minutes: Math.max(5, Number(minutes()) || 5) }
@@ -164,16 +201,29 @@ export function DialogAutomations(props: {
   const saveSnapshot = (): SaveSnapshot | undefined => {
     if (!canSave()) return
     return {
+      requestID: ++saveRequestID,
       editing: editing(),
       name: name(),
       prompt: prompt(),
-      directory: directory(),
+      directory: draftDirectory(),
       schedule: schedule(),
       status: status(),
       model: model(),
       variant: variant(),
     }
   }
+
+  const sameModel = (a: Automation["model"], b: Automation["model"]) =>
+    (a?.providerID ?? "") === (b?.providerID ?? "") && (a?.modelID ?? "") === (b?.modelID ?? "")
+
+  const snapshotStillCurrent = (snapshot: SaveSnapshot) =>
+    snapshot.name === name() &&
+    snapshot.prompt === prompt() &&
+    snapshot.directory === draftDirectory() &&
+    snapshot.status === status() &&
+    snapshot.variant === variant() &&
+    sameModel(snapshot.model, model()) &&
+    JSON.stringify(snapshot.schedule) === JSON.stringify(schedule())
 
   const save = useMutation(() => ({
     mutationFn: async (snapshot: SaveSnapshot) => {
@@ -200,17 +250,24 @@ export function DialogAutomations(props: {
         variant: snapshot.variant,
       })
     },
-    onSuccess: (result) => {
+    onSuccess: (result, snapshot) => {
       const item = result.data
+      if (item && !snapshot.editing && props.onOpenAutomation) {
+        void invalidate()
+        props.onOpenAutomation({ directory: item.directory, id: item.id })
+        return
+      }
       if (item) {
-        setDirectory(item.directory)
         setEditing(item)
-        setName(item.name)
-        setPrompt(item.prompt)
-        setStatus(item.status)
-        setModel(item.model)
-        setVariant(item.variant)
-        setSchedule(item.schedule)
+        if (snapshotStillCurrent(snapshot)) {
+          setDraftDirectory(item.directory)
+          setName(item.name)
+          setPrompt(item.prompt)
+          setStatus(item.status)
+          setModel(item.model)
+          setVariant(item.variant)
+          setSchedule(item.schedule)
+        }
       }
       void invalidate()
     },
@@ -220,6 +277,11 @@ export function DialogAutomations(props: {
         title: "Automation could not be saved",
         description: errorMessage(err, "Automation could not be saved"),
       }),
+    onSettled: () => {
+      if (!queuedSave) return
+      queuedSave = false
+      queueMicrotask(persistEdits)
+    },
   }))
 
   const updateStatus = useMutation(() => ({
@@ -230,7 +292,7 @@ export function DialogAutomations(props: {
       }),
     onSuccess: () => {
       void invalidate()
-      void queryClient.invalidateQueries({ queryKey: [directory(), editing()?.id, "automation", "runs"] })
+      void queryClient.invalidateQueries({ queryKey: [editing()?.id, "automation", "runs"] })
     },
   }))
 
@@ -238,7 +300,7 @@ export function DialogAutomations(props: {
     mutationFn: (item: Automation) => client().automation.run({ automationID: item.id }),
     onSuccess: (result, item) => {
       void invalidate()
-      void queryClient.invalidateQueries({ queryKey: [directory(), editing()?.id, "automation", "runs"] })
+      void queryClient.invalidateQueries({ queryKey: [editing()?.id, "automation", "runs"] })
       const run = result.data
       if (run?.sessionID) {
         props.onOpenSession({ directory: run.directory ?? item.directory, id: run.sessionID })
@@ -258,14 +320,25 @@ export function DialogAutomations(props: {
     onSuccess: () => {
       setMode("list")
       resetForm()
+      props.onOpenAutomations?.({ replace: true })
       void invalidate()
     },
   }))
 
   const persistEdits = () => {
-    if (!canSave() || save.isPending) return
+    if (!canSave()) return
+    if (save.isPending) {
+      queuedSave = true
+      return
+    }
     const snapshot = saveSnapshot()
     if (snapshot) save.mutate(snapshot)
+  }
+
+  const updateStatusDraft = (next: Automation["status"]) => {
+    if (status() === next) return
+    setStatus(next)
+    queueMicrotask(persistEdits)
   }
 
   onCleanup(() => {
@@ -328,28 +401,32 @@ export function DialogAutomations(props: {
                         role="button"
                         tabindex="0"
                         class="group flex min-h-[56px] cursor-pointer items-center gap-3 rounded-xl bg-surface-base px-4 transition-colors hover:bg-surface-base-hover"
-                        onClick={() => openEditor({ item })}
+                        onClick={() => props.onOpenAutomation?.({ directory: item.directory, id: item.id }) ?? openEditor({ item })}
                         onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") openEditor({ item })
+                          if (event.key === "Enter" || event.key === " ") {
+                            props.onOpenAutomation?.({ directory: item.directory, id: item.id }) ?? openEditor({ item })
+                          }
                         }}
                       >
+                        <div class="min-w-0 flex flex-1 items-baseline gap-2">
+                          <span class="truncate text-15-medium text-text-strong">{item.name}</span>
+                          <span class="shrink-0 text-13-regular text-text-weak">{projectName(item.directory)}</span>
+                        </div>
                         <button
                           type="button"
-                          class="flex size-5 shrink-0 items-center justify-center rounded-full border border-border-strong text-text-weak hover:text-text-strong"
+                          class="shrink-0 rounded-md px-2 py-1 text-13-medium transition-colors hover:bg-surface-base-hover"
+                          classList={{
+                            "text-success-base": item.status === "active",
+                            "text-text-weak": item.status !== "active",
+                          }}
                           aria-label={item.status === "active" ? "Pause automation" : "Resume automation"}
                           onClick={(event) => {
                             event.stopPropagation()
                             updateStatus.mutate(item)
                           }}
                         >
-                          <Show when={item.status === "paused"}>
-                            <Icon name="check-small" size="small" />
-                          </Show>
+                          {item.status === "active" ? "Active" : "Paused"}
                         </button>
-                        <div class="min-w-0 flex flex-1 items-baseline gap-2">
-                          <span class="truncate text-15-medium text-text-strong">{item.name}</span>
-                          <span class="shrink-0 text-13-regular text-text-weak">{projectName(item.directory)}</span>
-                        </div>
                         <button
                           type="button"
                           class="flex size-8 items-center justify-center rounded-md text-icon-base hover:bg-surface-base-hover hover:text-icon-strong"
@@ -390,15 +467,15 @@ export function DialogAutomations(props: {
             persistEdits()
           }}
         >
-          <div class="flex min-h-0 flex-col overflow-auto px-10 py-6">
+          <div class="flex min-h-0 flex-col overflow-hidden px-10 py-6">
             <div class="mb-14 flex items-center gap-3 text-15-medium">
               <button
                 type="button"
                 class="text-text-weak hover:text-text-strong"
                 onClick={() => {
                   persistEdits()
-                  setMode("list")
-                  resetForm()
+                  props.onOpenAutomations?.() ?? setMode("list")
+                  if (!props.onOpenAutomations) resetForm()
                 }}
               >
                 Automations
@@ -407,9 +484,9 @@ export function DialogAutomations(props: {
               <span class="truncate text-text-strong">{name() || "New automation"}</span>
             </div>
 
-            <div class="max-w-[680px]">
+            <div class="flex min-h-0 w-full max-w-[1120px] flex-1 flex-col pr-8">
               <input
-                class="w-full border-none bg-transparent text-[34px] font-medium leading-tight text-text-strong outline-none placeholder:text-text-dim"
+                class="w-full shrink-0 border-none bg-transparent text-[34px] font-medium leading-tight text-text-strong outline-none placeholder:text-text-dim"
                 value={name()}
                 onInput={(event) => setName(event.currentTarget.value)}
                 onBlur={persistEdits}
@@ -417,7 +494,7 @@ export function DialogAutomations(props: {
                 autofocus
               />
               <textarea
-                class="mt-12 min-h-[360px] w-full resize-none border-none bg-transparent text-18-regular leading-8 text-text-strong outline-none placeholder:text-text-dim"
+                class="mt-12 min-h-0 flex-1 w-full resize-none border-none bg-transparent text-18-regular leading-8 text-text-strong outline-none placeholder:text-text-dim"
                 value={prompt()}
                 onInput={(event) => setPrompt(event.currentTarget.value)}
                 onBlur={persistEdits}
@@ -428,17 +505,6 @@ export function DialogAutomations(props: {
 
           <aside class="flex min-h-0 flex-col overflow-auto border-l border-border-weaker-base px-8 py-5">
             <div class="mb-12 flex items-center justify-end gap-4">
-              <button
-                type="button"
-                class="flex size-8 items-center justify-center rounded-md text-icon-base hover:bg-surface-base-hover hover:text-icon-strong"
-                aria-label={status() === "active" ? "Pause automation" : "Activate automation"}
-                onClick={() => {
-                  setStatus(status() === "active" ? "paused" : "active")
-                  queueMicrotask(persistEdits)
-                }}
-              >
-                <Icon name={status() === "active" ? "circle-ban-sign" : "check-small"} />
-              </button>
               <Show when={editing()}>
                 {(item) => (
                   <button
@@ -477,16 +543,32 @@ export function DialogAutomations(props: {
                 <div class="space-y-2">
                   <div class="flex items-center justify-between gap-4 py-1.5 text-15-regular">
                     <span class="text-text-base">Status</span>
-                    <span class="flex items-center gap-2 rounded-lg bg-surface-base px-3 py-1 text-text-weak">
-                      <span
-                        class="size-2 rounded-full"
+                    <div class="flex rounded-lg bg-surface-base p-0.5 text-13-medium">
+                      <button
+                        type="button"
+                        class="rounded-md px-2.5 py-1 transition-colors"
                         classList={{
-                          "bg-success-base": status() === "active",
-                          "bg-text-dim": status() === "paused",
+                          "bg-surface-raised-base text-success-base": status() === "active",
+                          "text-text-weak hover:text-text-strong": status() !== "active",
                         }}
-                      />
-                      {status() === "active" ? "Active" : "Paused"}
-                    </span>
+                        aria-pressed={status() === "active"}
+                        onClick={() => updateStatusDraft("active")}
+                      >
+                        Active
+                      </button>
+                      <button
+                        type="button"
+                        class="rounded-md px-2.5 py-1 transition-colors"
+                        classList={{
+                          "bg-surface-raised-base text-text-base": status() === "paused",
+                          "text-text-weak hover:text-text-strong": status() !== "paused",
+                        }}
+                        aria-pressed={status() === "paused"}
+                        onClick={() => updateStatusDraft("paused")}
+                      >
+                        Paused
+                      </button>
+                    </div>
                   </div>
                   {detailRow("Next run", editing() ? formatTime(editing()!.nextRunAt) : "After creation")}
                   {detailRow("Last ran", formatTime(editing()?.lastRunAt))}
@@ -501,21 +583,26 @@ export function DialogAutomations(props: {
                   <div class="flex items-center justify-between gap-4 py-1.5 text-15-regular">
                     <span class="text-text-base">Project</span>
                     <select
+                      ref={projectSelect}
                       class="max-w-[200px] border-none bg-transparent text-right text-text-weak outline-none"
-                      value={directory()}
+                      value={draftDirectory()}
                       onInput={(event) => {
-                        setDirectory(event.currentTarget.value)
+                        setDraftDirectory(event.currentTarget.value)
                         queueMicrotask(persistEdits)
                       }}
                     >
                       <For each={props.projects}>
-                        {(project) => <option value={project.worktree}>{displayName(project)}</option>}
+                        {(project) => (
+                          <option value={project.worktree} selected={project.worktree === draftDirectory()}>
+                            {displayName(project)}
+                          </option>
+                        )}
                       </For>
                     </select>
                   </div>
                   <div class="flex items-center justify-between gap-4 py-1.5 text-15-regular">
                     <span class="text-text-base">Repeats</span>
-                    <span class="flex items-center gap-2 text-text-weak">
+                    <span class="flex items-center text-text-weak">
                       <select
                         class="border-none bg-transparent text-right text-text-weak outline-none"
                         value={scheduleKind()}
@@ -532,7 +619,6 @@ export function DialogAutomations(props: {
                         <option value="weekday">Weekday</option>
                         <option value="weekly">Weekly</option>
                       </select>
-                      <Icon name="chevron-down" size="small" />
                     </span>
                   </div>
                   <Show when={scheduleKind() === "minute"}>
@@ -645,7 +731,7 @@ export function DialogAutomations(props: {
                           class="flex w-full items-center gap-3 text-left"
                           onClick={() => {
                             if (run.sessionID) {
-                              props.onOpenSession({ directory: run.directory ?? directory(), id: run.sessionID })
+                              props.onOpenSession({ directory: run.directory ?? editing()?.directory ?? draftDirectory(), id: run.sessionID })
                               return
                             }
                             if (run.status === "failed") {
@@ -670,7 +756,9 @@ export function DialogAutomations(props: {
                           </span>
                           <span class="min-w-0 flex-1">
                             <span class="mr-2 text-15-medium text-text-strong">{name() || "Automation run"}</span>
-                            <span class="text-14-regular text-text-weak">{projectName(run.directory ?? directory())}</span>
+                            <span class="text-14-regular text-text-weak">
+                              {projectName(run.directory ?? editing()?.directory ?? draftDirectory())}
+                            </span>
                           </span>
                           <span class="shrink-0 text-13-regular text-text-weak">
                             {compactRelativeTime(run.completedAt ?? run.startedAt)}

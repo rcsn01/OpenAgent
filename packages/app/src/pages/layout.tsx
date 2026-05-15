@@ -152,7 +152,6 @@ export default function Layout(props: ParentProps) {
     scrollSessionKey: undefined as string | undefined,
     sortNow: Date.now(),
     sizing: false,
-    mainPanel: undefined as "automations" | undefined,
   })
 
   const editor = createInlineEditorController()
@@ -217,10 +216,9 @@ export default function Layout(props: ParentProps) {
     return
   }
 
-  const navigateWithSidebarReset = (href: string) => {
+  const navigateWithSidebarReset = (href: string, options?: { replace?: boolean }) => {
     clearSidebarHoverState()
-    setState("mainPanel", undefined)
-    navigate(href)
+    navigate(href, { replace: options?.replace })
     layout.mobileSidebar.hide()
   }
 
@@ -491,11 +489,11 @@ export default function Layout(props: ParentProps) {
 
     if (list.length === 0) {
       if (!last) return
-      await openProject(last, true)
+      await openProject(last, true, { replace: true })
     } else {
       const next = list.find((project) => project.worktree === last) ?? list[0]
       if (!next) return
-      await openProject(next.worktree, true)
+      await openProject(next.worktree, true, { replace: true })
     }
   })
 
@@ -1319,7 +1317,7 @@ export default function Layout(props: ParentProps) {
     return root
   }
 
-  async function navigateToProject(directory: string | undefined) {
+  async function navigateToProject(directory: string | undefined, options?: { replace?: boolean }) {
     if (!directory) return
     const root = projectRoot(directory)
     server.projects.touch(root)
@@ -1345,7 +1343,7 @@ export default function Layout(props: ParentProps) {
       const [data] = globalSync.child(target.directory, { bootstrap: false })
       if (data.session.some((item) => item.id === target.id)) {
         setStore("lastProjectSession", root, { directory: target.directory, id: target.id, at: Date.now() })
-        navigateWithSidebarReset(`/${base64Encode(target.directory)}/session/${target.id}`)
+        navigateWithSidebarReset(`/${base64Encode(target.directory)}/session/${target.id}`, options)
         return true
       }
       const resolved = await globalSDK.client.session
@@ -1355,7 +1353,7 @@ export default function Layout(props: ParentProps) {
       if (!resolved?.directory) return false
       if (!canOpen(resolved.directory)) return false
       setStore("lastProjectSession", root, { directory: resolved.directory, id: resolved.id, at: Date.now() })
-      navigateWithSidebarReset(`/${base64Encode(resolved.directory)}/session/${resolved.id}`)
+      navigateWithSidebarReset(`/${base64Encode(resolved.directory)}/session/${resolved.id}`, options)
       return true
     }
 
@@ -1391,7 +1389,7 @@ export default function Layout(props: ParentProps) {
       return
     }
 
-    navigateWithSidebarReset(`/${base64Encode(root)}/session`)
+    navigateWithSidebarReset(`/${base64Encode(root)}/session`, options)
   }
 
   function navigateToSession(session: Session | undefined) {
@@ -1399,9 +1397,9 @@ export default function Layout(props: ParentProps) {
     navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
   }
 
-  function openProject(directory: string, navigate = true) {
+  function openProject(directory: string, navigate = true, options?: { replace?: boolean }) {
     layout.projects.open(directory)
-    if (navigate) return navigateToProject(directory)
+    if (navigate) return navigateToProject(directory, options)
   }
 
   const handleDeepLinks = (urls: string[]) => {
@@ -2111,7 +2109,12 @@ export default function Layout(props: ParentProps) {
 
   function openAutomations() {
     clearSidebarHoverState()
-    setState("mainPanel", "automations")
+    const directory = currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
+    if (!directory) {
+      void chooseProject()
+      return
+    }
+    navigate(`/${base64Encode(directory)}/automations`)
     layout.mobileSidebar.hide()
   }
 
@@ -2579,14 +2582,20 @@ export default function Layout(props: ParentProps) {
             <Titlebar embedded />
             <div class="flex-1 min-h-0 min-w-0 w-full">
               <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
-                <Show
-                  when={state.mainPanel === "automations"}
-                  fallback={props.children}
-                >
+                <Show when={appRoute.page() === "automations" || appRoute.page() === "automation-editor"} fallback={props.children}>
                   <DialogAutomations
                     projects={layout.projects.list()}
                     currentDir={currentDir()}
+                    automationID={appRoute.automationID()}
                     embedded
+                    onOpenAutomations={(input) => {
+                      const directory = currentDir() || layout.projects.list()[0]?.worktree
+                      if (!directory) return
+                      navigate(`/${base64Encode(directory)}/automations`, { replace: input?.replace })
+                    }}
+                    onOpenAutomation={(automation) =>
+                      navigate(`/${base64Encode(automation.directory)}/automations/${automation.id}`)
+                    }
                     onOpenSession={(session) =>
                       navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
                     }

@@ -13,6 +13,13 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
 
     const kind = createMemo(() => (params.dir ? "workspace" : "none"))
     const workspaceDirectory = createMemo(() => (params.dir ? decode64(params.dir) ?? "" : ""))
+    const page = createMemo(() => {
+      if (kind() !== "workspace") return "home" as const
+      if (params.automationID) return "automation-editor" as const
+      if (/\/automations(?:\/|$)/.test(location.pathname)) return "automations" as const
+      if (params.id) return "session" as const
+      return "new-session" as const
+    })
 
     createEffect(() => {
       if (kind() !== "workspace") return
@@ -35,14 +42,21 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
       if (!dir) return "/"
       return `/${dir}/session${sessionID ? `/${sessionID}` : ""}`
     }
+    const automationsHref = (automationID?: string) => {
+      const dir = slug()
+      if (!dir) return "/"
+      return `/${dir}/automations${automationID ? `/${automationID}` : ""}`
+    }
 
     return {
       kind,
+      page,
       isChat: createMemo(() => false),
       params: routeParams,
       directory,
       slug,
       sessionID: createMemo(() => routeParams().id),
+      automationID: createMemo(() => (page() === "automation-editor" ? params.automationID : undefined)),
       rootSessionID: createMemo(() => routeParams().id),
       ready: createMemo(() => kind() !== "workspace" || !!workspaceDirectory()),
       chatInfo: {
@@ -50,6 +64,7 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
         error: undefined,
       },
       href,
+      automationsHref,
     }
   },
 })
