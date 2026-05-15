@@ -2138,6 +2138,7 @@ export class Session2 extends HeyApiClient {
       scope?: "project"
       path?: string
       roots?: boolean | "true" | "false"
+      excludeAutomation?: boolean | "true" | "false"
       start?: number
       search?: string
       limit?: number
@@ -2154,6 +2155,7 @@ export class Session2 extends HeyApiClient {
             { in: "query", key: "scope" },
             { in: "query", key: "path" },
             { in: "query", key: "roots" },
+            { in: "query", key: "excludeAutomation" },
             { in: "query", key: "start" },
             { in: "query", key: "search" },
             { in: "query", key: "limit" },
@@ -3830,10 +3832,19 @@ export class Automation extends HeyApiClient {
             time: string
           }
         | {
+            type: "weekday"
+            time: string
+          }
+        | {
             type: "interval"
             minutes: number
           }
       status?: "active" | "paused"
+      model?: {
+        providerID: string
+        modelID: string
+      }
+      variant?: string | null
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -3844,10 +3855,13 @@ export class Automation extends HeyApiClient {
           args: [
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "body", key: "directory" },
             { in: "body", key: "name" },
             { in: "body", key: "prompt" },
             { in: "body", key: "schedule" },
             { in: "body", key: "status" },
+            { in: "body", key: "model" },
+            { in: "body", key: "variant" },
           ],
         },
       ],
@@ -3919,10 +3933,21 @@ export class Automation extends HeyApiClient {
             time: string
           }
         | {
+            type: "weekday"
+            time: string
+          }
+        | {
             type: "interval"
             minutes: number
           }
       status?: "active" | "paused"
+      model?:
+        | {
+            providerID: string
+            modelID: string
+          }
+        | null
+      variant?: string | null
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -3934,10 +3959,13 @@ export class Automation extends HeyApiClient {
             { in: "path", key: "automationID" },
             { in: "query", key: "directory" },
             { in: "query", key: "workspace" },
+            { in: "body", key: "directory" },
             { in: "body", key: "name" },
             { in: "body", key: "prompt" },
             { in: "body", key: "schedule" },
             { in: "body", key: "status" },
+            { in: "body", key: "model" },
+            { in: "body", key: "variant" },
           ],
         },
       ],

@@ -109,6 +109,9 @@ export const SessionRoutes = lazy(() =>
             .meta({ description: "Filter sessions updated on or after this timestamp (milliseconds since epoch)" }),
           search: z.string().optional().meta({ description: "Filter sessions by title (case-insensitive)" }),
           limit: z.coerce.number().optional().meta({ description: "Maximum number of sessions to return" }),
+          excludeAutomation: QueryBoolean.optional().meta({
+            description: "Exclude sessions created by automation runs",
+          }),
         }),
       ),
       async (c) => {
@@ -122,6 +125,7 @@ export const SessionRoutes = lazy(() =>
                 directory: query.scope === "project" ? undefined : query.directory,
                 path: query.path,
                 roots: queryBoolean(query.roots),
+                excludeAutomation: queryBoolean(query.excludeAutomation),
                 start: query.start,
                 search: query.search,
                 limit: query.limit,

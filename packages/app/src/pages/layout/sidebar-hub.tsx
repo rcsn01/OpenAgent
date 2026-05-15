@@ -33,6 +33,7 @@ type InlineEditorComponent = (props: {
 
 const updatedAt = (session: Session) => session.time.updated ?? session.time.created
 const projectEditorId = (project: LocalProject) => `project:${pathKey(project.worktree)}`
+const isAutomationSession = (session: Session) => session.title.startsWith("[Automation] ")
 type ProjectOrganizeMode = "project" | "recent" | "chronological"
 type ProjectSortMode = "created" | "updated"
 type ProjectShowMode = "all" | "relevant"
@@ -188,6 +189,7 @@ const ProjectSection = (props: {
             const sessions = createMemo(() =>
               props
                 .getProjectSessions(project)
+                .filter((session) => !isAutomationSession(session))
                 .toSorted((a, b) =>
                   props.sortMode() === "created" ? b.time.created - a.time.created : updatedAt(b) - updatedAt(a),
                 ),
@@ -216,10 +218,10 @@ const ProjectSection = (props: {
 
             return (
               <section class="group/project space-y-1">
-                <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center justify-between gap-1 rounded-xl px-2 py-1 transition-colors hover:bg-surface-base-hover focus-within:bg-surface-base-hover">
                   <button
                     type="button"
-                    class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1 text-left transition-colors hover:bg-surface-base-hover"
+                    class="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                     onClick={toggleProjectSessions}
                   >
                     <span class="flex size-5 shrink-0 items-center justify-center text-icon-base">
@@ -253,7 +255,12 @@ const ProjectSection = (props: {
                       <IconButton
                         icon="new-session"
                         variant="ghost"
-                        class="size-7 rounded-lg text-text-weak hover:text-text-strong"
+                        class="size-7 rounded-lg text-text-weak transition-opacity hover:text-text-strong"
+                        classList={{
+                          "opacity-100 pointer-events-auto": touch(),
+                          "opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto":
+                            !touch(),
+                        }}
                         aria-label={language.t("command.session.new")}
                         onClick={(event) => {
                           event.preventDefault()
@@ -354,8 +361,10 @@ export const SidebarHub = (props: {
     sort: "updated" as ProjectSortMode,
     show: "all" as ProjectShowMode,
   })
+  const visibleProjectSessions = (project: LocalProject) =>
+    props.getProjectSessions(project).filter((session) => !isAutomationSession(session))
   const projectTime = (project: LocalProject, mode: ProjectSortMode) => {
-    const sessions = props.getProjectSessions(project)
+    const sessions = visibleProjectSessions(project)
     if (sessions.length === 0) return 0
     if (mode === "created") return Math.max(...sessions.map((session) => session.time.created))
     return Math.max(...sessions.map(updatedAt))
@@ -363,7 +372,7 @@ export const SidebarHub = (props: {
   const relevant = (project: LocalProject) =>
     !!project.pinned ||
     pathKey(props.currentDir()) === pathKey(project.worktree) ||
-    props.getProjectSessions(project).length > 0
+    visibleProjectSessions(project).length > 0
   const visibleProjects = createMemo(() =>
     props
       .projects()

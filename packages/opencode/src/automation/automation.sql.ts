@@ -12,13 +12,15 @@ export const AutomationTable = sqliteTable(
     id: text().$type<AutomationID>().primaryKey(),
     project_id: text()
       .$type<ProjectID>()
-      .notNull()
-      .references(() => ProjectTable.id, { onDelete: "cascade" }),
+      .references(() => ProjectTable.id, { onDelete: "set null" }),
     directory: text().notNull(),
     name: text().notNull(),
     prompt: text().notNull(),
     schedule: text({ mode: "json" }).notNull().$type<Automation.Schedule>(),
     status: text().$type<Automation.Status>().notNull(),
+    model_provider_id: text(),
+    model_id: text(),
+    variant: text(),
     next_run_at: integer().notNull(),
     last_run_at: integer(),
     ...Timestamps,
@@ -38,6 +40,7 @@ export const AutomationRunTable = sqliteTable(
       .$type<AutomationID>()
       .notNull()
       .references(() => AutomationTable.id, { onDelete: "cascade" }),
+    directory: text(),
     session_id: text()
       .$type<SessionID>()
       .references(() => SessionTable.id, { onDelete: "set null" }),

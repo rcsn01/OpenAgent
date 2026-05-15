@@ -27,4 +27,12 @@ describe("automation schedule", () => {
     const from = new Date("2026-05-15T10:00:00").getTime()
     expect(nextRunAt({ type: "interval", minutes: 30 }, from)).toBe(from + 30 * 60_000)
   })
+
+  test("schedules weekday time to Monday after the Friday time has passed", () => {
+    const from = new Date("2026-05-15T10:00:00").getTime()
+    const next = nextRunAt({ type: "weekday", time: "09:30" }, from)
+    expect(new Date(next).getDay()).toBe(1)
+    expect(new Date(next).getHours()).toBe(9)
+    expect(new Date(next).getMinutes()).toBe(30)
+  })
 })

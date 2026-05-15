@@ -12,7 +12,7 @@ export const AutomationRoutes = lazy(() =>
       "/",
       describeRoute({
         summary: "List automations",
-        description: "List recurring local automations for the current directory.",
+        description: "List recurring local automations.",
         operationId: "automation.list",
         responses: {
           200: {
@@ -35,7 +35,7 @@ export const AutomationRoutes = lazy(() =>
       "/",
       describeRoute({
         summary: "Create automation",
-        description: "Create a recurring local automation for the current directory.",
+        description: "Create a recurring local automation.",
         operationId: "automation.create",
         responses: {
           ...errors(400),

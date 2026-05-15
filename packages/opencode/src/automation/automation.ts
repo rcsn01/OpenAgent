@@ -12,6 +12,7 @@ import { SessionPrompt } from "@/session/prompt"
 import { AutomationRunTable, AutomationTable } from "./automation.sql"
 import { SessionID } from "@/session/schema"
 import { ProjectID } from "@/project/schema"
+import { ModelID, ProviderID } from "@/provider/schema"
 
 const log = Log.create({ service: "automation" })
 
@@ -32,14 +33,23 @@ const WeeklySchedule = z.object({
   time: z.string().regex(/^\d{2}:\d{2}$/),
 })
 
-const IntervalSchedule = z.object({
-  type: z.literal("interval"),
-  minutes: z.number().int().min(15).max(60 * 24 * 30),
+const WeekdaySchedule = z.object({
+  type: z.literal("weekday"),
+  time: z.string().regex(/^\d{2}:\d{2}$/),
 })
 
-const ScheduleSchema = z.discriminatedUnion("type", [DailySchedule, WeeklySchedule, IntervalSchedule])
+const IntervalSchedule = z.object({
+  type: z.literal("interval"),
+  minutes: z.number().int().min(5).max(60 * 24 * 30),
+})
+
+const ScheduleSchema = z.discriminatedUnion("type", [DailySchedule, WeeklySchedule, WeekdaySchedule, IntervalSchedule])
 const StatusSchema = z.enum(["active", "paused"])
 const RunStatusSchema = z.enum(["running", "succeeded", "failed", "cancelled"])
+const ModelSchema = z.object({
+  providerID: ProviderID.zod,
+  modelID: ModelID.zod,
+})
 
 export namespace Automation {
   export type Schedule = z.infer<typeof ScheduleSchema>
@@ -48,12 +58,14 @@ export namespace Automation {
 
   export const Info = z.object({
     id: AutomationID,
-    projectID: ProjectID.zod,
+    projectID: ProjectID.zod.optional(),
     directory: z.string(),
     name: z.string(),
     prompt: z.string(),
     schedule: ScheduleSchema,
     status: StatusSchema,
+    model: ModelSchema.optional(),
+    variant: z.string().optional(),
     nextRunAt: z.number(),
     lastRunAt: z.number().optional(),
     time: z.object({
@@ -66,6 +78,7 @@ export namespace Automation {
   export const Run = z.object({
     id: AutomationRunID,
     automationID: AutomationID,
+    directory: z.string().optional(),
     sessionID: SessionID.zod.optional(),
     status: RunStatusSchema,
     error: z.string().optional(),
@@ -79,18 +92,24 @@ export namespace Automation {
   export type Run = z.infer<typeof Run>
 
   export const CreateInput = z.object({
+    directory: z.string().optional(),
     name: z.string().trim().min(1).max(120),
     prompt: z.string().trim().min(1),
     schedule: ScheduleSchema,
     status: StatusSchema.default("active"),
+    model: ModelSchema.optional(),
+    variant: z.string().nullable().optional(),
   })
   export type CreateInput = z.infer<typeof CreateInput>
 
   export const UpdateInput = z.object({
+    directory: z.string().optional(),
     name: z.string().trim().min(1).max(120).optional(),
     prompt: z.string().trim().min(1).optional(),
     schedule: ScheduleSchema.optional(),
     status: StatusSchema.optional(),
+    model: ModelSchema.nullable().optional(),
+    variant: z.string().nullable().optional(),
   })
   export type UpdateInput = z.infer<typeof UpdateInput>
 }
@@ -101,12 +120,17 @@ type RunRow = typeof AutomationRunTable.$inferSelect
 function toInfo(row: AutomationRow): Automation.Info {
   return {
     id: row.id,
-    projectID: row.project_id,
+    projectID: row.project_id ?? undefined,
     directory: row.directory,
     name: row.name,
     prompt: row.prompt,
     schedule: row.schedule,
     status: row.status,
+    model:
+      row.model_provider_id && row.model_id
+        ? { providerID: ProviderID.zod.parse(row.model_provider_id), modelID: ModelID.zod.parse(row.model_id) }
+        : undefined,
+    variant: row.variant ?? undefined,
     nextRunAt: row.next_run_at,
     lastRunAt: row.last_run_at ?? undefined,
     time: {
@@ -120,6 +144,7 @@ function toRun(row: RunRow): Automation.Run {
   return {
     id: row.id,
     automationID: row.automation_id,
+    directory: row.directory ?? undefined,
     sessionID: row.session_id ?? undefined,
     status: row.status,
     error: row.error ?? undefined,
@@ -148,6 +173,13 @@ export function nextRunAt(schedule: Automation.Schedule, from = Date.now()) {
 
   if (schedule.type === "daily") {
     if (next.getTime() <= from) next.setDate(next.getDate() + 1)
+    return next.getTime()
+  }
+
+  if (schedule.type === "weekday") {
+    while (next.getDay() === 0 || next.getDay() === 6 || next.getTime() <= from) {
+      next.setDate(next.getDate() + 1)
+    }
     return next.getTime()
   }
 
@@ -184,29 +216,30 @@ export const layer = Layer.effect(
     })
 
     const list: Interface["list"] = Effect.fn("Automation.list")(function* (input) {
-      const directory = input?.directory ?? (yield* InstanceState.context).directory
       const rows = Database.use((db) => {
-        return db
-          .select()
-          .from(AutomationTable)
-          .where(eq(AutomationTable.directory, directory))
-          .orderBy(asc(AutomationTable.name))
-          .all()
+        const query = db.select().from(AutomationTable)
+        if (input?.directory) return query.where(eq(AutomationTable.directory, input.directory)).orderBy(asc(AutomationTable.name)).all()
+        return query.orderBy(asc(AutomationTable.name)).all()
       })
       return rows.map(toInfo)
     })
 
     const create: Interface["create"] = Effect.fn("Automation.create")(function* (input) {
       const ctx = yield* InstanceState.context
+      const directory = input.directory ?? ctx.directory
+      const target = input.directory ? yield* projects.fromDirectory(input.directory) : { project: ctx.project }
       const now = Date.now()
       const value = {
         id: ascending("automation") as AutomationID,
-        project_id: ctx.project.id,
-        directory: ctx.directory,
+        project_id: target.project.id,
+        directory,
         name: input.name,
         prompt: input.prompt,
         schedule: input.schedule,
         status: input.status,
+        model_provider_id: input.model?.providerID,
+        model_id: input.model?.modelID,
+        variant: input.variant ?? undefined,
         next_run_at: nextRunAt(input.schedule, now),
         time_created: now,
         time_updated: now,
@@ -218,14 +251,20 @@ export const layer = Layer.effect(
     const update: Interface["update"] = Effect.fn("Automation.update")(function* (input) {
       const current = yield* get(input.automationID)
       const nextSchedule = input.schedule ?? current.schedule
+      const target = input.directory ? yield* projects.fromDirectory(input.directory) : undefined
       Database.use((db) =>
         db
           .update(AutomationTable)
           .set({
+            project_id: target?.project.id,
+            directory: input.directory,
             name: input.name,
             prompt: input.prompt,
             schedule: input.schedule,
             status: input.status,
+            model_provider_id: input.model === undefined ? undefined : (input.model?.providerID ?? null),
+            model_id: input.model === undefined ? undefined : (input.model?.modelID ?? null),
+            variant: input.variant === undefined ? undefined : (input.variant ?? null),
             next_run_at: input.schedule ? nextRunAt(nextSchedule) : undefined,
             time_updated: Date.now(),
           })
@@ -274,6 +313,7 @@ export const layer = Layer.effect(
           .values({
             id: runID,
             automation_id: automation.id,
+            directory: automation.directory,
             status: "running",
             started_at: now,
             time_created: now,
@@ -312,6 +352,8 @@ export const layer = Layer.effect(
         yield* promptSvc
           .prompt({
             sessionID: session.id,
+            model: automation.model,
+            variant: automation.variant,
             parts: [{ type: "text", text: automation.prompt }],
           })
           .pipe(

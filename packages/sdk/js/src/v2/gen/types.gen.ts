@@ -3768,6 +3768,10 @@ export type SessionListData = {
      */
     roots?: boolean | "true" | "false"
     /**
+     * Exclude sessions created by automation runs
+     */
+    excludeAutomation?: boolean | "true" | "false"
+    /**
      * Filter sessions updated on or after this timestamp (milliseconds since epoch)
      */
     start?: number
@@ -5274,7 +5278,7 @@ export type AutomationListResponses = {
    */
   200: Array<{
     id: string
-    projectID: string
+    projectID?: string
     directory: string
     name: string
     prompt: string
@@ -5289,10 +5293,19 @@ export type AutomationListResponses = {
           time: string
         }
       | {
+          type: "weekday"
+          time: string
+        }
+      | {
           type: "interval"
           minutes: number
         }
     status: "active" | "paused"
+    model?: {
+      providerID: string
+      modelID: string
+    }
+    variant?: string
     nextRunAt: number
     lastRunAt?: number
     time: {
@@ -5306,6 +5319,7 @@ export type AutomationListResponse = AutomationListResponses[keyof AutomationLis
 
 export type AutomationCreateData = {
   body?: {
+    directory?: string
     name: string
     prompt: string
     schedule:
@@ -5319,10 +5333,19 @@ export type AutomationCreateData = {
           time: string
         }
       | {
+          type: "weekday"
+          time: string
+        }
+      | {
           type: "interval"
           minutes: number
         }
     status?: "active" | "paused"
+    model?: {
+      providerID: string
+      modelID: string
+    }
+    variant?: string | null
   }
   path?: never
   query?: {
@@ -5347,7 +5370,7 @@ export type AutomationCreateResponses = {
    */
   200: {
     id: string
-    projectID: string
+    projectID?: string
     directory: string
     name: string
     prompt: string
@@ -5362,10 +5385,19 @@ export type AutomationCreateResponses = {
           time: string
         }
       | {
+          type: "weekday"
+          time: string
+        }
+      | {
           type: "interval"
           minutes: number
         }
     status: "active" | "paused"
+    model?: {
+      providerID: string
+      modelID: string
+    }
+    variant?: string
     nextRunAt: number
     lastRunAt?: number
     time: {
@@ -5409,6 +5441,7 @@ export type AutomationDeleteResponse = AutomationDeleteResponses[keyof Automatio
 
 export type AutomationUpdateData = {
   body?: {
+    directory?: string
     name?: string
     prompt?: string
     schedule?:
@@ -5422,10 +5455,21 @@ export type AutomationUpdateData = {
           time: string
         }
       | {
+          type: "weekday"
+          time: string
+        }
+      | {
           type: "interval"
           minutes: number
         }
     status?: "active" | "paused"
+    model?:
+      | {
+          providerID: string
+          modelID: string
+        }
+      | null
+    variant?: string | null
   }
   path: {
     automationID: string
@@ -5456,7 +5500,7 @@ export type AutomationUpdateResponses = {
    */
   200: {
     id: string
-    projectID: string
+    projectID?: string
     directory: string
     name: string
     prompt: string
@@ -5471,10 +5515,19 @@ export type AutomationUpdateResponses = {
           time: string
         }
       | {
+          type: "weekday"
+          time: string
+        }
+      | {
           type: "interval"
           minutes: number
         }
     status: "active" | "paused"
+    model?: {
+      providerID: string
+      modelID: string
+    }
+    variant?: string
     nextRunAt: number
     lastRunAt?: number
     time: {
@@ -5514,6 +5567,7 @@ export type AutomationRunResponses = {
   200: {
     id: string
     automationID: string
+    directory?: string
     sessionID?: string
     status: "running" | "succeeded" | "failed" | "cancelled"
     error?: string
@@ -5557,6 +5611,7 @@ export type AutomationRunsResponses = {
   200: Array<{
     id: string
     automationID: string
+    directory?: string
     sessionID?: string
     status: "running" | "succeeded" | "failed" | "cancelled"
     error?: string
