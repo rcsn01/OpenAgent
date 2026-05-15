@@ -446,9 +446,14 @@ export default function Page() {
     const reserve = fileTreeReserve + MIN_SIDE_PANEL_WIDTH
     return Math.max(MIN_SESSION_COLUMN_WIDTH, window.innerWidth - sidebarWidth - reserve)
   }
+  const effectiveSessionWidth = createMemo(() => {
+    const width = Math.max(MIN_SESSION_COLUMN_WIDTH, layout.session.width())
+    if (!desktopSidePanelOpen()) return width
+    return Math.min(width, reviewResizeMax())
+  })
   const sessionPanelWidth = createMemo(() => {
     if (!desktopSidePanelOpen()) return "100%"
-    return `${Math.max(MIN_SESSION_COLUMN_WIDTH, layout.session.width())}px`
+    return `min(${effectiveSessionWidth()}px, calc(100% - ${MIN_SIDE_PANEL_WIDTH}px))`
   })
   const centered = createMemo(() => isDesktop() && !desktopMainPanelOpen())
 
@@ -2070,7 +2075,7 @@ export default function Page() {
             <div onPointerDown={() => size.start()}>
               <ResizeHandle
                 direction="horizontal"
-                size={layout.session.width()}
+                size={effectiveSessionWidth()}
                 min={MIN_SESSION_COLUMN_WIDTH}
                 max={reviewResizeMax()}
                 onResize={(width) => {

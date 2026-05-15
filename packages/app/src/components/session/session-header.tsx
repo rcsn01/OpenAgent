@@ -8,7 +8,7 @@ import { Spinner } from "@opencode-ai/ui/spinner"
 import { showToast } from "@opencode-ai/ui/toast"
 import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
-import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
+import { createEffect, createMemo, createSignal, For, on, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Portal } from "solid-js/web"
 import { useAppRoute } from "@/context/app-route"
@@ -276,10 +276,22 @@ export function SessionHeader() {
 
   const [centerMount, setCenterMount] = createSignal<HTMLElement | null>(null)
   const [rightMount, setRightMount] = createSignal<HTMLElement | null>(null)
-  onMount(() => {
+  const syncTitlebarMounts = () => {
     setCenterMount(document.getElementById("opencode-titlebar-center"))
     setRightMount(document.getElementById("opencode-titlebar-right"))
+  }
+
+  onMount(() => {
+    syncTitlebarMounts()
   })
+
+  createEffect(
+    on(
+      () => [layout.sidebar.opened(), params.id, route.isChat()],
+      () => requestAnimationFrame(syncTitlebarMounts),
+      { defer: true },
+    ),
+  )
 
   return (
     <>

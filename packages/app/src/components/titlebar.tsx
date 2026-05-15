@@ -52,6 +52,8 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
   const embedded = () => props.embedded ?? false
   const zoom = () => platform.webviewZoom?.() ?? 1
   const minHeight = () => (mac() ? `${40 / zoom()}px` : undefined)
+  const trafficLightInset = () => `${72 / zoom()}px`
+  const reserveTrafficLights = createMemo(() => mac() && embedded() && !layout.sidebar.opened())
 
   const [history, setHistory] = createStore({
     stack: [] as string[],
@@ -158,7 +160,7 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
 
   return (
     <header
-      class="h-10 shrink-0 bg-background-stronger relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center w-full"
+      class="h-10 shrink-0 bg-background-stronger relative w-full"
       style={{ "min-height": minHeight() }}
       data-tauri-drag-region
       onMouseDown={drag}
@@ -166,13 +168,14 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
     >
       <div
         classList={{
-          "flex items-center min-w-0": true,
+          "absolute inset-y-0 left-0 z-10 flex items-center min-w-0": true,
           "pl-2": !mac(),
         }}
+        style={{ "padding-left": reserveTrafficLights() ? trafficLightInset() : undefined }}
       >
         <Show when={mac()}>
           <Show when={!embedded()}>
-            <div class="h-full shrink-0" style={{ width: `${72 / zoom()}px` }} />
+            <div class="h-full shrink-0" style={{ width: trafficLightInset() }} />
           </Show>
           <div class="xl:hidden w-10 shrink-0 flex items-center justify-center">
             <IconButton
@@ -257,13 +260,13 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
         </div>
       </div>
 
-      <div class="min-w-0 flex items-center justify-center pointer-events-none">
+      <div class="absolute inset-y-0 left-1/2 z-0 flex min-w-0 -translate-x-1/2 items-center justify-center pointer-events-none">
         <div id="opencode-titlebar-center" class="pointer-events-auto min-w-0 flex justify-center w-fit max-w-full" />
       </div>
 
       <div
         classList={{
-          "flex items-center min-w-0 justify-end": true,
+          "absolute inset-y-0 right-0 z-10 flex items-center min-w-0 justify-end": true,
           "pr-2": !windows(),
         }}
         data-tauri-drag-region

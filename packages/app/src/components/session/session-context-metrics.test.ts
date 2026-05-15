@@ -98,4 +98,23 @@ describe("getSessionContextMetrics", () => {
     expect(metrics.totalCost).toBe(0)
     expect(metrics.context).toBeUndefined()
   })
+
+  test("ignores legacy assistant messages without token payloads", () => {
+    const messages = [
+      {
+        id: "legacy",
+        role: "assistant",
+        providerID: "openai",
+        modelID: "gpt-4.1",
+        time: { created: 1 },
+      },
+      assistant("current", { input: 20, output: 5, reasoning: 0, read: 0, write: 0 }, 0.2),
+    ] as unknown as Message[]
+
+    const metrics = getSessionContextMetrics(messages, [{ id: "openai", models: {} }])
+
+    expect(metrics.totalCost).toBe(0.2)
+    expect(metrics.context?.message.id).toBe("current")
+    expect(metrics.context?.total).toBe(25)
+  })
 })

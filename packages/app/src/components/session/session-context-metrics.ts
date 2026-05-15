@@ -34,8 +34,17 @@ type Metrics = {
   context: Context | undefined
 }
 
+const safeTokens = (msg: AssistantMessage) => ({
+  input: msg.tokens?.input ?? 0,
+  output: msg.tokens?.output ?? 0,
+  reasoning: msg.tokens?.reasoning ?? 0,
+  cacheRead: msg.tokens?.cache?.read ?? 0,
+  cacheWrite: msg.tokens?.cache?.write ?? 0,
+})
+
 const tokenTotal = (msg: AssistantMessage) => {
-  return msg.tokens.input + msg.tokens.output + msg.tokens.reasoning + msg.tokens.cache.read + msg.tokens.cache.write
+  const tokens = safeTokens(msg)
+  return tokens.input + tokens.output + tokens.reasoning + tokens.cacheRead + tokens.cacheWrite
 }
 
 const lastAssistantWithTokens = (messages: Message[]) => {
@@ -48,13 +57,14 @@ const lastAssistantWithTokens = (messages: Message[]) => {
 }
 
 const build = (messages: Message[] = [], providers: Provider[] = []): Metrics => {
-  const totalCost = messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? msg.cost : 0), 0)
+  const totalCost = messages.reduce((sum, msg) => sum + (msg.role === "assistant" ? (msg.cost ?? 0) : 0), 0)
   const message = lastAssistantWithTokens(messages)
   if (!message) return { totalCost, context: undefined }
 
   const provider = providers.find((item) => item.id === message.providerID)
   const model = provider?.models[message.modelID]
   const limit = model?.limit.context
+  const tokens = safeTokens(message)
   const total = tokenTotal(message)
 
   return {
@@ -66,11 +76,11 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
       providerLabel: provider?.name ?? message.providerID,
       modelLabel: model?.name ?? message.modelID,
       limit,
-      input: message.tokens.input,
-      output: message.tokens.output,
-      reasoning: message.tokens.reasoning,
-      cacheRead: message.tokens.cache.read,
-      cacheWrite: message.tokens.cache.write,
+      input: tokens.input,
+      output: tokens.output,
+      reasoning: tokens.reasoning,
+      cacheRead: tokens.cacheRead,
+      cacheWrite: tokens.cacheWrite,
       total,
       usage: limit ? Math.round((total / limit) * 100) : null,
     },

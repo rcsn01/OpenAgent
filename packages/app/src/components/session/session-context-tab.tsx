@@ -1,15 +1,8 @@
 import { createMemo, createEffect, on, onCleanup, For, Show } from "solid-js"
 import type { JSX } from "solid-js"
 import { useSync } from "@/context/sync"
-import { checksum } from "@opencode-ai/core/util/encode"
 import { findLast } from "@opencode-ai/core/util/array"
 import { same } from "@/utils/same"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Accordion } from "@opencode-ai/ui/accordion"
-import { StickyAccordionHeader } from "@opencode-ai/ui/sticky-accordion-header"
-import { File } from "@opencode-ai/ui/file"
-import { Markdown } from "@opencode-ai/ui/markdown"
-import { ScrollView } from "@opencode-ai/ui/scroll-view"
 import type { Message, Part, UserMessage } from "@opencode-ai/sdk/v2/client"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
@@ -32,58 +25,6 @@ function Stat(props: { label: string; value: JSX.Element }) {
       <div class="text-12-regular text-text-weak">{props.label}</div>
       <div class="text-12-medium text-text-strong">{props.value}</div>
     </div>
-  )
-}
-
-function RawMessageContent(props: { message: Message; getParts: (id: string) => Part[]; onRendered: () => void }) {
-  const file = createMemo(() => {
-    const parts = props.getParts(props.message.id)
-    const contents = JSON.stringify({ message: props.message, parts }, null, 2)
-    return {
-      name: `${props.message.role}-${props.message.id}.json`,
-      contents,
-      cacheKey: checksum(contents),
-    }
-  })
-
-  return (
-    <File
-      mode="text"
-      file={file()}
-      overflow="wrap"
-      class="select-text"
-      onRendered={() => requestAnimationFrame(props.onRendered)}
-    />
-  )
-}
-
-function RawMessage(props: {
-  message: Message
-  getParts: (id: string) => Part[]
-  onRendered: () => void
-  time: (value: number | undefined) => string
-}) {
-  return (
-    <Accordion.Item value={props.message.id}>
-      <StickyAccordionHeader>
-        <Accordion.Trigger>
-          <div class="flex items-center justify-between gap-2 w-full">
-            <div class="min-w-0 truncate">
-              {props.message.role} <span class="text-text-base">• {props.message.id}</span>
-            </div>
-            <div class="flex items-center gap-3">
-              <div class="shrink-0 text-12-regular text-text-weak">{props.time(props.message.time.created)}</div>
-              <Icon name="chevron-grabber-vertical" size="small" class="shrink-0 text-text-weak" />
-            </div>
-          </div>
-        </Accordion.Trigger>
-      </StickyAccordionHeader>
-      <Accordion.Content class="bg-background-base">
-        <div class="p-3">
-          <RawMessageContent message={props.message} getParts={props.getParts} onRendered={props.onRendered} />
-        </div>
-      </Accordion.Content>
-    </Accordion.Item>
   )
 }
 
@@ -221,22 +162,18 @@ export function SessionContextTab() {
   let scroll: HTMLDivElement | undefined
   let frame: number | undefined
   let pending: { x: number; y: number } | undefined
-  const getParts = (id: string) => (sync.data.part[id] ?? []) as Part[]
 
   const restoreScroll = () => {
     const el = scroll
     if (!el) return
 
-    const s = view().scroll("context")
-    if (!s) return
-
-    if (el.scrollTop !== s.y) el.scrollTop = s.y
-    if (el.scrollLeft !== s.x) el.scrollLeft = s.x
+    if (el.scrollTop !== 0) el.scrollTop = 0
+    if (el.scrollLeft !== 0) el.scrollLeft = 0
   }
 
   const handleScroll = (event: Event & { currentTarget: HTMLDivElement }) => {
     pending = {
-      x: event.currentTarget.scrollLeft,
+      x: 0,
       y: event.currentTarget.scrollTop,
     }
     if (frame !== undefined) return
@@ -254,7 +191,7 @@ export function SessionContextTab() {
 
   createEffect(
     on(
-      () => messages().length,
+      () => [view().context.opened(), messages().length],
       () => {
         requestAnimationFrame(restoreScroll)
       },
@@ -268,15 +205,16 @@ export function SessionContextTab() {
   })
 
   return (
-    <ScrollView
-      class="@container h-full"
-      viewportRef={(el) => {
+    <div
+      class="@container size-full min-w-0 max-w-full overflow-y-auto overflow-x-hidden opacity-100 visible bg-background-base text-text-strong"
+      style={{ isolation: "isolate" }}
+      ref={(el) => {
         scroll = el
         restoreScroll()
       }}
       onScroll={handleScroll}
     >
-      <div class="px-6 pt-4 pb-10 flex flex-col gap-10">
+      <div class="w-full min-w-0 max-w-full px-6 pt-4 pb-10 flex flex-col gap-10">
         <div class="grid grid-cols-1 @[32rem]:grid-cols-2 gap-4">
           <For each={stats}>
             {(stat) => <Stat label={language.t(stat.label as Parameters<typeof language.t>[0])} value={stat.value()} />}
@@ -314,28 +252,7 @@ export function SessionContextTab() {
           </div>
         </Show>
 
-        <Show when={systemPrompt()}>
-          {(prompt) => (
-            <div class="flex flex-col gap-2">
-              <div class="text-12-regular text-text-weak">{language.t("context.systemPrompt.title")}</div>
-              <div class="border border-border-base rounded-md bg-surface-base px-3 py-2">
-                <Markdown text={prompt()} class="text-12-regular" />
-              </div>
-            </div>
-          )}
-        </Show>
-
-        <div class="flex flex-col gap-2">
-          <div class="text-12-regular text-text-weak">{language.t("context.rawMessages.title")}</div>
-          <Accordion multiple>
-            <For each={messages()}>
-              {(message) => (
-                <RawMessage message={message} getParts={getParts} onRendered={restoreScroll} time={formatter().time} />
-              )}
-            </For>
-          </Accordion>
-        </div>
       </div>
-    </ScrollView>
+    </div>
   )
 }

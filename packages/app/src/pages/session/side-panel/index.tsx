@@ -2,7 +2,6 @@ import { Match, Show, Switch, createMemo, type JSX } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
 import type { SnapshotFileDiff, VcsFileDiff } from "@opencode-ai/sdk/v2"
 import { useLanguage } from "@/context/language"
-import { useLayout } from "@/context/layout"
 import type { Sizing } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { SessionContextTab } from "@/components/session"
@@ -26,7 +25,6 @@ export function SessionSidePanel(props: {
   reviewSnap: boolean
   size: Sizing
 }) {
-  const layout = useLayout()
   const language = useLanguage()
   const { view } = useSessionLayout()
 
@@ -44,7 +42,8 @@ export function SessionSidePanel(props: {
   })
   const panelWidth = createMemo(() => {
     if (!open()) return "0px"
-    return `max(${MIN_SIDE_PANEL_WIDTH}px, calc(100% - ${layout.session.width()}px))`
+    if (contextOpen()) return "auto"
+    return `${MIN_SIDE_PANEL_WIDTH}px`
   })
 
   return (
@@ -62,18 +61,25 @@ export function SessionSidePanel(props: {
         }
         aria-hidden={!open()}
         inert={!open()}
-        class="relative h-full flex shrink-0 overflow-hidden bg-background-base"
+        class="relative z-20 h-full flex overflow-hidden bg-background-base"
         classList={{
           "pointer-events-none": !open(),
+          "flex-1 min-w-0": contextOpen(),
+          "shrink-0": !contextOpen(),
           "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
             !props.size.active() && !props.reviewSnap,
         }}
-        style={{ width: panelWidth() }}
+        style={{ width: panelWidth(), "min-width": open() ? `${MIN_SIDE_PANEL_WIDTH}px` : "0px" }}
       >
-        <div class="size-full flex border-l border-border-weaker-base bg-background-base">
+        <div
+          class="relative z-10 size-full flex border-l border-border-weaker-base bg-background-base opacity-100 visible"
+          style={{ isolation: "isolate" }}
+        >
           <Switch>
             <Match when={contextOpen()}>
-              <SessionContextTab />
+              <div class="absolute inset-0 z-50 size-full min-w-0 overflow-hidden bg-background-base">
+                <SessionContextTab />
+              </div>
             </Match>
             <Match when={extensionsOpen()}>
               <SessionExtensionsPanel />
