@@ -1,47 +1,29 @@
 import { Match, Show, Switch, createMemo } from "solid-js"
-import { Tooltip, type TooltipProps } from "@opencode-ai/ui/tooltip"
+import { Tooltip, TooltipKeybind, type TooltipProps } from "@opencode-ai/ui/tooltip"
 import { ProgressCircle } from "@opencode-ai/ui/progress-circle"
 import { Button } from "@opencode-ai/ui/button"
 
-import { useFile } from "@/context/file"
-import { useLayout } from "@/context/layout"
 import { useSync } from "@/context/sync"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
 import { getSessionContextMetrics } from "@/components/session/session-context-metrics"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { createSessionTabs } from "@/pages/session/helpers"
 
 interface SessionContextUsageProps {
   variant?: "button" | "indicator"
   placement?: TooltipProps["placement"]
-}
-
-function openSessionContext(args: {
-  view: ReturnType<ReturnType<typeof useLayout>["view"]>
-  layout: ReturnType<typeof useLayout>
-  tabs: ReturnType<ReturnType<typeof useLayout>["tabs"]>
-}) {
-  if (!args.view.reviewPanel.opened()) args.view.reviewPanel.open()
-  if (args.layout.fileTree.opened() && args.layout.fileTree.tab() !== "all") args.layout.fileTree.setTab("all")
-  void args.tabs.open("context")
-  args.tabs.setActive("context")
+  tooltip?: "usage" | "label"
+  class?: string
+  keybind?: string
 }
 
 export function SessionContextUsage(props: SessionContextUsageProps) {
   const sync = useSync()
-  const file = useFile()
-  const layout = useLayout()
   const language = useLanguage()
   const providers = useProviders()
-  const { params, tabs, view } = useSessionLayout()
+  const { params, view } = useSessionLayout()
 
   const variant = createMemo(() => props.variant ?? "button")
-  const tabState = createSessionTabs({
-    tabs,
-    pathFromTab: file.pathFromTab,
-    normalizeTab: (tab) => (tab.startsWith("file://") ? file.tab(tab) : tab),
-  })
   const messages = createMemo(() => (params.id ? (sync.data.message[params.id] ?? []) : []))
 
   const usd = createMemo(
@@ -60,16 +42,7 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
 
   const openContext = () => {
     if (!params.id) return
-
-    if (tabState.activeTab() === "context") {
-      tabs().close("context")
-      return
-    }
-    openSessionContext({
-      view: view(),
-      layout,
-      tabs: tabs(),
-    })
+    view().context.toggle()
   }
 
   const circle = () => (
@@ -101,24 +74,45 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
     </div>
   )
 
+  const content = () => (
+    <Switch>
+      <Match when={variant() === "indicator"}>{circle()}</Match>
+      <Match when={true}>
+        <Button
+          type="button"
+          variant="ghost"
+          class={`size-6 ${props.class ?? ""}`}
+          classList={{
+            "bg-surface-base-active": view().context.opened(),
+          }}
+          onClick={openContext}
+          aria-label={language.t("context.usage.view")}
+          aria-expanded={view().context.opened()}
+          aria-controls="context-panel"
+          disabled={!params.id}
+        >
+          {circle()}
+        </Button>
+      </Match>
+    </Switch>
+  )
+
+  const tooltipContent = () => (props.tooltip === "label" ? language.t("context.usage.view") : tooltipValue())
+
   return (
-    <Show when={params.id}>
-      <Tooltip value={tooltipValue()} placement={props.placement ?? "top"}>
-        <Switch>
-          <Match when={variant() === "indicator"}>{circle()}</Match>
-          <Match when={true}>
-            <Button
-              type="button"
-              variant="ghost"
-              class="size-6"
-              onClick={openContext}
-              aria-label={language.t("context.usage.view")}
-            >
-              {circle()}
-            </Button>
-          </Match>
-        </Switch>
-      </Tooltip>
+    <Show
+      when={props.keybind && variant() === "button" ? props.keybind : undefined}
+      fallback={
+        <Tooltip value={tooltipContent()} placement={props.placement ?? "top"}>
+          {content()}
+        </Tooltip>
+      }
+    >
+      {(keybind) => (
+        <TooltipKeybind title={language.t("context.usage.view")} keybind={keybind()} placement={props.placement ?? "top"}>
+          {content()}
+        </TooltipKeybind>
+      )}
     </Show>
   )
 }

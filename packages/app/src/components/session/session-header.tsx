@@ -22,6 +22,7 @@ import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { focusTerminalById } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { SessionContextUsage } from "@/components/session-context-usage"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
@@ -516,6 +517,11 @@ export function SessionHeader() {
                     </Button>
                   </TooltipKeybind>
 
+                  <SessionContextUsage
+                    class="titlebar-icon w-8 h-6 p-0 box-border"
+                    keybind={command.keybind("context.toggle")}
+                    tooltip="label"
+                  />
                 </div>
               </div>
             </div>

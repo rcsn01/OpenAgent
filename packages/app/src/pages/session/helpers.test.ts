@@ -171,7 +171,7 @@ describe("createSessionTabs", () => {
     })
   })
 
-  test("prefers context and review fallbacks when no file tab is active", () => {
+  test("ignores legacy context tab and prefers review fallback when no file tab is active", () => {
     createRoot((dispose) => {
       const [state] = createStore({
         active: undefined as string | undefined,
@@ -186,8 +186,8 @@ describe("createSessionTabs", () => {
         hasReview: () => true,
       })
 
-      expect(result.activeTab()).toBe("context")
-      expect(result.closableTab()).toBe("context")
+      expect(result.activeTab()).toBe("review")
+      expect(result.closableTab()).toBeUndefined()
       dispose()
     })
 

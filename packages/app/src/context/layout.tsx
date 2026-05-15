@@ -59,10 +59,10 @@ type TabHandoff = {
 export type LocalProject = Partial<Project> & { worktree: string; expanded: boolean; pinned?: boolean }
 
 export type ReviewDiffStyle = "unified" | "split"
-export type SessionSidePanelMode = "review" | "subagents" | "extensions"
+export type SessionSidePanelMode = "review" | "subagents" | "extensions" | "context"
 
 export function normalizeSessionSidePanelMode(mode: unknown): SessionSidePanelMode {
-  if (mode === "review" || mode === "subagents" || mode === "extensions") return mode
+  if (mode === "review" || mode === "subagents" || mode === "extensions" || mode === "context") return mode
   return "review"
 }
 
@@ -106,7 +106,6 @@ export function pruneSessionKeys(input: {
 function nextSessionTabsForOpen(current: SessionTabs | undefined, tab: string): SessionTabs {
   const all = current?.all ?? []
   if (tab === "review") return { all: all.filter((x) => x !== "review"), active: tab }
-  if (tab === "context") return { all: [tab, ...all.filter((x) => x !== tab)], active: tab }
   if (!all.includes(tab)) return { all: [...all, tab], active: tab }
   return { all, active: tab }
 }
@@ -765,6 +764,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const reviewPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "review")
         const subagentsPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "subagents")
         const extensionsPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "extensions")
+        const contextPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "context")
 
         function setTerminalOpened(next: boolean) {
           const current = store.terminal
@@ -867,6 +867,22 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             toggle() {
               if (sidePanelActive() !== "extensions") {
                 openSidePanel("extensions")
+                return
+              }
+              setReviewPanelOpened(!mainPanelOpened())
+            },
+          },
+          context: {
+            opened: contextPanelOpened,
+            open() {
+              openSidePanel("context")
+            },
+            close() {
+              setReviewPanelOpened(false)
+            },
+            toggle() {
+              if (sidePanelActive() !== "context") {
+                openSidePanel("context")
                 return
               }
               setReviewPanelOpened(!mainPanelOpened())

@@ -714,6 +714,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       onSelect: () => view().reviewPanel.toggle(),
     }),
     viewCommand({
+      id: "context.toggle",
+      title: language.t("command.context.toggle"),
+      disabled: !params.id,
+      onSelect: () => view().context.toggle(),
+    }),
+    viewCommand({
       id: "subagents.toggle",
       title: language.t("command.subagents.toggle"),
       disabled: !params.id,

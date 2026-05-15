@@ -427,8 +427,9 @@ export default function Page() {
   const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
   const desktopSubagentsOpen = createMemo(() => isDesktop() && view().subagents.opened())
   const desktopExtensionsOpen = createMemo(() => isDesktop() && view().extensions.opened())
+  const desktopContextOpen = createMemo(() => isDesktop() && view().context.opened())
   const desktopMainPanelOpen = createMemo(
-    () => desktopReviewOpen() || desktopSubagentsOpen() || desktopExtensionsOpen(),
+    () => desktopReviewOpen() || desktopSubagentsOpen() || desktopExtensionsOpen() || desktopContextOpen(),
   )
   const fileTreeShown = createMemo(
     () =>

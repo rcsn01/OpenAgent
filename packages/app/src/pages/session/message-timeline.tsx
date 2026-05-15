@@ -19,7 +19,6 @@ import { Binary } from "@opencode-ai/core/util/binary"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
-import { SessionContextUsage } from "@/components/session-context-usage"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLanguage } from "@/context/language"
@@ -838,7 +837,6 @@ export function MessageTimeline(props: {
                             onClick={openSessionGraphs}
                           />
                         </Show>
-                        <SessionContextUsage placement="bottom" />
                         <Show when={!parentID()}>
                           <DropdownMenu
                             gutter={4}

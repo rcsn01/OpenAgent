@@ -73,6 +73,7 @@ describe("normalizeSessionSidePanelMode", () => {
     expect(normalizeSessionSidePanelMode("review")).toBe("review")
     expect(normalizeSessionSidePanelMode("subagents")).toBe("subagents")
     expect(normalizeSessionSidePanelMode("extensions")).toBe("extensions")
+    expect(normalizeSessionSidePanelMode("context")).toBe("context")
   })
 
   test("falls back to review for unknown values", () => {

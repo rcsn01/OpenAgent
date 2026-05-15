@@ -5,6 +5,7 @@ import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import type { Sizing } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { SessionContextTab } from "@/components/session"
 import { SessionExtensionsPanel } from "./extensions"
 import { SessionReviewPanel } from "./review"
 import { SessionSubagentsPanel } from "./subagents"
@@ -33,7 +34,14 @@ export function SessionSidePanel(props: {
   const reviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
   const subagentsOpen = createMemo(() => isDesktop() && view().subagents.opened())
   const extensionsOpen = createMemo(() => isDesktop() && view().extensions.opened())
-  const open = createMemo(() => reviewOpen() || subagentsOpen() || extensionsOpen())
+  const contextOpen = createMemo(() => isDesktop() && view().context.opened())
+  const open = createMemo(() => reviewOpen() || subagentsOpen() || extensionsOpen() || contextOpen())
+  const activePanelID = createMemo(() => {
+    if (contextOpen()) return "context-panel"
+    if (extensionsOpen()) return "extensions-panel"
+    if (subagentsOpen()) return "subagents-panel"
+    return "review-panel"
+  })
   const panelWidth = createMemo(() => {
     if (!open()) return "0px"
     return `max(${MIN_SIDE_PANEL_WIDTH}px, calc(100% - ${layout.session.width()}px))`
@@ -42,9 +50,11 @@ export function SessionSidePanel(props: {
   return (
     <Show when={isDesktop()}>
       <aside
-        id="review-panel"
+        id={activePanelID()}
         aria-label={
-          extensionsOpen()
+          contextOpen()
+            ? language.t("session.tab.context")
+            : extensionsOpen()
             ? "Extensions"
             : subagentsOpen()
               ? language.t("session.subagents.title")
@@ -62,6 +72,9 @@ export function SessionSidePanel(props: {
       >
         <div class="size-full flex border-l border-border-weaker-base bg-background-base">
           <Switch>
+            <Match when={contextOpen()}>
+              <SessionContextTab />
+            </Match>
             <Match when={extensionsOpen()}>
               <SessionExtensionsPanel />
             </Match>

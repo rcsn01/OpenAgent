@@ -12,8 +12,7 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { ConstrainDragYAxis, getDraggableId } from "@/utils/solid-dnd"
 
 import FileTree from "@/components/file-tree"
-import { FileVisual, SessionContextTab, SortableTab } from "@/components/session"
-import { SessionContextUsage } from "@/components/session-context-usage"
+import { FileVisual, SortableTab } from "@/components/session"
 import { useCommand } from "@/context/command"
 import { useFile, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
@@ -124,7 +123,6 @@ export function SessionReviewPanel(props: {
     review: () => true,
     hasReview: props.canReview,
   })
-  const contextOpen = tabState.contextOpen
   const openedTabs = tabState.openedTabs
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
@@ -202,7 +200,7 @@ export function SessionReviewPanel(props: {
               <div class="sticky top-0 shrink-0 flex">
                 <Tabs.List
                   ref={(el: HTMLDivElement) => {
-                    const stop = createFileTabListSync({ el, contextOpen })
+                    const stop = createFileTabListSync({ el })
                     onCleanup(stop)
                   }}
                 >
@@ -213,34 +211,6 @@ export function SessionReviewPanel(props: {
                         <Show when={props.hasReview()}>
                           <div>{props.reviewCount()}</div>
                         </Show>
-                      </div>
-                    </Tabs.Trigger>
-                  </Show>
-                  <Show when={contextOpen()}>
-                    <Tabs.Trigger
-                      value="context"
-                      closeButton={
-                        <TooltipKeybind
-                          title={language.t("common.closeTab")}
-                          keybind={command.keybind("tab.close")}
-                          placement="bottom"
-                          gutter={10}
-                        >
-                          <IconButton
-                            icon="close-small"
-                            variant="ghost"
-                            class="h-5 w-5"
-                            onClick={() => tabs().close("context")}
-                            aria-label={language.t("common.closeTab")}
-                          />
-                        </TooltipKeybind>
-                      }
-                      hideCloseButton
-                      onMiddleClick={() => tabs().close("context")}
-                    >
-                      <div class="flex items-center gap-2">
-                        <SessionContextUsage variant="indicator" />
-                        <div>{language.t("session.tab.context")}</div>
                       </div>
                     </Tabs.Trigger>
                   </Show>
@@ -305,16 +275,6 @@ export function SessionReviewPanel(props: {
                   </div>
                 </Show>
               </Tabs.Content>
-
-              <Show when={contextOpen()}>
-                <Tabs.Content value="context" class="flex flex-col h-full overflow-hidden contain-strict">
-                  <Show when={activeTab() === "context"}>
-                    <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
-                      <SessionContextTab />
-                    </div>
-                  </Show>
-                </Tabs.Content>
-              </Show>
 
               <Show when={activeFileTab()} keyed>
                 {(tab) => <FileTabContent tab={tab} />}
