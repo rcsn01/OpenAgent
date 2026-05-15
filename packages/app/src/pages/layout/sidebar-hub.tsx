@@ -95,7 +95,7 @@ const ProjectSessionButton = (props: {
       type="button"
       data-component="sidebar-session-row"
       data-session-glow={glow()}
-      class="flex w-full items-center gap-2 rounded-[18px] px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover"
+      class="flex w-full items-center gap-2 rounded-xl py-1.5 pl-10 pr-3 text-left transition-colors hover:bg-surface-base-hover"
       classList={{
         "bg-surface-base-active": props.active() && glow() !== "working",
         "hover:bg-transparent": glow() === "working",
@@ -274,10 +274,10 @@ const ProjectSection = (props: {
                 </div>
 
                 <Show when={props.showSessions() && sessionsVisible()}>
-                  <div class="space-y-0.5 pl-7">
+                  <div class="space-y-0.5">
                     <Show
                       when={sessions().length > 0}
-                      fallback={<div class="type-prose-md px-3 py-0.5 text-text-weaker">No sessions yet</div>}
+                      fallback={<div class="type-prose-md py-0.5 pl-10 pr-3 text-text-weaker">No sessions yet</div>}
                     >
                       <For each={visible()}>
                         {(session) => {
@@ -296,7 +296,7 @@ const ProjectSection = (props: {
                       </For>
                     </Show>
                     <Show when={showMoreControl()}>
-                      <div class="flex items-center justify-between gap-2 px-3 py-0.5">
+                      <div class="flex items-center justify-between gap-2 py-0.5 pl-10 pr-3">
                         <Show when={canShowMore()}>
                           <button
                             type="button"
