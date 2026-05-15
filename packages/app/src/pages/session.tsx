@@ -87,7 +87,7 @@ const emptyFollowupState = (): FollowupState => ({
   paused: {},
   edit: {},
 })
-const COLLAPSED_SIDEBAR_WIDTH = 64
+const COLLAPSED_SIDEBAR_WIDTH = 0
 const MIN_REVIEW_COLUMN_WIDTH = 200
 const MIN_SESSION_COLUMN_WIDTH = 420
 const MIN_SIDE_PANEL_WIDTH = 360
