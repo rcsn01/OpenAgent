@@ -940,6 +940,7 @@ export type Session = {
   workspaceID?: string
   directory: string
   path?: string
+  source?: "user" | "automation"
   parentID?: string
   summary?: {
     additions: number
@@ -3802,6 +3803,7 @@ export type SessionCreateData = {
     title?: string
     permission?: PermissionRuleset
     workspaceID?: string
+    source?: "user" | "automation"
   }
   path?: never
   query?: {

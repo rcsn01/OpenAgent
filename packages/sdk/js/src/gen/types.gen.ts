@@ -534,6 +534,7 @@ export type Session = {
   id: string
   projectID: string
   directory: string
+  source?: "user" | "automation"
   parentID?: string
   summary?: {
     additions: number
@@ -2080,6 +2081,7 @@ export type SessionCreateData = {
   body?: {
     parentID?: string
     title?: string
+    source?: "user" | "automation"
   }
   path?: never
   query?: {

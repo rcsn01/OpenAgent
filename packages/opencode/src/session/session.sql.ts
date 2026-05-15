@@ -11,6 +11,7 @@ import { Timestamps } from "../storage/schema.sql"
 
 type PartData = Omit<MessageV2.Part, "id" | "sessionID" | "messageID">
 type InfoData = Omit<MessageV2.Info, "id" | "sessionID">
+export type SessionSource = "user" | "automation"
 
 export const SessionTable = sqliteTable(
   "session",
@@ -25,6 +26,7 @@ export const SessionTable = sqliteTable(
     slug: text().notNull(),
     directory: text().notNull(),
     path: text(),
+    source: text().$type<SessionSource>().notNull().default("user"),
     title: text().notNull(),
     version: text().notNull(),
     share_url: text(),

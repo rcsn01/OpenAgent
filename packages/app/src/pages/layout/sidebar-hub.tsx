@@ -33,7 +33,8 @@ type InlineEditorComponent = (props: {
 
 const updatedAt = (session: Session) => session.time.updated ?? session.time.created
 const projectEditorId = (project: LocalProject) => `project:${pathKey(project.worktree)}`
-const isAutomationSession = (session: Session) => session.title.startsWith("[Automation] ")
+const isAutomationSession = (session: Session) =>
+  (session as Session & { source?: string }).source === "automation" || session.title.startsWith("[Automation] ")
 type ProjectOrganizeMode = "project" | "recent" | "chronological"
 type ProjectSortMode = "created" | "updated"
 type ProjectShowMode = "all" | "relevant"

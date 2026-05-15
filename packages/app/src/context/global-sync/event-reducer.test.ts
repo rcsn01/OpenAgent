@@ -4,10 +4,12 @@ import { createStore } from "solid-js/store"
 import type { State } from "./types"
 import { applyDirectoryEvent, applyGlobalEvent, cleanupDroppedSessionCaches } from "./event-reducer"
 
-const rootSession = (input: { id: string; parentID?: string; archived?: number }) =>
+const rootSession = (input: { id: string; parentID?: string; archived?: number; source?: "user" | "automation"; title?: string }) =>
   ({
     id: input.id,
     parentID: input.parentID,
+    title: input.title ?? input.id,
+    source: input.source ?? "user",
     time: {
       created: 1,
       updated: 1,
@@ -163,6 +165,48 @@ describe("applyDirectoryEvent", () => {
     })
 
     expect(store.sessionTotal).toBe(2)
+  })
+
+  test("skips automation root sessions before they can trim sidebar sessions", () => {
+    const [store, setStore] = createStore(
+      baseState({
+        session: [rootSession({ id: "user_1" })],
+        sessionTotal: 1,
+        limit: 1,
+      }),
+    )
+
+    applyDirectoryEvent({
+      event: { type: "session.created", properties: { info: rootSession({ id: "auto_1", source: "automation" }) } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.session.map((x) => x.id)).toEqual(["user_1"])
+    expect(store.sessionTotal).toBe(1)
+  })
+
+  test("removes automation root sessions that arrive through update events", () => {
+    const [store, setStore] = createStore(
+      baseState({
+        session: [rootSession({ id: "auto_1" }), rootSession({ id: "user_1" })],
+        sessionTotal: 2,
+      }),
+    )
+
+    applyDirectoryEvent({
+      event: { type: "session.updated", properties: { info: rootSession({ id: "auto_1", source: "automation" }) } },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+    })
+
+    expect(store.session.map((x) => x.id)).toEqual(["user_1"])
   })
 
   test("cleans session caches when archived", () => {

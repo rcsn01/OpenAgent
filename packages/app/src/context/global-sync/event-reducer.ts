@@ -17,6 +17,8 @@ import { dropSessionCaches } from "./session-cache"
 import { diffs as list, message as clean } from "@/utils/diffs"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
+const isAutomationSession = (session: Session) =>
+  (session as Session & { source?: string }).source === "automation" || session.title?.startsWith("[Automation] ")
 
 export function applyGlobalEvent(input: {
   event: { type: string; properties?: unknown }
@@ -108,6 +110,7 @@ export function applyDirectoryEvent(input: {
     }
     case "session.created": {
       const info = (event.properties as { info: Session }).info
+      if (!info.parentID && isAutomationSession(info)) break
       const result = Binary.search(input.store.session, info.id, (s) => s.id)
       if (result.found) {
         input.setStore("session", result.index, reconcile(info))
@@ -124,6 +127,18 @@ export function applyDirectoryEvent(input: {
     case "session.updated": {
       const info = (event.properties as { info: Session }).info
       const result = Binary.search(input.store.session, info.id, (s) => s.id)
+      if (!info.parentID && isAutomationSession(info)) {
+        if (result.found) {
+          input.setStore(
+            "session",
+            produce((draft) => {
+              draft.splice(result.index, 1)
+            }),
+          )
+          cleanupSessionCaches(input.setStore, info.id, input.setSessionTodo)
+        }
+        break
+      }
       if (info.time.archived) {
         if (result.found) {
           input.setStore(

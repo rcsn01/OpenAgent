@@ -235,4 +235,23 @@ describe("session.list", () => {
       },
     })
   })
+
+  test("excludes automation sessions before applying limit", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        await svc.create({ title: "user-session-1" })
+        const automation = await svc.create({ title: "[Automation] ping", source: "automation" })
+        await svc.create({ title: "user-session-2" })
+
+        const all = await svc.list({ roots: true, limit: 3 })
+        expect(all.map((s) => s.id)).toContain(automation.id)
+
+        const filtered = await svc.list({ roots: true, limit: 2, excludeAutomation: true })
+        expect(filtered.map((s) => s.title).sort()).toEqual(["user-session-1", "user-session-2"])
+        expect(filtered.every((s) => s.source === "user")).toBe(true)
+      },
+    })
+  })
 })

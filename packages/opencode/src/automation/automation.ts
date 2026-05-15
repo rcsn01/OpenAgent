@@ -341,6 +341,7 @@ export const layer = Layer.effect(
       yield* Effect.gen(function* () {
         const session = yield* sessionSvc.create({
           title: `[Automation] ${automation.name} - ${new Date().toLocaleString()}`,
+          source: "automation",
         })
         Database.use((db) =>
           db

@@ -18,12 +18,11 @@ import { desc } from "drizzle-orm"
 import { like } from "drizzle-orm"
 import { inArray } from "drizzle-orm"
 import { lt } from "drizzle-orm"
+import { ne } from "drizzle-orm"
 import { or } from "drizzle-orm"
-import { sql } from "drizzle-orm"
 import { SyncEvent } from "../sync"
 import type { SQL } from "drizzle-orm"
 import { PartTable, SessionTable } from "./session.sql"
-import { AutomationRunTable } from "@/automation/automation.sql"
 import { ProjectTable } from "../project/project.sql"
 import { Storage } from "@/storage/storage"
 import * as Log from "@opencode-ai/core/util/log"
@@ -79,6 +78,7 @@ export function fromRow(row: SessionRow): Info {
     workspaceID: row.workspace_id ?? undefined,
     directory: row.directory,
     path: row.path ?? undefined,
+    source: row.source ?? "user",
     parentID: row.parent_id ?? undefined,
     title: row.title,
     version: row.version,
@@ -104,6 +104,7 @@ export function toRow(info: Info) {
     slug: info.slug,
     directory: info.directory,
     path: info.path,
+    source: info.source ?? "user",
     title: info.title,
     version: info.version,
     share_url: info.share?.url,
@@ -162,6 +163,7 @@ const Revert = Schema.Struct({
   snapshot: optionalOmitUndefined(Schema.String),
   diff: optionalOmitUndefined(Schema.String),
 })
+const Source = Schema.Union([Schema.Literal("user"), Schema.Literal("automation")])
 
 export const Info = Schema.Struct({
   id: SessionID,
@@ -170,6 +172,7 @@ export const Info = Schema.Struct({
   workspaceID: optionalOmitUndefined(WorkspaceID),
   directory: Schema.String,
   path: optionalOmitUndefined(Schema.String),
+  source: optionalOmitUndefined(Source),
   parentID: optionalOmitUndefined(SessionID),
   summary: optionalOmitUndefined(Summary),
   share: optionalOmitUndefined(Share),
@@ -206,6 +209,7 @@ export const CreateInput = Schema.optional(
     title: Schema.optional(Schema.String),
     permission: Schema.optional(Permission.Ruleset),
     workspaceID: Schema.optional(WorkspaceID),
+    source: Schema.optional(Source),
   }),
 ).pipe(withStatics((s) => ({ zod: zod(s) })))
 export type CreateInput = Types.DeepMutable<Schema.Schema.Type<typeof CreateInput>>
@@ -410,6 +414,7 @@ export interface Interface {
     title?: string
     permission?: Permission.Ruleset
     workspaceID?: WorkspaceID
+    source?: Info["source"]
   }) => Effect.Effect<Info>
   readonly fork: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Info>
   readonly touch: (sessionID: SessionID) => Effect.Effect<void>
@@ -469,6 +474,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | 
       workspaceID?: WorkspaceID
       directory: string
       path?: string
+      source?: Info["source"]
       permission?: Permission.Ruleset
     }) {
       const ctx = yield* InstanceState.context
@@ -481,6 +487,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | 
         path: input.path,
         workspaceID: input.workspaceID,
         parentID: input.parentID,
+        source: input.source ?? "user",
         title: input.title ?? createDefaultTitle(!!input.parentID),
         permission: input.permission,
         time: {
@@ -594,6 +601,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | 
       title?: string
       permission?: Permission.Ruleset
       workspaceID?: WorkspaceID
+      source?: Info["source"]
     }) {
       const ctx = yield* InstanceState.context
       const workspace = yield* InstanceState.workspaceID
@@ -602,6 +610,7 @@ export const layer: Layer.Layer<Service, never, Bus.Service | Storage.Service | 
         directory: ctx.directory,
         path: sessionPath(ctx.worktree, ctx.directory),
         title: input?.title,
+        source: input?.source,
         permission: input?.permission,
         workspaceID: input?.workspaceID ?? workspace,
       })
@@ -809,9 +818,7 @@ function* listByProject(
     conditions.push(isNull(SessionTable.parent_id))
   }
   if (input.excludeAutomation) {
-    conditions.push(
-      sql`not exists (select 1 from ${AutomationRunTable} where ${AutomationRunTable.session_id} = ${SessionTable.id})`,
-    )
+    conditions.push(ne(SessionTable.source, "automation"))
   }
   if (input.start) {
     conditions.push(gte(SessionTable.time_updated, input.start))
