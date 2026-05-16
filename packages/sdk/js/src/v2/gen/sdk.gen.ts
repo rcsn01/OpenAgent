@@ -13,6 +13,17 @@ import type {
   AuthRemoveResponses,
   AuthSetErrors,
   AuthSetResponses,
+  AutomationCreateErrors,
+  AutomationCreateResponses,
+  AutomationDeleteErrors,
+  AutomationDeleteResponses,
+  AutomationListResponses,
+  AutomationRunErrors,
+  AutomationRunResponses,
+  AutomationRunsErrors,
+  AutomationRunsResponses,
+  AutomationUpdateErrors,
+  AutomationUpdateResponses,
   CommandListResponses,
   Config as Config3,
   ConfigGetResponses,
@@ -1360,6 +1371,292 @@ export class Event extends HeyApiClient {
     )
     return (options?.client ?? this.client).sse.get<EventSubscribeResponses, unknown, ThrowOnError>({
       url: "/event",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Automation extends HeyApiClient {
+  /**
+   * List automations
+   *
+   * List recurring local automations.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<AutomationListResponses, unknown, ThrowOnError>({
+      url: "/automation",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Create automation
+   *
+   * Create a recurring local automation.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      query_directory?: string
+      workspace?: string
+      body_directory?: string
+      name?: string
+      prompt?: string
+      schedule?:
+        | {
+            type: "interval"
+            minutes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          }
+        | {
+            type: "daily"
+            time: string
+          }
+        | {
+            type: "weekday"
+            time: string
+          }
+        | {
+            type: "weekly"
+            day: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            time: string
+          }
+      status?: "active" | "paused"
+      model?: {
+        providerID: string
+        modelID: string
+      }
+      variant?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            {
+              in: "query",
+              key: "query_directory",
+              map: "directory",
+            },
+            { in: "query", key: "workspace" },
+            {
+              in: "body",
+              key: "body_directory",
+              map: "directory",
+            },
+            { in: "body", key: "name" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "schedule" },
+            { in: "body", key: "status" },
+            { in: "body", key: "model" },
+            { in: "body", key: "variant" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<AutomationCreateResponses, AutomationCreateErrors, ThrowOnError>({
+      url: "/automation",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete automation
+   *
+   * Delete an automation and its run history.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      automationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "automationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<AutomationDeleteResponses, AutomationDeleteErrors, ThrowOnError>({
+      url: "/automation/{automationID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update automation
+   *
+   * Update an existing automation.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      automationID: string
+      query_directory?: string
+      workspace?: string
+      body_directory?: string
+      name?: string
+      prompt?: string
+      schedule?:
+        | {
+            type: "interval"
+            minutes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          }
+        | {
+            type: "daily"
+            time: string
+          }
+        | {
+            type: "weekday"
+            time: string
+          }
+        | {
+            type: "weekly"
+            day: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+            time: string
+          }
+      status?: "active" | "paused"
+      model?: {
+        providerID: string
+        modelID: string
+      }
+      variant?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "automationID" },
+            {
+              in: "query",
+              key: "query_directory",
+              map: "directory",
+            },
+            { in: "query", key: "workspace" },
+            {
+              in: "body",
+              key: "body_directory",
+              map: "directory",
+            },
+            { in: "body", key: "name" },
+            { in: "body", key: "prompt" },
+            { in: "body", key: "schedule" },
+            { in: "body", key: "status" },
+            { in: "body", key: "model" },
+            { in: "body", key: "variant" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<AutomationUpdateResponses, AutomationUpdateErrors, ThrowOnError>({
+      url: "/automation/{automationID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Run automation now
+   *
+   * Run an automation immediately and return the run record.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters: {
+      automationID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "automationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<AutomationRunResponses, AutomationRunErrors, ThrowOnError>({
+      url: "/automation/{automationID}/run",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List automation runs
+   *
+   * List recent run records for an automation.
+   */
+  public runs<ThrowOnError extends boolean = false>(
+    parameters: {
+      automationID: string
+      directory?: string
+      workspace?: string
+      limit?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "automationID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<AutomationRunsResponses, AutomationRunsErrors, ThrowOnError>({
+      url: "/automation/{automationID}/runs",
       ...options,
       ...params,
     })
@@ -5309,6 +5606,11 @@ export class OpencodeClient extends HeyApiClient {
   private _event?: Event
   get event(): Event {
     return (this._event ??= new Event({ client: this.client }))
+  }
+
+  private _automation?: Automation
+  get automation(): Automation {
+    return (this._automation ??= new Automation({ client: this.client }))
   }
 
   private _config?: Config2

@@ -194,7 +194,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       )
       if (!patched.ok) return yield* pluginError(patched)
 
-      yield* config.invalidate(true)
+      yield* config.invalidate()
       return true
     })
 
@@ -217,7 +217,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       )
       if (!result.ok) return yield* pluginError(result)
 
-      yield* config.invalidate(true)
+      yield* config.invalidate()
       return true
     })
 
@@ -240,7 +240,7 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       )
       if (!result.ok) return yield* pluginError(result)
 
-      yield* config.invalidate(true)
+      yield* config.invalidate()
       return true
     })
 

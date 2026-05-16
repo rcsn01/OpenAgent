@@ -493,4 +493,8 @@ export const layer = Layer.effect(
   }),
 )
 
-export const defaultLayer = layer
+export const defaultLayer = layer.pipe(
+  Layer.provide(Project.defaultLayer),
+  Layer.provide(Session.defaultLayer),
+  Layer.provide(SessionPrompt.defaultLayer),
+)

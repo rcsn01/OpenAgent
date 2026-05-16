@@ -169,10 +169,18 @@ export default function Page() {
   const desktopMainPanelOpen = sessionPanel.desktopMainPanelOpen
   const desktopFileTreeOpen = sessionPanel.desktopFileTreeOpen
   const desktopSidePanelOpen = sessionPanel.desktopSidePanelOpen
+  const desktopSidePanelWidth = createMemo(() => (desktopSidePanelOpen() ? "360px" : "0px"))
   const reviewResizeMax = sessionPanel.reviewResizeMax
   const effectiveSessionWidth = sessionPanel.effectiveSessionWidth
   const sessionPanelWidth = sessionPanel.sessionPanelWidth
   const centered = sessionPanel.centered
+
+  createEffect(() => {
+    document.documentElement.style.setProperty("--session-side-panel-width", desktopSidePanelWidth())
+    onCleanup(() => {
+      document.documentElement.style.removeProperty("--session-side-panel-width")
+    })
+  })
 
   const openReviewPanel = () => {
     if (!view().reviewPanel.opened()) view().reviewPanel.open()
@@ -920,7 +928,7 @@ export default function Page() {
   )
 
   const reviewPanel = () => (
-    <div class="flex flex-col h-full overflow-hidden bg-background-stronger contain-strict">
+    <div class="flex flex-col h-full overflow-hidden bg-background-base contain-strict">
       <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
         {reviewContent({
           diffStyle: layout.review.diffStyle(),
@@ -1501,7 +1509,7 @@ export default function Page() {
         {/* Session panel */}
         <div
           classList={{
-            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-stronger flex-1 md:flex-none": true,
+            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-base flex-1 md:flex-none": true,
             "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
               !size.active() && !ui.reviewSnap,
           }}

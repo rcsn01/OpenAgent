@@ -181,12 +181,13 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
     <header
       class="h-10 shrink-0 bg-background-base relative overflow-hidden"
       style={{ "min-height": minHeight() }}
+      data-desktop-drag-region
       data-tauri-drag-region
       onMouseDown={drag}
       onDblClick={maximize}
     >
       <div
-        class="grid h-full min-h-full w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
+        class="grid h-full min-h-full w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center"
         style={{ zoom: counterZoom() }}
       >
         <div
@@ -325,9 +326,12 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
 
         <div
           classList={{
-            "flex items-center min-w-0 justify-end": true,
-            "pr-2": !windows(),
+            "absolute inset-y-0 flex items-center min-w-0 justify-end": true,
           }}
+          style={{
+            right: windows() ? "0px" : "calc(var(--session-side-panel-width, 0px) + 8px)",
+          }}
+          data-desktop-drag-region
           data-tauri-drag-region
           onMouseDown={drag}
         >

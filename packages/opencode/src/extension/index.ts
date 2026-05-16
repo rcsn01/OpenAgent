@@ -11,10 +11,10 @@ import { ConfigMCP } from "@/config/mcp"
 import { FileWatcher } from "@/file/watcher"
 import { MCP } from "@/mcp"
 import { InstanceState } from "@/effect/instance-state"
-import { Instance } from "@/project/instance"
+import { InstanceStore } from "@/project/instance-store"
+import { InstanceLayer } from "@/project/instance-layer"
 import { Skill } from "@/skill"
 import { Filesystem } from "@/util/filesystem"
-import { InstanceBootstrap } from "@/project/bootstrap"
 import * as Log from "@opencode-ai/core/util/log"
 
 const log = Log.create({ service: "extension" })
@@ -257,6 +257,7 @@ export const layer = Layer.effect(
     const cfg = yield* Config.Service
     const mcp = yield* MCP.Service
     const skill = yield* Skill.Service
+    const store = yield* InstanceStore.Service
 
     const state = yield* InstanceState.make(
       Effect.fn("Extension.state")(function* () {
@@ -278,15 +279,11 @@ export const layer = Layer.effect(
             if (reloading) return
             reloading = true
             log.info("reloading instance for managed extension skill change", { file: event.properties.file })
-            void Instance.reload({
+            void Effect.runPromise(store.reload({
               directory: ctx.directory,
               worktree: ctx.worktree,
               project: ctx.project,
-              init: () =>
-                import("@/effect/bootstrap-runtime").then(({ BootstrapRuntime }) =>
-                  BootstrapRuntime.runPromise(InstanceBootstrap),
-                ),
-            }).finally(() => {
+            })).finally(() => {
               reloading = false
             })
           }, RELOAD_DEBOUNCE_MS)
@@ -389,7 +386,7 @@ export const layer = Layer.effect(
         ),
       )
 
-      yield* cfg.invalidate(true)
+      yield* cfg.invalidate()
     })
 
     const remove = Effect.fn("Extension.remove")(function* (id: string) {
@@ -406,7 +403,7 @@ export const layer = Layer.effect(
         concurrency: "unbounded",
         discard: true,
       })
-      yield* cfg.invalidate(true)
+      yield* cfg.invalidate()
     })
 
     const init = Effect.fn("Extension.init")(function* () {
@@ -422,6 +419,7 @@ export const defaultLayer = layer.pipe(
   Layer.provide(MCP.defaultLayer),
   Layer.provide(Skill.defaultLayer),
   Layer.provide(Bus.defaultLayer),
+  Layer.provide(InstanceLayer.layer),
 )
 
 export * as Extension from "."

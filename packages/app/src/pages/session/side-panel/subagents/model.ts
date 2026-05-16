@@ -41,6 +41,10 @@ export type SubagentPanelModel = {
   }
 }
 
+function finiteNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0
+}
+
 export function buildSubagentsPanelModel(input: {
   sessionID: string
   sessions: Session[]
@@ -55,7 +59,7 @@ export function buildSubagentsPanelModel(input: {
   const represented = new Set<string>()
 
   const graphs = (input.response?.graphs ?? [])
-    .toSorted((a, b) => b.createdAt - a.createdAt)
+    .toSorted((a, b) => finiteNumber(b.createdAt) - finiteNumber(a.createdAt))
     .map((graph) => ({
       graph,
       nodes: graph.nodes.map((node) => {

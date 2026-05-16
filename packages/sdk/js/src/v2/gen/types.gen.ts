@@ -179,6 +179,13 @@ export type GeneralChat = {
   directory: string
 }
 
+export type NotFoundError = {
+  name: "NotFoundError"
+  data: {
+    message: string
+  }
+}
+
 export type PermissionRequest = {
   id: string
   sessionID: string
@@ -1369,6 +1376,59 @@ export type Config = {
   }
 }
 
+export type Automation = {
+  id: string
+  projectID?: string
+  directory: string
+  name: string
+  prompt: string
+  schedule:
+    | {
+        type: "interval"
+        minutes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+      }
+    | {
+        type: "daily"
+        time: string
+      }
+    | {
+        type: "weekday"
+        time: string
+      }
+    | {
+        type: "weekly"
+        day: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        time: string
+      }
+  status: "active" | "paused"
+  model?: {
+    providerID: string
+    modelID: string
+  }
+  variant?: string
+  nextRunAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  lastRunAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  time: {
+    created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
+export type AutomationRun = {
+  id: string
+  automationID: string
+  directory?: string
+  sessionID?: string
+  status: "running" | "succeeded" | "failed" | "cancelled"
+  error?: string
+  startedAt: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  completedAt?: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  time: {
+    created: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+    updated: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+  }
+}
+
 export type Model = {
   id: string
   providerID: string
@@ -1765,13 +1825,6 @@ export type FormatterStatus = {
 
 export type McpUnsupportedOAuthError = {
   error: string
-}
-
-export type NotFoundError = {
-  name: "NotFoundError"
-  data: {
-    message: string
-  }
 }
 
 export type EffectHttpApiErrorForbidden = {
@@ -3945,6 +3998,10 @@ export type ExperimentalChatDeleteErrors = {
    * Bad request
    */
   400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
 }
 
 export type ExperimentalChatDeleteError = ExperimentalChatDeleteErrors[keyof ExperimentalChatDeleteErrors]
@@ -3972,6 +4029,10 @@ export type ExperimentalChatGetErrors = {
    * Bad request
    */
   400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
 }
 
 export type ExperimentalChatGetError = ExperimentalChatGetErrors[keyof ExperimentalChatGetErrors]
@@ -4130,6 +4191,234 @@ export type EventSubscribeResponses = {
 }
 
 export type EventSubscribeResponse = EventSubscribeResponses[keyof EventSubscribeResponses]
+
+export type AutomationListData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation"
+}
+
+export type AutomationListResponses = {
+  /**
+   * List of automations
+   */
+  200: Array<Automation>
+}
+
+export type AutomationListResponse = AutomationListResponses[keyof AutomationListResponses]
+
+export type AutomationCreateData = {
+  body?: {
+    directory?: string
+    name: string
+    prompt: string
+    schedule:
+      | {
+          type: "interval"
+          minutes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekday"
+          time: string
+        }
+      | {
+          type: "weekly"
+          day: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          time: string
+        }
+    status?: "active" | "paused"
+    model?: {
+      providerID: string
+      modelID: string
+    }
+    variant?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation"
+}
+
+export type AutomationCreateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type AutomationCreateError = AutomationCreateErrors[keyof AutomationCreateErrors]
+
+export type AutomationCreateResponses = {
+  /**
+   * Created automation
+   */
+  200: Automation
+}
+
+export type AutomationCreateResponse = AutomationCreateResponses[keyof AutomationCreateResponses]
+
+export type AutomationDeleteData = {
+  body?: never
+  path: {
+    automationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation/{automationID}"
+}
+
+export type AutomationDeleteErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type AutomationDeleteError = AutomationDeleteErrors[keyof AutomationDeleteErrors]
+
+export type AutomationDeleteResponses = {
+  /**
+   * Automation deleted
+   */
+  200: boolean
+}
+
+export type AutomationDeleteResponse = AutomationDeleteResponses[keyof AutomationDeleteResponses]
+
+export type AutomationUpdateData = {
+  body?: {
+    directory?: string
+    name?: string
+    prompt?: string
+    schedule?:
+      | {
+          type: "interval"
+          minutes: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+        }
+      | {
+          type: "daily"
+          time: string
+        }
+      | {
+          type: "weekday"
+          time: string
+        }
+      | {
+          type: "weekly"
+          day: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+          time: string
+        }
+    status?: "active" | "paused"
+    model?: {
+      providerID: string
+      modelID: string
+    }
+    variant?: string
+  }
+  path: {
+    automationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation/{automationID}"
+}
+
+export type AutomationUpdateErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type AutomationUpdateError = AutomationUpdateErrors[keyof AutomationUpdateErrors]
+
+export type AutomationUpdateResponses = {
+  /**
+   * Updated automation
+   */
+  200: Automation
+}
+
+export type AutomationUpdateResponse = AutomationUpdateResponses[keyof AutomationUpdateResponses]
+
+export type AutomationRunData = {
+  body?: never
+  path: {
+    automationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation/{automationID}/run"
+}
+
+export type AutomationRunErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type AutomationRunError = AutomationRunErrors[keyof AutomationRunErrors]
+
+export type AutomationRunResponses = {
+  /**
+   * Automation run
+   */
+  200: AutomationRun
+}
+
+export type AutomationRunResponse = AutomationRunResponses[keyof AutomationRunResponses]
+
+export type AutomationRunsData = {
+  body?: never
+  path: {
+    automationID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+    limit?: string
+  }
+  url: "/automation/{automationID}/runs"
+}
+
+export type AutomationRunsErrors = {
+  /**
+   * NotFoundError
+   */
+  404: NotFoundError
+}
+
+export type AutomationRunsError = AutomationRunsErrors[keyof AutomationRunsErrors]
+
+export type AutomationRunsResponses = {
+  /**
+   * Automation runs
+   */
+  200: Array<AutomationRun>
+}
+
+export type AutomationRunsResponse = AutomationRunsResponses[keyof AutomationRunsResponses]
 
 export type ConfigGetData = {
   body?: never
@@ -6180,7 +6469,7 @@ export type SessionGraphsErrors = {
    */
   400: BadRequestError
   /**
-   * Not found
+   * NotFoundError
    */
   404: NotFoundError
 }

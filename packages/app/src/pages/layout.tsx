@@ -2329,6 +2329,14 @@ export default function Layout(props: ParentProps) {
   }
 
   const projects = () => layout.projects.list()
+  const DesktopDragBar = () => (
+    <div
+      class="hidden xl:block h-10 shrink-0 bg-background-base"
+      style={{ height: desktopTitlebarInset(), "min-height": desktopTitlebarInset() }}
+      data-desktop-drag-region
+      aria-hidden="true"
+    />
+  )
   const sidebarContent = (mobile?: boolean) => {
     if (mobile || layout.sidebar.opened()) {
       return (
@@ -2381,10 +2389,8 @@ export default function Layout(props: ParentProps) {
                 data-component="sidebar-nav-desktop"
                 class="absolute inset-0 z-10"
               >
-                <div
-                  class="@container box-border w-full h-full contain-strict"
-                  style={{ "padding-top": desktopTitlebarInset() }}
-                >
+                <div class="@container box-border w-full h-full contain-strict flex flex-col bg-background-base">
+                  <DesktopDragBar />
                   {sidebarContent()}
                 </div>
               </nav>
@@ -2438,7 +2444,7 @@ export default function Layout(props: ParentProps) {
 
           <main
             classList={{
-              "size-full overflow-x-hidden flex flex-col items-start contain-strict bg-background-base xl:border-l xl:border-border-weak-base xl:rounded-tl-[12px]": true,
+              "size-full overflow-x-hidden flex flex-col items-start contain-strict bg-background-base xl:border-l xl:border-border-weak-base": true,
             }}
           >
             <Titlebar embedded />

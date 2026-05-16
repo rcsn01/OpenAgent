@@ -185,7 +185,7 @@ export const SessionApi = HttpApi.make("session")
         HttpApiEndpoint.get("graphs", SessionPaths.graphs, {
           params: { sessionID: SessionID },
           success: described(SessionGraphsResponse, "Task graphs for the session tree"),
-          error: [HttpApiError.BadRequest, HttpApiError.NotFound],
+          error: [HttpApiError.BadRequest, ApiNotFoundError],
         }).annotateMerge(
           OpenApi.annotations({
             identifier: "session.graphs",

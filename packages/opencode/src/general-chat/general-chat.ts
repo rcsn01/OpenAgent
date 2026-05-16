@@ -53,8 +53,8 @@ export type Info = Types.DeepMutable<Schema.Schema.Type<typeof Info>>
 export interface Interface {
   readonly list: () => Effect.Effect<Info[]>
   readonly create: () => Effect.Effect<Info>
-  readonly get: (sessionID: SessionID) => Effect.Effect<Info>
-  readonly delete: (sessionID: SessionID) => Effect.Effect<void>
+  readonly get: (sessionID: SessionID) => Effect.Effect<Info, NotFoundError>
+  readonly delete: (sessionID: SessionID) => Effect.Effect<void, NotFoundError>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/GeneralChat") {}

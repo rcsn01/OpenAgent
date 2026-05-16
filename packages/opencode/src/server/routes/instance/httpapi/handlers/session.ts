@@ -56,6 +56,7 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const statusSvc = yield* SessionStatus.Service
     const todoSvc = yield* Todo.Service
     const summary = yield* SessionSummary.Service
+    const taskGraph = yield* SessionTaskGraph.Service
     const bus = yield* Bus.Service
     const scope = yield* Scope.Scope
 
@@ -92,8 +93,6 @@ export const sessionHandlers = HttpApiBuilder.group(InstanceHttpApi, "session", 
     const graphs = Effect.fn("SessionHttpApi.graphs")(function* (ctx: { params: { sessionID: SessionID } }) {
       return yield* SessionError.mapStorageNotFound(
         Effect.gen(function* () {
-          const taskGraph = yield* SessionTaskGraph.Service
-
           let current = yield* session.get(ctx.params.sessionID)
           while (current.parentID) {
             current = yield* session.get(current.parentID)

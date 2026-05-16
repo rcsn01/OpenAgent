@@ -38,6 +38,10 @@ function setupSearch(setup?: ExtensionSetup) {
   ]
 }
 
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
 function installBundle(item: ExtensionRegistryEntry): ExtensionBundle {
   return {
     id: item.id,
@@ -115,7 +119,7 @@ function installedItem(
     active: servers.every((server) => server.status.status === "connected"),
     available: !!bundle,
     config_path: item.config_path,
-    installed_at: item.installed_at,
+    installed_at: finiteNumber(item.installed_at),
     tags,
     setup: bundle?.setup,
     search: [item.id, bundle?.name, item.name, bundle?.description, item.description, ...tags, ...setupSearch(bundle?.setup)]
