@@ -64,11 +64,12 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(Truncate.defaultLayer),
     )
     .pipe(Layer.provide(RuntimeFlags.layer(flags)))
+const noRequirements = <ROut, E, RIn>(layer: Layer.Layer<ROut, E, RIn>) => layer as Layer.Layer<ROut, E, never>
 
-const it = testEffect(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer))
-const scout = testEffect(Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer))
+const it = testEffect(noRequirements(Layer.mergeAll(registryLayer(), node, Agent.defaultLayer)))
+const scout = testEffect(noRequirements(Layer.mergeAll(registryLayer({ experimentalScout: true }), node, Agent.defaultLayer)))
 const background = testEffect(
-  Layer.mergeAll(registryLayer({ experimentalBackgroundSubagents: true }), node, Agent.defaultLayer),
+  noRequirements(Layer.mergeAll(registryLayer({ experimentalBackgroundSubagents: true }), node, Agent.defaultLayer)),
 )
 
 afterEach(async () => {

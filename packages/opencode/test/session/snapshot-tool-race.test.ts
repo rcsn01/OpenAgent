@@ -73,6 +73,7 @@ const mcp = Layer.succeed(
     tools: () => Effect.succeed({}),
     prompts: () => Effect.succeed({}),
     resources: () => Effect.succeed({}),
+    definitions: () => Effect.succeed({}),
     add: () => Effect.succeed({ status: { status: "disabled" as const } }),
     connect: () => Effect.void,
     disconnect: () => Effect.void,
@@ -111,6 +112,7 @@ const lsp = Layer.succeed(
 const status = SessionStatus.layer.pipe(Layer.provideMerge(Bus.layer))
 const run = SessionRunState.layer.pipe(Layer.provide(status))
 const infra = Layer.mergeAll(NodeFileSystem.layer, CrossSpawnSpawner.defaultLayer)
+const noRequirements = <ROut, E, RIn>(layer: Layer.Layer<ROut, E, RIn>) => layer as Layer.Layer<ROut, E, never>
 
 function makeHttp() {
   const deps = Layer.mergeAll(
@@ -180,7 +182,7 @@ function makeHttp() {
   )
 }
 
-const it = testEffect(makeHttp())
+const it = testEffect(noRequirements(makeHttp()))
 
 const providerCfg = (url: string) => ({
   provider: {

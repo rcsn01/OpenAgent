@@ -169,18 +169,10 @@ export default function Page() {
   const desktopMainPanelOpen = sessionPanel.desktopMainPanelOpen
   const desktopFileTreeOpen = sessionPanel.desktopFileTreeOpen
   const desktopSidePanelOpen = sessionPanel.desktopSidePanelOpen
-  const desktopSidePanelWidth = createMemo(() => (desktopSidePanelOpen() ? "360px" : "0px"))
   const reviewResizeMax = sessionPanel.reviewResizeMax
   const effectiveSessionWidth = sessionPanel.effectiveSessionWidth
   const sessionPanelWidth = sessionPanel.sessionPanelWidth
   const centered = sessionPanel.centered
-
-  createEffect(() => {
-    document.documentElement.style.setProperty("--session-side-panel-width", desktopSidePanelWidth())
-    onCleanup(() => {
-      document.documentElement.style.removeProperty("--session-side-panel-width")
-    })
-  })
 
   const openReviewPanel = () => {
     if (!view().reviewPanel.opened()) view().reviewPanel.open()

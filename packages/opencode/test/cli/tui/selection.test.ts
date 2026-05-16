@@ -13,9 +13,14 @@ describe("tui selection", () => {
     const errors: unknown[] = []
     let cleared = 0
 
-    const result = Selection.copySelection(
-      { getSelectedText: () => "copied text" },
-      { clearSelection: () => cleared++ },
+    const result = Selection.copy(
+      {
+        getSelection: () => ({
+          getSelectedText: () => "copied text",
+          selectedRenderables: [],
+        }),
+        clearSelection: () => cleared++,
+      },
       {
         show: (input) => shown.push(input),
         error: (error) => errors.push(error),
@@ -36,9 +41,14 @@ describe("tui selection", () => {
     const copy = spyOn(Clipboard, "copy").mockResolvedValue()
     let cleared = 0
 
-    const result = Selection.copySelection(
-      { getSelectedText: () => "" },
-      { clearSelection: () => cleared++ },
+    const result = Selection.copy(
+      {
+        getSelection: () => ({
+          getSelectedText: () => "",
+          selectedRenderables: [],
+        }),
+        clearSelection: () => cleared++,
+      },
       {
         show: () => {},
         error: () => {},

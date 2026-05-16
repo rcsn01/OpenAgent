@@ -116,6 +116,7 @@ const mcp = Layer.succeed(
     tools: () => Effect.succeed({}),
     prompts: () => Effect.succeed({}),
     resources: () => Effect.succeed({}),
+    definitions: () => Effect.succeed({}),
     add: () => Effect.succeed({ status: { status: "disabled" as const } }),
     connect: () => Effect.void,
     disconnect: () => Effect.void,
@@ -154,6 +155,7 @@ const lsp = Layer.succeed(
 const status = SessionStatus.layer.pipe(Layer.provideMerge(Bus.layer))
 const run = SessionRunState.layer.pipe(Layer.provide(status))
 const infra = Layer.mergeAll(NodeFileSystem.layer, CrossSpawnSpawner.defaultLayer)
+const noRequirements = <ROut, E, RIn>(layer: Layer.Layer<ROut, E, RIn>) => layer as Layer.Layer<ROut, E, never>
 
 const processorCreateStarted: Array<() => void> = []
 const blockingProcessor = Layer.succeed(
@@ -233,8 +235,8 @@ function makeHttp(input?: { processor?: "blocking" }) {
   ).pipe(Layer.provide(summary))
 }
 
-const it = testEffect(makeHttp())
-const race = testEffect(makeHttp({ processor: "blocking" }))
+const it = testEffect(noRequirements(makeHttp()))
+const race = testEffect(noRequirements(makeHttp({ processor: "blocking" })))
 const unix = process.platform !== "win32" ? it.instance : it.instance.skip
 
 // Config that registers a custom "test" provider with a "test-model" model

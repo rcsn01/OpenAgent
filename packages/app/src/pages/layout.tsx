@@ -2329,14 +2329,6 @@ export default function Layout(props: ParentProps) {
   }
 
   const projects = () => layout.projects.list()
-  const DesktopDragBar = () => (
-    <div
-      class="hidden xl:block h-10 shrink-0 bg-background-base"
-      style={{ height: desktopTitlebarInset(), "min-height": desktopTitlebarInset() }}
-      data-desktop-drag-region
-      aria-hidden="true"
-    />
-  )
   const sidebarContent = (mobile?: boolean) => {
     if (mobile || layout.sidebar.opened()) {
       return (
@@ -2378,104 +2370,105 @@ export default function Layout(props: ParentProps) {
   const desktopNavWidth = () => (layout.sidebar.opened() ? `${side()}px` : "0px")
 
   return (
-    <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
-      {autoselecting() ?? ""}
-      <div class="hidden xl:block relative shrink-0 min-h-0 overflow-visible" style={{ width: desktopNavWidth() }}>
-        <div class="size-full relative overflow-visible">
-          <Show when={layout.sidebar.opened()}>
-            <>
+    <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
+      <Titlebar embedded />
+      <div class="flex-1 min-h-0 min-w-0 flex">
+        {autoselecting() ?? ""}
+        <div class="hidden xl:block relative shrink-0 min-h-0 overflow-visible" style={{ width: desktopNavWidth() }}>
+          <div class="size-full relative overflow-visible">
+            <Show when={layout.sidebar.opened()}>
+              <>
+                <nav
+                  aria-label={language.t("sidebar.nav.projectsAndSessions")}
+                  data-component="sidebar-nav-desktop"
+                  class="absolute inset-0 z-10"
+                >
+                  <div class="@container box-border w-full h-full contain-strict flex flex-col bg-background-base">
+                    {sidebarContent()}
+                  </div>
+                </nav>
+                <nav
+                  class="absolute inset-y-0 right-0 z-30 w-0 overflow-visible"
+                  onPointerDown={() => setState("sizing", true)}
+                >
+                  <ResizeHandle
+                    direction="horizontal"
+                    size={layout.sidebar.width()}
+                    min={MIN_SIDEBAR_WIDTH}
+                    max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.3 + 64}
+                    onResize={(w) => {
+                      setState("sizing", true)
+                      if (sizet !== undefined) clearTimeout(sizet)
+                      sizet = window.setTimeout(() => setState("sizing", false), 120)
+                      layout.sidebar.resize(w)
+                    }}
+                  />
+                </nav>
+              </>
+            </Show>
+          </div>
+        </div>
+        <div class="flex-1 min-h-0 min-w-0 flex flex-col relative">
+          <div class="flex-1 min-h-0 relative overflow-x-hidden">
+            <div class="xl:hidden">
+              <div
+                classList={{
+                  "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
+                  "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
+                  "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
+                }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) layout.mobileSidebar.hide()
+                }}
+              />
               <nav
                 aria-label={language.t("sidebar.nav.projectsAndSessions")}
-                data-component="sidebar-nav-desktop"
-                class="absolute inset-0 z-10"
+                data-component="sidebar-nav-mobile"
+                classList={{
+                  "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
+                  "translate-x-0": layout.mobileSidebar.opened(),
+                  "-translate-x-full": !layout.mobileSidebar.opened(),
+                }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <div class="@container box-border w-full h-full contain-strict flex flex-col bg-background-base">
-                  <DesktopDragBar />
-                  {sidebarContent()}
-                </div>
+                {sidebarContent(true)}
               </nav>
-              <nav
-                class="absolute inset-y-0 right-0 z-30 w-0 overflow-visible"
-                onPointerDown={() => setState("sizing", true)}
-              >
-                <ResizeHandle
-                  direction="horizontal"
-                  size={layout.sidebar.width()}
-                  min={MIN_SIDEBAR_WIDTH}
-                  max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.3 + 64}
-                  onResize={(w) => {
-                    setState("sizing", true)
-                    if (sizet !== undefined) clearTimeout(sizet)
-                    sizet = window.setTimeout(() => setState("sizing", false), 120)
-                    layout.sidebar.resize(w)
-                  }}
-                />
-              </nav>
-            </>
-          </Show>
-        </div>
-      </div>
-      <div class="flex-1 min-h-0 min-w-0 flex flex-col relative">
-        <div class="flex-1 min-h-0 relative overflow-x-hidden">
-          <div class="xl:hidden">
-            <div
-              classList={{
-                "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
-                "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
-                "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
-              }}
-              onClick={(e) => {
-                if (e.target === e.currentTarget) layout.mobileSidebar.hide()
-              }}
-            />
-            <nav
-              aria-label={language.t("sidebar.nav.projectsAndSessions")}
-              data-component="sidebar-nav-mobile"
-              classList={{
-                "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
-                "translate-x-0": layout.mobileSidebar.opened(),
-                "-translate-x-full": !layout.mobileSidebar.opened(),
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {sidebarContent(true)}
-            </nav>
-          </div>
-
-          <main
-            classList={{
-              "size-full overflow-x-hidden flex flex-col items-start contain-strict bg-background-base xl:border-l xl:border-border-weak-base": true,
-            }}
-          >
-            <Titlebar embedded />
-            <div class="flex-1 min-h-0 min-w-0 w-full">
-              <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
-                <Show when={appRoute.page() === "automations" || appRoute.page() === "automation-editor"} fallback={props.children}>
-                  <DialogAutomations
-                    projects={layout.projects.list()}
-                    currentDir={currentDir()}
-                    automationID={appRoute.automationID()}
-                    embedded
-                    onOpenAutomations={(input) => {
-                      const directory = currentDir() || layout.projects.list()[0]?.worktree
-                      if (!directory) return
-                      navigate(`/${base64Encode(directory)}/automations`, { replace: input?.replace })
-                    }}
-                    onOpenAutomation={(automation) =>
-                      navigate(`/${base64Encode(automation.directory)}/automations/${automation.id}`)
-                    }
-                    onOpenSession={(session) =>
-                      navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
-                    }
-                  />
-                </Show>
-              </Show>
             </div>
-          </main>
+
+            <main
+              classList={{
+                "size-full overflow-x-hidden flex flex-col items-start contain-strict bg-background-base xl:border-l xl:border-border-weak-base": true,
+              }}
+            >
+              <div class="flex-1 min-h-0 min-w-0 w-full">
+                <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
+                  <Show when={appRoute.page() === "automations" || appRoute.page() === "automation-editor"} fallback={props.children}>
+                    <DialogAutomations
+                      projects={layout.projects.list()}
+                      currentDir={currentDir()}
+                      automationID={appRoute.automationID()}
+                      embedded
+                      onOpenAutomations={(input) => {
+                        const directory = currentDir() || layout.projects.list()[0]?.worktree
+                        if (!directory) return
+                        navigate(`/${base64Encode(directory)}/automations`, { replace: input?.replace })
+                      }}
+                      onOpenAutomation={(automation) =>
+                        navigate(`/${base64Encode(automation.directory)}/automations/${automation.id}`)
+                      }
+                      onOpenSession={(session) =>
+                        navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
+                      }
+                    />
+                  </Show>
+                </Show>
+              </div>
+            </main>
+          </div>
+          {import.meta.env.DEV && <DebugBar />}
         </div>
-        {import.meta.env.DEV && <DebugBar />}
+        <Toast.Region />
       </div>
-      <Toast.Region />
     </div>
   )
 }

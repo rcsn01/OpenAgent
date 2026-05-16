@@ -64,7 +64,7 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
   }
   const windowsControlsWidth = () => `${windowsControlsBaseWidth / Math.max(titlebarZoom(), 1)}px`
   const trafficLightInset = () => `${72 / zoom()}px`
-  const reserveTrafficLights = createMemo(() => mac() && embedded() && !layout.sidebar.opened())
+  const reserveTrafficLights = createMemo(() => mac() && embedded())
 
   const [history, setHistory] = createStore({
     stack: [] as string[],
@@ -326,12 +326,9 @@ export function Titlebar(props: { embedded?: boolean } = {}) {
 
         <div
           classList={{
-            "absolute inset-y-0 flex items-center min-w-0 justify-end": true,
+            "flex items-center min-w-0 justify-end": true,
+            "pr-2": !windows(),
           }}
-          style={{
-            right: windows() ? "0px" : "calc(var(--session-side-panel-width, 0px) + 8px)",
-          }}
-          data-desktop-drag-region
           data-tauri-drag-region
           onMouseDown={drag}
         >
