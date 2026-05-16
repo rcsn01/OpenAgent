@@ -1,6 +1,5 @@
 import { Schema } from "effect"
-import { zod } from "@/util/effect-zod"
-import { PositiveInt, withStatics } from "@/util/schema"
+import { PositiveInt } from "@opencode-ai/core/schema"
 
 export const LocalTransportStreamableHTTP = Schema.Struct({
   type: Schema.Literal("streamable-http").annotate({
@@ -15,9 +14,7 @@ export const LocalTransportStreamableHTTP = Schema.Struct({
   portEnv: Schema.String.annotate({
     description: "Environment variable name used to inject the chosen loopback port into the child process.",
   }),
-})
-  .annotate({ identifier: "McpLocalTransportStreamableHTTPConfig" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+}).annotate({ identifier: "McpLocalTransportStreamableHTTPConfig" })
 export type LocalTransportStreamableHTTP = Schema.Schema.Type<typeof LocalTransportStreamableHTTP>
 
 export const OAuth = Schema.Struct({
@@ -31,9 +28,7 @@ export const OAuth = Schema.Struct({
   redirectUri: Schema.optional(Schema.String).annotate({
     description: "OAuth redirect URI (default: http://127.0.0.1:19876/mcp/oauth/callback).",
   }),
-})
-  .annotate({ identifier: "McpOAuthConfig" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+}).annotate({ identifier: "McpOAuthConfig" })
 export type OAuth = Schema.Schema.Type<typeof OAuth>
 
 export const ToolFilter = Schema.Struct({
@@ -43,9 +38,7 @@ export const ToolFilter = Schema.Struct({
   deny_prefixes: Schema.optional(Schema.mutable(Schema.Array(Schema.String))).annotate({
     description: "Hide MCP tools whose names start with one of these prefixes.",
   }),
-})
-  .annotate({ identifier: "McpToolFilterConfig" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+}).annotate({ identifier: "McpToolFilterConfig" })
 export type ToolFilter = Schema.Schema.Type<typeof ToolFilter>
 
 export const Local = Schema.Struct({
@@ -72,9 +65,7 @@ export const Local = Schema.Struct({
   tool_filter: Schema.optional(ToolFilter).annotate({
     description: "Optional MCP tool exposure filter applied after tools/list.",
   }),
-})
-  .annotate({ identifier: "McpLocalConfig" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+}).annotate({ identifier: "McpLocalConfig" })
 export type Local = Schema.Schema.Type<typeof Local>
 
 export const Remote = Schema.Struct({
@@ -95,9 +86,7 @@ export const Remote = Schema.Struct({
   tool_filter: Schema.optional(ToolFilter).annotate({
     description: "Optional MCP tool exposure filter applied after tools/list.",
   }),
-})
-  .annotate({ identifier: "McpRemoteConfig" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+}).annotate({ identifier: "McpRemoteConfig" })
 export type Remote = Schema.Schema.Type<typeof Remote>
 
 export const Builtin = Schema.Struct({
@@ -112,14 +101,10 @@ export const Builtin = Schema.Struct({
   tool_filter: Schema.optional(ToolFilter).annotate({
     description: "Optional MCP tool exposure filter applied after tools/list.",
   }),
-})
-  .annotate({ identifier: "McpBuiltinConfig" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+}).annotate({ identifier: "McpBuiltinConfig" })
 export type Builtin = Schema.Schema.Type<typeof Builtin>
 
-export const Info = Schema.Union([Local, Remote, Builtin])
-  .annotate({ discriminator: "type" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+export const Info = Schema.Union([Local, Remote, Builtin]).annotate({ discriminator: "type" })
 export type Info = Schema.Schema.Type<typeof Info>
 
 export * as ConfigMCP from "./mcp"

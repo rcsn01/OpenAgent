@@ -182,9 +182,7 @@ export const BackgroundTaskGraphTool = Tool.define<typeof Parameters, GraphMetad
           const ops = ctx.extra?.promptOps as TaskPromptOps | undefined
           if (!ops) return yield* Effect.fail(new Error("background_task_graph requires promptOps in ctx.extra"))
 
-          const assistantMessage = yield* Effect.sync(() =>
-            MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }),
-          )
+          const assistantMessage = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })
           if (assistantMessage.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
           const assistant = assistantMessage.info
 

@@ -47,6 +47,12 @@ export const ProjectActionsMenu = (props: {
   onRequestRename: (project: LocalProject) => void
   onArchiveChats: (project: LocalProject) => void
   onRemove: (project: LocalProject) => void
+  onEdit?: (project: LocalProject) => void
+  onToggleWorkspaces?: (project: LocalProject) => void
+  workspacesEnabled?: Accessor<boolean>
+  canToggleWorkspaces?: Accessor<boolean>
+  unseenCount?: Accessor<number>
+  onClearNotifications?: () => void
   hoverOnly?: boolean
   sidebarHovering?: Accessor<boolean>
   triggerClass?: string
@@ -114,6 +120,17 @@ export const ProjectActionsMenu = (props: {
               props.onTogglePin(project)
             }}
           />
+          <Show when={props.onEdit}>
+            <ProjectMenuItem
+              icon="edit-small-2"
+              label={language.t("common.edit")}
+              onSelect={() => {
+                const project = props.project()
+                if (!project) return
+                props.onEdit?.(project)
+              }}
+            />
+          </Show>
           <Show when={canOpenDirectory()}>
             <ProjectMenuItem
               icon="open-file"
@@ -134,6 +151,30 @@ export const ProjectActionsMenu = (props: {
                 if (!project) return
                 props.onCreateWorktree(project)
               }}
+            />
+          </Show>
+          <Show when={props.onToggleWorkspaces}>
+            <ProjectMenuItem
+              icon="branch"
+              label={
+                props.workspacesEnabled?.()
+                  ? language.t("sidebar.workspaces.disable")
+                  : language.t("sidebar.workspaces.enable")
+              }
+              disabled={props.canToggleWorkspaces ? !props.canToggleWorkspaces() : false}
+              onSelect={() => {
+                const project = props.project()
+                if (!project) return
+                props.onToggleWorkspaces?.(project)
+              }}
+            />
+          </Show>
+          <Show when={props.onClearNotifications}>
+            <ProjectMenuItem
+              icon="status"
+              label={language.t("sidebar.project.clearNotifications")}
+              disabled={(props.unseenCount?.() ?? 0) === 0}
+              onSelect={() => props.onClearNotifications?.()}
             />
           </Show>
           <ProjectMenuItem

@@ -14,8 +14,6 @@ import { InstanceState } from "@/effect/instance-state"
 import { Instance } from "@/project/instance"
 import { Skill } from "@/skill"
 import { Filesystem } from "@/util/filesystem"
-import { withStatics } from "@/util/schema"
-import { zod } from "@/util/effect-zod"
 import { InstanceBootstrap } from "@/project/bootstrap"
 import * as Log from "@opencode-ai/core/util/log"
 
@@ -25,18 +23,18 @@ const RELOAD_DEBOUNCE_MS = 150
 const ExtensionTool = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
-}).pipe(withStatics((s) => ({ zod: zod(s) })))
+})
 
 const ExtensionServer = Schema.Struct({
   key: Schema.String,
   status: MCP.Status,
   tools: Schema.Array(ExtensionTool),
-}).pipe(withStatics((s) => ({ zod: zod(s) })))
+})
 
 const ExtensionSkillFile = Schema.Struct({
   path: Schema.String,
   content: Schema.String,
-}).pipe(withStatics((s) => ({ zod: zod(s) })))
+})
 export type ExtensionSkillFile = Schema.Schema.Type<typeof ExtensionSkillFile>
 
 export const ExtensionBundle = Schema.Struct({
@@ -46,7 +44,7 @@ export const ExtensionBundle = Schema.Struct({
   description: Schema.optional(Schema.String),
   mcp: Schema.Record(Schema.String, ConfigMCP.Info),
   skills: Schema.mutable(Schema.Array(ExtensionSkillFile)),
-}).pipe(withStatics((s) => ({ zod: zod(s) })))
+})
 export type ExtensionBundle = Schema.Schema.Type<typeof ExtensionBundle>
 
 const ExtensionListItem = Schema.Struct({
@@ -61,12 +59,12 @@ const ExtensionListItem = Schema.Struct({
   skill_roots: Schema.mutable(Schema.Array(Schema.String)),
   servers: Schema.Array(ExtensionServer),
   skills: Schema.Array(Skill.Info),
-}).pipe(withStatics((s) => ({ zod: zod(s) })))
+})
 export type ExtensionListItem = Schema.Schema.Type<typeof ExtensionListItem>
 
 export const ExtensionList = Schema.Struct({
   extensions: Schema.Array(ExtensionListItem),
-}).pipe(withStatics((s) => ({ zod: zod(s) })))
+})
 export type ExtensionList = Schema.Schema.Type<typeof ExtensionList>
 
 function localRoot(directory: string, worktree: string) {

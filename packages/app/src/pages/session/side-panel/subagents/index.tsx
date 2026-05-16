@@ -50,7 +50,6 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
       sdk.client.session
         .graphs({
           sessionID: props.sessionID!,
-          directory: sdk.directory,
         })
         .then((result) => result.data),
   }))

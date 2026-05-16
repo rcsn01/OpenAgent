@@ -16,8 +16,6 @@ import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { NodePath } from "@effect/platform-node"
 import { db } from "@/util/db"
-import { zod } from "@/util/effect-zod"
-import { withStatics } from "@/util/schema"
 import { GeneralChatTable } from "./general-chat.sql"
 import { chatsRoot } from "./shared"
 
@@ -49,9 +47,7 @@ export const Info = Schema.Struct({
   session: Session.Info,
   rootSessionID: SessionID,
   directory: Schema.String,
-})
-  .annotate({ identifier: "GeneralChat" })
-  .pipe(withStatics((s) => ({ zod: zod(s) })))
+}).annotate({ identifier: "GeneralChat" })
 export type Info = Types.DeepMutable<Schema.Schema.Type<typeof Info>>
 
 export interface Interface {

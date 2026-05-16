@@ -56,7 +56,7 @@ export function SessionReviewPanel(props: {
   const fileOpen = createMemo(() => reviewOpen() && shown() && layout.fileTree.opened())
   const treeWidth = createMemo(() => (fileOpen() ? `${layout.fileTree.width()}px` : "0px"))
 
-  const diffFiles = createMemo(() => props.diffs().map((d) => d.file))
+  const diffFiles = createMemo(() => props.diffs().flatMap((d) => (d.file ? [d.file] : [])))
   const kinds = createMemo(() => {
     const merge = (a: "add" | "del" | "mix" | undefined, b: "add" | "del" | "mix") => {
       if (!a) return b
@@ -68,6 +68,7 @@ export function SessionReviewPanel(props: {
 
     const out = new Map<string, "add" | "del" | "mix">()
     for (const diff of props.diffs()) {
+      if (!diff.file) continue
       const file = normalize(diff.file)
       const kind = diff.status === "added" ? "add" : diff.status === "deleted" ? "del" : "mix"
 

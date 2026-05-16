@@ -1,5 +1,6 @@
 import { Effect, Schema } from "effect"
 import { HttpClient, HttpClientRequest } from "effect/unstable/http"
+import { Parser } from "htmlparser2"
 import * as Tool from "./tool"
 import TurndownService from "turndown"
 import DESCRIPTION from "./webfetch.txt"
@@ -12,10 +13,11 @@ const MAX_TIMEOUT = 120 * 1000 // 2 minutes
 export const Parameters = Schema.Struct({
   url: Schema.String.annotate({ description: "The URL to fetch content from" }),
   format: Schema.Literals(["text", "markdown", "html"])
-    .pipe(Schema.optional, Schema.withDecodingDefault(Effect.succeed("markdown" as const)))
     .annotate({
       description: "The format to return the content in (text, markdown, or html). Defaults to markdown.",
-    }),
+      default: "markdown",
+    })
+    .pipe(Schema.optional, Schema.withDecodingDefault(Effect.succeed("markdown" as const))),
   timeout: Schema.optional(Schema.Number).annotate({ description: "Optional timeout in seconds (max 120)" }),
 })
 
@@ -138,8 +140,7 @@ export const WebFetchTool = Tool.define(
 
             case "text":
               if (contentType.includes("text/html")) {
-                const text = yield* Effect.promise(() => extractTextFromHTML(content))
-                return { output: text, title, metadata: {} }
+                return { output: extractTextFromHTML(content), title, metadata: {} }
               }
               return { output: content, title, metadata: {} }
 
@@ -154,13 +155,28 @@ export const WebFetchTool = Tool.define(
   }),
 )
 
-async function extractTextFromHTML(html: string) {
-  return decodeHTMLEntities(
-    html
-      .replace(/<\s*(script|style|noscript|iframe|object|embed)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, " ")
-      .replace(/<\s*(br|p|div|section|article|header|footer|main|li|tr|h[1-6])\b[^>]*>/gi, "\n")
-      .replace(/<[^>]+>/g, " "),
-  )
+function extractTextFromHTML(html: string) {
+  let text = ""
+  let skipDepth = 0
+
+  const parser = new Parser({
+    onopentag(name) {
+      if (skipDepth > 0 || ["script", "style", "noscript", "iframe", "object", "embed"].includes(name)) {
+        skipDepth++
+      }
+    },
+    ontext(input) {
+      if (skipDepth === 0) text += input
+    },
+    onclosetag() {
+      if (skipDepth > 0) skipDepth--
+    },
+  })
+
+  parser.write(html)
+  parser.end()
+
+  return decodeHTMLEntities(text)
     .replace(/[ \t\f\v\r]+/g, " ")
     .replace(/ *\n+ */g, "\n")
     .replace(/\n{3,}/g, "\n\n")
