@@ -212,7 +212,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
   let transcriptionQueue = Promise.resolve()
   let flushPending = false
   let turnTranscript = ""
-  let turnTranscriptUpdatedAt = 0
+  let lastEndpointResetAt = 0
   let turnBasePrompt: Prompt | undefined
 
   const shouldRunSession = () =>
@@ -243,9 +243,13 @@ export function createPromptVoice(input: PromptVoiceInput) {
       corrections: input.corrections(),
     })
 
+  const resetEndpointTimer = (now = performance.now()) => {
+    lastEndpointResetAt = now
+  }
+
   const resetTurn = () => {
     turnTranscript = ""
-    turnTranscriptUpdatedAt = 0
+    lastEndpointResetAt = 0
     turnBasePrompt = undefined
     activeTurnFrames = 0
     activeTurnBuffers = []
@@ -299,6 +303,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
 
   const beginTurnCapture = () => {
     if (capturingTurn) return
+    resetEndpointTimer()
     capturingTurn = true
     finalizingTurn = false
     turnBasePrompt = clonePrompt(input.prompt.current())
@@ -312,6 +317,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
 
   const startChunkCapture = () => {
     if (capturingChunk) return
+    resetEndpointTimer()
     beginTurnCapture()
     capturingChunk = true
     if (speechCaptureSession && input.beginSpeechCaptureChunk) {
@@ -417,6 +423,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
       speechFrames += 1
       silenceFrames = 0
       lastSpeechAt = now
+      resetEndpointTimer(now)
     } else {
       silenceFrames += 1
       speechFrames = 0
@@ -443,14 +450,11 @@ export function createPromptVoice(input: PromptVoiceInput) {
 
   const maybeFinalizeTurn = (now = performance.now()) => {
     if (!turnTranscript || capturingChunk || finalizingTurn || pendingTranscriptions > 0) return false
-    const silenceMs = now - lastSpeechAt
-    if (silenceMs >= input.maxSilenceMs()) return finalizeTurn()
-    const transcriptStableMs = turnTranscriptUpdatedAt ? now - turnTranscriptUpdatedAt : 0
+    const settledMs = lastEndpointResetAt ? now - lastEndpointResetAt : 0
     if (
       !shouldAutoSubmitVoiceTurn({
         transcript: turnTranscript,
-        silenceMs,
-        transcriptStableMs,
+        settledMs,
         baseSilenceMs: input.baseSilenceMs(),
         maxSilenceMs: input.maxSilenceMs(),
       })
@@ -466,6 +470,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
     options?: { final?: boolean; submit?: boolean; basePrompt?: Prompt },
   ) => {
     pendingTranscriptions += 1
+    resetEndpointTimer()
     setState("transcribing", true)
     let failed = false
 
@@ -482,7 +487,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
         input.prompt.set(nextPrompt, promptLength(nextPrompt))
         if (run !== sessionRun) return
         turnTranscript = options?.final || !turnTranscript ? transcript : `${turnTranscript} ${transcript}`
-        turnTranscriptUpdatedAt = performance.now()
+        resetEndpointTimer()
       })
       .catch((error) => {
         failed = true
@@ -491,6 +496,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
       .finally(() => {
         pendingTranscriptions = Math.max(0, pendingTranscriptions - 1)
         setState("transcribing", pendingTranscriptions > 0)
+        resetEndpointTimer()
         if (options?.final) {
           resetTurn()
           if (!failed && options.submit && run === sessionRun && state.manualMicEnabled) input.onAutoSubmit?.()
@@ -589,6 +595,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
   }
 
   const flushRecording = (run = sessionRun) => {
+    resetEndpointTimer()
     if (speechCaptureSession) {
       const currentCaptureSession = speechCaptureSession
       resetChunkCapture()
@@ -711,6 +718,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
     resetSpeechFrames()
     noiseFloor = 0.006
     lastSpeechAt = performance.now()
+    resetEndpointTimer(lastSpeechAt)
     sessionRuntime = {
       model: input.speechModel(),
       quality: input.speechQuality(),

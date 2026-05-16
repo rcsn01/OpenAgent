@@ -8,6 +8,46 @@
 }
 
 @layer components {
+  .app-panel-divider-x {
+    width: 1px;
+    flex-shrink: 0;
+    background: var(--border-weak-base);
+  }
+
+  .app-panel-divider-y {
+    height: 1px;
+    flex-shrink: 0;
+    background: var(--border-weak-base);
+  }
+
+  .app-panel-border-l {
+    border-left: 1px solid var(--border-weak-base);
+  }
+
+  .app-panel-border-r {
+    border-right: 1px solid var(--border-weak-base);
+  }
+
+  .app-panel-border-t {
+    border-top: 1px solid var(--border-weak-base);
+  }
+
+  .app-panel-border-b {
+    border-bottom: 1px solid var(--border-weak-base);
+  }
+
+  .app-inner-border-l {
+    border-left: 1px solid var(--border-weaker-base);
+  }
+
+  .app-inner-border-t {
+    border-top: 1px solid var(--border-weaker-base);
+  }
+
+  .app-inner-border-b {
+    border-bottom: 1px solid var(--border-weaker-base);
+  }
+
   @keyframes session-progress-whip {
     0% {
       clip-path: inset(0 100% 0 0 round 999px);

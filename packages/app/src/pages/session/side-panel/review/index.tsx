@@ -310,7 +310,7 @@ export function SessionReviewPanel(props: {
           }}
           style={{ width: treeWidth() }}
         >
-          <div class="h-full flex flex-col overflow-hidden group/filetree border-l border-border-weaker-base">
+          <div class="h-full flex flex-col overflow-hidden group/filetree app-inner-border-l">
             <Tabs variant="pill" value={fileTreeTab()} onChange={setFileTreeTabValue} class="h-full" data-scope="filetree">
               <Tabs.List>
                 <Tabs.Trigger value="changes" class="flex-1" classes={{ button: "w-full" }}>

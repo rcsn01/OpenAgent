@@ -3,11 +3,9 @@ import { Button } from "@opencode-ai/ui/button"
 import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Keybind } from "@opencode-ai/ui/keybind"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { showToast } from "@opencode-ai/ui/toast"
 import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
-import { getFilename } from "@opencode-ai/core/util/path"
 import { createEffect, createMemo, createSignal, For, on, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Portal } from "solid-js/web"
@@ -23,10 +21,10 @@ import { useTerminal } from "@/context/terminal"
 import { focusTerminalById } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { SessionContextUsage } from "@/components/session-context-usage"
+import { SessionTitleControl } from "@/components/session/session-title-control"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
-import { sessionTitle } from "@/utils/session-title"
 import { StatusPopover } from "../status-popover"
 
 const OPEN_APPS = [
@@ -144,23 +142,9 @@ export function SessionHeader() {
   const route = useAppRoute()
   const { params, view } = useSessionLayout()
 
-  const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
   const projectDirectory = createMemo(() => (route.isChat() ? "" : decode64(params.dir) ?? ""))
-  const project = createMemo(() => {
-    const directory = projectDirectory()
-    if (!directory) return
-    return layout.projects.list().find((p) => p.worktree === directory || p.sandboxes?.includes(directory))
-  })
-  const name = createMemo(() => {
-    if (route.isChat()) return sessionTitle(info()?.title) ?? language.t("command.session.new")
-    const current = project()
-    if (current) return current.name || getFilename(current.worktree)
-    return getFilename(projectDirectory())
-  })
-  const hotkey = createMemo(() => command.keybind("file.open"))
   const os = createMemo(() => detectOS(platform))
   const isDesktopBeta = platform.platform === "desktop" && import.meta.env.VITE_OPENCODE_CHANNEL === "beta"
-  const search = createMemo(() => !isDesktopBeta || settings.general.showSearch())
   const term = createMemo(() => !isDesktopBeta || settings.general.showTerminal())
   const status = createMemo(() => !isDesktopBeta || settings.general.showStatus())
 
@@ -296,35 +280,10 @@ export function SessionHeader() {
 
   return (
     <>
-      <Show when={search() && centerMount()}>
+      <Show when={centerMount()}>
         {(mount) => (
           <Portal mount={mount()}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="small"
-            class="hidden md:flex w-[240px] max-w-full min-w-0 items-center gap-2 justify-between rounded-md border border-border-weak-base bg-surface-panel shadow-none cursor-default"
-            onClick={() => command.trigger("file.open")}
-            aria-label={language.t("session.header.searchFiles")}
-          >
-            <div class="flex min-w-0 flex-1 items-center overflow-visible">
-              <span class="flex-1 min-w-0 text-12-regular text-text-weak truncate text-left">
-                {route.isChat()
-                  ? language.t("session.header.search.placeholder.chat")
-                  : language.t("session.header.search.placeholder", {
-                      project: name(),
-                    })}
-              </span>
-            </div>
-
-            <Show when={hotkey()}>
-              {(keybind) => (
-                <Keybind class="shrink-0 !border-0 !bg-transparent !shadow-none px-0 text-text-weaker">
-                  {keybind()}
-                </Keybind>
-              )}
-            </Show>
-          </Button>
+            <SessionTitleControl />
           </Portal>
         )}
       </Show>

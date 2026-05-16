@@ -264,7 +264,7 @@ export function SessionExtensionsPanel() {
 
   const ExtensionDetails = (props: { item: ExtensionPanelItem; sourceKind: ExtensionBrowseKind | undefined }) => (
     <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-      <div class="border-b border-border-weaker-base bg-background-stronger px-4 py-3">
+      <div class="app-inner-border-b bg-background-stronger px-4 py-3">
         <Button size="small" variant="ghost" class="mb-3 -ml-2" onClick={() => setView({ selected: undefined, selectedKind: undefined })}>
           Back
         </Button>
@@ -447,7 +447,7 @@ export function SessionExtensionsPanel() {
         keyed
         fallback={
           <>
-            <div class="border-b border-border-weaker-base bg-background-stronger px-4 py-3">
+            <div class="app-inner-border-b bg-background-stronger px-4 py-3">
               <div class="flex items-center gap-2 text-14-medium text-text-strong">
                 <Icon name="mcp" size="small" class="text-icon-base" />
                 Extensions

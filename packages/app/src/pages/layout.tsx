@@ -2442,7 +2442,7 @@ export default function Layout(props: ParentProps) {
               </nav>
             </Show>
           </div>
-          <div class="hidden xl:block min-h-0 w-px shrink-0 bg-border-weak-base" />
+          <div class="hidden xl:block min-h-0 app-panel-divider-x" />
           <div class="flex-1 min-h-0 min-w-0 flex flex-col relative">
             <div class="flex-1 min-h-0 relative overflow-x-hidden">
               <div class="xl:hidden">
@@ -2460,7 +2460,7 @@ export default function Layout(props: ParentProps) {
                   aria-label={language.t("sidebar.nav.projectsAndSessions")}
                   data-component="sidebar-nav-mobile"
                   classList={{
-                    "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
+                    "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden app-panel-border-r bg-background-base transition-transform duration-200 ease-out": true,
                     "translate-x-0": layout.mobileSidebar.opened(),
                     "-translate-x-full": !layout.mobileSidebar.opened(),
                   }}
@@ -2506,7 +2506,7 @@ export default function Layout(props: ParentProps) {
             {import.meta.env.DEV && <DebugBar />}
           </div>
           <div
-            class="hidden xl:block min-h-0 shrink-0 bg-border-weak-base transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            class="hidden xl:block min-h-0 app-panel-divider-x transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             classList={{
               "opacity-100": workspaceRightDividerWidth() > 0,
               "opacity-0": workspaceRightDividerWidth() === 0,
