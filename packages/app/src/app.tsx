@@ -142,11 +142,11 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
   return (
     <AppRouteProvider>
       <AppShellProviders>
-        {/*<Suspense fallback={<Loading />}>*/}
-        {props.appChildren}
-        <PersistentSessionRoute />
-        {props.children}
-        {/*</Suspense>*/}
+        <Suspense fallback={<Loading />}>
+          {props.appChildren}
+          <PersistentSessionRoute />
+          {props.children}
+        </Suspense>
       </AppShellProviders>
     </AppRouteProvider>
   )
@@ -212,25 +212,22 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
         ),
   )
 
+  const ready = createMemo(() =>
+    checkMode() === "blocking" ? !startupHealthCheck.loading : startupHealthCheck.state !== "pending",
+  )
+  const healthy = createMemo(() => startupHealthCheck.latest === true)
+
   return (
-    <Suspense
+    <Show
+      when={ready()}
       fallback={
         <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base">
           <Splash class="w-16 h-20 opacity-50 animate-pulse" />
         </div>
       }
     >
-      {/*<Show
-        when={checkMode() === "blocking" ? !startupHealthCheck.loading : startupHealthCheck.state !== "pending"}
-        fallback={
-          <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base">
-            <Splash class="w-16 h-20 opacity-50 animate-pulse" />
-          </div>
-        }
-      >*/}
-      {checkMode() === "blocking" ? startupHealthCheck() : startupHealthCheck.latest}
       <Show
-        when={startupHealthCheck()}
+        when={healthy()}
         fallback={
           <ConnectionError
             onRetry={() => {
@@ -246,8 +243,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
       >
         {props.children}
       </Show>
-      {/*</Show>*/}
-    </Suspense>
+    </Show>
   )
 }
 

@@ -8,8 +8,8 @@ import {
   Match,
   Switch,
   createMemo,
+  createSignal,
   createEffect,
-  createComputed,
   on,
   onMount,
   untrack,
@@ -40,6 +40,7 @@ import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { usePlatform } from "@/context/platform"
+import { MIN_WORKSPACE_RIGHT_PANEL_WIDTH, WORKSPACE_PANEL_DIVIDER_WIDTH } from "@/context/workspace-panels"
 import { createSessionComposerState, SessionComposerRegion } from "@/pages/session/composer"
 import {
   createOpenReviewFile,
@@ -105,7 +106,6 @@ export default function Page() {
 
   const [ui, setUi] = createStore({
     pendingMessage: undefined as string | undefined,
-    reviewSnap: false,
     scrollGesture: 0,
     scroll: {
       overflow: false,
@@ -119,6 +119,11 @@ export default function Page() {
   const workspaceKey = createMemo(() => params.dir ?? "")
   const workspaceTabs = createMemo(() => layout.tabs(workspaceKey))
   const size = createSizing()
+  const [viewportWidth, setViewportWidth] = createSignal(typeof window === "undefined" ? 1280 : window.innerWidth)
+
+  onMount(() => {
+    makeEventListener(window, "resize", () => setViewportWidth(window.innerWidth))
+  })
 
   function normalizeTab(tab: string) {
     if (!tab.startsWith("file://")) return tab
@@ -163,16 +168,19 @@ export default function Page() {
   })
   const isDesktop = sessionPanel.isDesktop
   const desktopReviewOpen = sessionPanel.desktopReviewOpen
-  const desktopSubagentsOpen = sessionPanel.desktopSubagentsOpen
-  const desktopExtensionsOpen = sessionPanel.desktopExtensionsOpen
-  const desktopContextOpen = sessionPanel.desktopContextOpen
-  const desktopMainPanelOpen = sessionPanel.desktopMainPanelOpen
+  const desktopRightPanelOpen = sessionPanel.desktopRightPanelOpen
   const desktopFileTreeOpen = sessionPanel.desktopFileTreeOpen
-  const desktopSidePanelOpen = sessionPanel.desktopSidePanelOpen
   const reviewResizeMax = sessionPanel.reviewResizeMax
   const effectiveSessionWidth = sessionPanel.effectiveSessionWidth
-  const sessionPanelWidth = sessionPanel.sessionPanelWidth
   const centered = sessionPanel.centered
+  const workspaceRightPanelTargetWidth = createMemo(() => {
+    const sidebarWidth = layout.sidebar.opened() ? layout.sidebar.width() : 0
+    const dividerReserve = WORKSPACE_PANEL_DIVIDER_WIDTH * 2
+    return Math.max(
+      MIN_WORKSPACE_RIGHT_PANEL_WIDTH,
+      viewportWidth() - sidebarWidth - effectiveSessionWidth() - dividerReserve,
+    )
+  })
 
   const openReviewPanel = () => {
     if (!view().reviewPanel.opened()) view().reviewPanel.open()
@@ -267,7 +275,6 @@ export default function Page() {
     deferRender: false,
   })
 
-  let reviewFrame: number | undefined
   let refreshFrame: number | undefined
   let refreshTimer: number | undefined
   let emptyMessageRetryTimers: number[] = []
@@ -298,19 +305,6 @@ export default function Page() {
       )
     }
   }
-
-  createComputed((prev) => {
-    const open = desktopMainPanelOpen()
-    if (prev === undefined || prev === open) return open
-
-    if (reviewFrame !== undefined) cancelAnimationFrame(reviewFrame)
-    setUi("reviewSnap", true)
-    reviewFrame = requestAnimationFrame(() => {
-      reviewFrame = undefined
-      setUi("reviewSnap", false)
-    })
-    return open
-  }, desktopMainPanelOpen())
 
   const turnDiffs = createMemo(() => list(lastUserMessage()?.summary?.diffs))
   const nogit = createMemo(() => !!sync.project && sync.project.vcs !== "git")
@@ -1455,7 +1449,6 @@ export default function Page() {
   })
 
   onCleanup(() => {
-    if (reviewFrame !== undefined) cancelAnimationFrame(reviewFrame)
     if (refreshFrame !== undefined) cancelAnimationFrame(refreshFrame)
     if (refreshTimer !== undefined) window.clearTimeout(refreshTimer)
     clearEmptyMessageRetries()
@@ -1502,11 +1495,9 @@ export default function Page() {
         <div
           classList={{
             "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-base flex-1 md:flex-none": true,
-            "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
-              !size.active() && !ui.reviewSnap,
           }}
           style={{
-            width: sessionPanelWidth(),
+            width: "100%",
           }}
         >
           <div class="flex-1 min-h-0 overflow-hidden">
@@ -1608,7 +1599,7 @@ export default function Page() {
             }}
           />
 
-          <Show when={desktopMainPanelOpen()}>
+          <Show when={desktopRightPanelOpen()}>
             <div onPointerDown={() => size.start()}>
               <ResizeHandle
                 direction="horizontal"
@@ -1635,8 +1626,8 @@ export default function Page() {
           reviewPanel={reviewPanel}
           activeDiff={tree.activeDiff}
           focusReviewDiff={focusReviewDiff}
-          reviewSnap={ui.reviewSnap}
           size={size}
+          targetWidth={workspaceRightPanelTargetWidth}
         />
       </div>
 
