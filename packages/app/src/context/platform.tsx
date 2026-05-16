@@ -2,83 +2,52 @@ import { createSimpleContext } from "@opencode-ai/ui/context"
 import type { AsyncStorage, SyncStorage } from "@solid-primitives/storage"
 import type { Accessor } from "solid-js"
 import { ServerConnection } from "./server"
+import type {
+  LinuxDisplayBackend,
+  SpeechCaptureChunkInput,
+  SpeechCaptureLevelEvent,
+  SpeechCaptureSamplesInput,
+  SpeechCaptureSessionConfig,
+  SpeechCaptureSessionInfo,
+  SpeechCaptureSessionSource,
+  SpeechModelID,
+  SpeechModelInfo,
+  SpeechRuntimeConfig,
+  SpeechTranscription,
+  SpeechTranscriptionInput,
+  SpeechTranscriptionQuality,
+  SpeechTranscriptionSegment,
+  SpeechTranscriptionToken,
+  TitlebarTheme,
+} from "@opencode-ai/core/desktop"
 
 type PickerPaths = string | string[] | null
 type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }
 type OpenFilePickerOptions = { title?: string; multiple?: boolean; accept?: string[]; extensions?: string[] }
 type SaveFilePickerOptions = { title?: string; defaultPath?: string }
 type UpdateInfo = { updateAvailable: boolean; version?: string }
-export type SpeechModelID = "apple-speech" | "parakeet-tdt-v2" | "parakeet-tdt-v3"
-export type SpeechTranscriptionQuality = "fast" | "accurate"
-export type SpeechModelInfo = {
-  id: SpeechModelID
-  label: string
-  description: string
-  downloaded: boolean
-  recommended: boolean
-  path: string
-}
-export type SpeechRuntimeConfig = {
-  model: SpeechModelID
-  quality: SpeechTranscriptionQuality
-}
-export type SpeechCaptureSessionSource = "native" | "renderer"
-export type SpeechCaptureSessionConfig = {
-  gain?: number
-}
-export type SpeechCaptureSessionInfo = {
-  id: string
-  source: SpeechCaptureSessionSource
-}
-export type SpeechCaptureSamplesInput = {
-  sessionId: string
-  samples: ArrayBuffer
-  sampleRate: number
-}
-export type SpeechCaptureLevelEvent = {
-  sessionId: string
-  rms: number
-  sampleRate: number
-}
-export type SpeechCaptureChunkInput = {
-  sessionId: string
-  promptTerms?: string[]
-} & SpeechRuntimeConfig
-export type SpeechTranscriptionInput = {
-  audio: ArrayBuffer
-  mimeType: string
-  originalDurationMs?: number
-  promptTerms?: string[]
-} & SpeechRuntimeConfig
-
-export type SpeechTranscriptionSegment = {
-  text: string
-  startMs?: number
-  endMs?: number
-  confidence?: number
-}
-
-export type SpeechTranscriptionToken = {
-  text: string
-  startMs?: number
-  endMs?: number
-  logprob?: number
-  confidence?: number
-}
-
-export type SpeechTranscription = {
-  text: string
-  language?: string
-  confidence?: number
-  segments?: SpeechTranscriptionSegment[]
-  tokens?: SpeechTranscriptionToken[]
+export type {
+  SpeechCaptureChunkInput,
+  SpeechCaptureLevelEvent,
+  SpeechCaptureSamplesInput,
+  SpeechCaptureSessionConfig,
+  SpeechCaptureSessionInfo,
+  SpeechCaptureSessionSource,
+  SpeechModelID,
+  SpeechModelInfo,
+  SpeechRuntimeConfig,
+  SpeechTranscription,
+  SpeechTranscriptionInput,
+  SpeechTranscriptionQuality,
+  SpeechTranscriptionSegment,
+  SpeechTranscriptionToken,
 }
 
 export type Platform = {
   /** Platform discriminator */
   platform: "web" | "desktop"
 
-  /** Desktop OS (Tauri only) */
+  /** Desktop OS */
   os?: "macos" | "windows" | "linux"
 
   /** App version */
@@ -102,13 +71,13 @@ export type Platform = {
   /** Send a system notification (optional deep link) */
   notify(title: string, description?: string, href?: string): Promise<void>
 
-  /** Open directory picker dialog (native on Tauri, server-backed on web) */
+  /** Open directory picker dialog */
   openDirectoryPickerDialog?(opts?: OpenDirectoryPickerOptions): Promise<PickerPaths>
 
-  /** Open native file picker dialog (Tauri only) */
+  /** Open native file picker dialog */
   openFilePickerDialog?(opts?: OpenFilePickerOptions): Promise<PickerPaths>
 
-  /** Save file picker dialog (Tauri only) */
+  /** Save file picker dialog */
   saveFilePickerDialog?(opts?: SaveFilePickerOptions): Promise<string | null>
 
   /** Write a UTF-8 text file (desktop only) */
@@ -143,6 +112,9 @@ export type Platform = {
 
   /** Set the preferred display backend (desktop only) */
   setDisplayBackend?(backend: DisplayBackend): Promise<void>
+
+  /** Apply native titlebar theme (desktop only) */
+  setTitlebarTheme?(theme: TitlebarTheme): Promise<void> | void
 
   /** Parse markdown to HTML using native parser (desktop only, returns unprocessed code blocks) */
   parseMarkdown?(markdown: string): Promise<string>
@@ -193,7 +165,7 @@ export type Platform = {
   transcribeSpeech?(input: SpeechTranscriptionInput): Promise<SpeechTranscription>
 }
 
-export type DisplayBackend = "auto" | "wayland"
+export type DisplayBackend = LinuxDisplayBackend
 
 export const { use: usePlatform, provider: PlatformProvider } = createSimpleContext({
   name: "Platform",

@@ -250,6 +250,8 @@ const createPlatform = (): Platform => {
       await window.api.setDisplayBackend(backend)
     },
 
+    setTitlebarTheme: (theme) => window.api.setTitlebar(theme),
+
     parseMarkdown: (markdown: string) => window.api.parseMarkdownCommand(markdown),
 
     webviewZoom,

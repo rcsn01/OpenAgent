@@ -51,7 +51,6 @@ import { retry } from "@opencode-ai/core/util/retry"
 import { playSoundById } from "@/utils/sound"
 import { setNavigate } from "@/utils/notification-click"
 import { Worktree as WorktreeState } from "@/utils/worktree"
-import { setSessionHandoff } from "@/pages/session/handoff"
 
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
@@ -70,12 +69,6 @@ import {
   latestRootSession,
   sortedRootSessions,
 } from "./layout/helpers"
-import {
-  collectNewSessionDeepLinks,
-  collectOpenProjectDeepLinks,
-  deepLinkEvent,
-  drainPendingDeepLinks,
-} from "./layout/deep-links"
 import { createInlineEditorController } from "./layout/inline-editor"
 import {
   LocalWorkspace,
@@ -85,6 +78,8 @@ import {
 } from "./layout/sidebar-workspace"
 import { SidebarHub } from "./layout/sidebar-hub"
 import { ProjectActionsMenu } from "./layout/project-actions-menu"
+import { useLayoutDeepLinks } from "./layout/deep-link-handler"
+import { createWorkspaceProjectState } from "./layout/workspace-project-state"
 
 const MIN_SIDEBAR_WIDTH = 160
 
@@ -455,29 +450,28 @@ export default function Layout(props: ParentProps) {
     element.scrollIntoView({ block: "nearest", behavior: "smooth" })
   }
 
-  const currentProject = createMemo(() => {
-    const directory = currentDir()
-    if (!directory) return
-    const key = pathKey(directory)
-
-    const projects = layout.projects.list()
-
-    const sandbox = projects.find((p) => p.sandboxes?.some((item) => pathKey(item) === key))
-    if (sandbox) return sandbox
-
-    const direct = projects.find((p) => pathKey(p.worktree) === key)
-    if (direct) return direct
-
-    const [child] = globalSync.child(directory, { bootstrap: false })
-    const id = child.project
-    if (!id) return
-
-    const meta = globalSync.data.project.find((p) => p.id === id)
-    const root = meta?.worktree
-    if (!root) return
-
-    return projects.find((p) => p.worktree === root)
+  const workspaceState = createWorkspaceProjectState({
+    store,
+    setStore,
+    pageReady,
+    layoutReady,
+    currentDir,
+    currentSessionID,
+    scrollToSession,
   })
+  const currentProject = workspaceState.currentProject
+  const currentSessions = workspaceState.currentSessions
+  const workspaceName = workspaceState.workspaceName
+  const setWorkspaceName = workspaceState.setWorkspaceName
+  const workspaceLabel = workspaceState.workspaceLabel
+  const workspaceSetting = workspaceState.workspaceSetting
+  const workspaceIds = workspaceState.workspaceIds
+  const visibleSessionDirs = workspaceState.visibleSessionDirs
+  const projectRoot = workspaceState.projectRoot
+  const activeProjectRoot = workspaceState.activeProjectRoot
+  const rememberSessionRoute = workspaceState.rememberSessionRoute
+  const clearLastProjectSession = workspaceState.clearLastProjectSession
+  const syncSessionRoute = workspaceState.syncSessionRoute
 
   const [autoselecting] = createResource(async () => {
     await ready.promise
@@ -495,79 +489,6 @@ export default function Layout(props: ParentProps) {
       if (!next) return
       await openProject(next.worktree, true, { replace: true })
     }
-  })
-
-  const workspaceName = (directory: string, projectId?: string, branch?: string) => {
-    const key = pathKey(directory)
-    const direct = store.workspaceName[key] ?? store.workspaceName[directory]
-    if (direct) return direct
-    if (!projectId) return
-    if (!branch) return
-    return store.workspaceBranchName[projectId]?.[branch]
-  }
-
-  const setWorkspaceName = (directory: string, next: string, projectId?: string, branch?: string) => {
-    const key = pathKey(directory)
-    setStore("workspaceName", key, next)
-    if (!projectId) return
-    if (!branch) return
-    if (!store.workspaceBranchName[projectId]) {
-      setStore("workspaceBranchName", projectId, {})
-    }
-    setStore("workspaceBranchName", projectId, branch, next)
-  }
-
-  const workspaceLabel = (directory: string, branch?: string, projectId?: string) =>
-    workspaceName(directory, projectId, branch) ?? branch ?? getFilename(directory)
-
-  const workspaceSetting = createMemo(() => {
-    const project = currentProject()
-    if (!project) return false
-    if (project.vcs !== "git") return false
-    return layout.sidebar.workspaces(project.worktree)()
-  })
-
-  const visibleSessionDirs = createMemo(() => {
-    const project = currentProject()
-    if (!project) return [] as string[]
-    if (!workspaceSetting()) return [project.worktree]
-
-    const activeDir = currentDir()
-    return workspaceIds(project).filter((directory) => {
-      const expanded = store.workspaceExpanded[directory] ?? directory === project.worktree
-      const active = pathKey(directory) === pathKey(activeDir)
-      return expanded || active
-    })
-  })
-
-  createEffect(() => {
-    if (!pageReady()) return
-    if (!layoutReady()) return
-    const projects = layout.projects.list()
-    for (const [directory, expanded] of Object.entries(store.workspaceExpanded)) {
-      if (!expanded) continue
-      const key = pathKey(directory)
-      const project = projects.find(
-        (item) => pathKey(item.worktree) === key || item.sandboxes?.some((sandbox) => pathKey(sandbox) === key),
-      )
-      if (!project) continue
-      if (project.vcs === "git" && layout.sidebar.workspaces(project.worktree)()) continue
-      setStore("workspaceExpanded", directory, false)
-    }
-  })
-
-  const currentSessions = createMemo(() => {
-    const now = Date.now()
-    const dirs = visibleSessionDirs()
-    if (dirs.length === 0) return [] as Session[]
-
-    const result: Session[] = []
-    for (const dir of dirs) {
-      const [dirStore] = globalSync.child(dir, { bootstrap: true })
-      const dirSessions = sortedRootSessions(dirStore, now)
-      result.push(...dirSessions)
-    }
-    return result
   })
 
   type PrefetchQueue = {
@@ -1267,56 +1188,6 @@ export default function Layout(props: ParentProps) {
     })
   }
 
-  function projectRoot(directory: string) {
-    const key = pathKey(directory)
-    const project = layout.projects
-      .list()
-      .find((item) => pathKey(item.worktree) === key || item.sandboxes?.some((sandbox) => pathKey(sandbox) === key))
-    if (project) return project.worktree
-
-    const known = Object.entries(store.workspaceOrder).find(
-      ([root, dirs]) => pathKey(root) === key || dirs.some((item) => pathKey(item) === key),
-    )
-    if (known) return known[0]
-
-    const [child] = globalSync.child(directory, { bootstrap: false })
-    const id = child.project
-    if (!id) return directory
-
-    const meta = globalSync.data.project.find((item) => item.id === id)
-    return meta?.worktree ?? directory
-  }
-
-  function activeProjectRoot(directory: string) {
-    return currentProject()?.worktree ?? projectRoot(directory)
-  }
-
-  function rememberSessionRoute(directory: string, id: string, root = activeProjectRoot(directory)) {
-    setStore("lastProjectSession", root, { directory, id, at: Date.now() })
-    return root
-  }
-
-  function clearLastProjectSession(root: string) {
-    if (!store.lastProjectSession[root]) return
-    setStore(
-      "lastProjectSession",
-      produce((draft) => {
-        delete draft[root]
-      }),
-    )
-  }
-
-  function syncSessionRoute(directory: string, id: string, root = activeProjectRoot(directory)) {
-    rememberSessionRoute(directory, id, root)
-    notification.session.markViewed(id)
-    const expanded = untrack(() => store.workspaceExpanded[directory])
-    if (expanded === false) {
-      setStore("workspaceExpanded", directory, true)
-    }
-    requestAnimationFrame(() => scrollToSession(id, `${directory}:${id}`))
-    return root
-  }
-
   async function navigateToProject(directory: string | undefined, options?: { replace?: boolean }) {
     if (!directory) return
     const root = projectRoot(directory)
@@ -1402,34 +1273,10 @@ export default function Layout(props: ParentProps) {
     if (navigate) return navigateToProject(directory, options)
   }
 
-  const handleDeepLinks = (urls: string[]) => {
-    if (!server.isLocal()) return
-
-    for (const directory of collectOpenProjectDeepLinks(urls)) {
-      void openProject(directory)
-    }
-
-    for (const link of collectNewSessionDeepLinks(urls)) {
-      void openProject(link.directory, false)
-      const slug = base64Encode(link.directory)
-      if (link.prompt) {
-        setSessionHandoff(slug, { prompt: link.prompt })
-      }
-      const href = link.prompt ? `/${slug}/session?prompt=${encodeURIComponent(link.prompt)}` : `/${slug}/session`
-      navigateWithSidebarReset(href)
-    }
-  }
-
-  onMount(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ urls: string[] }>).detail
-      const urls = detail?.urls ?? []
-      if (urls.length === 0) return
-      handleDeepLinks(urls)
-    }
-
-    handleDeepLinks(drainPendingDeepLinks(window))
-    makeEventListener(window, deepLinkEvent, handler as EventListener)
+  useLayoutDeepLinks({
+    isLocalServer: server.isLocal,
+    openProject,
+    navigateWithSidebarReset,
   })
 
   async function renameProject(project: LocalProject, next: string) {
@@ -1910,25 +1757,6 @@ export default function Layout(props: ParentProps) {
       { defer: true },
     ),
   )
-
-  function workspaceIds(project: LocalProject | undefined) {
-    if (!project) return []
-    const local = project.worktree
-    const dirs = [local, ...(project.sandboxes ?? [])]
-    const active = currentProject()
-    const directory = pathKey(active?.worktree ?? "") === pathKey(project.worktree) ? currentDir() : undefined
-    const extra =
-      directory && pathKey(directory) !== pathKey(local) && !dirs.some((item) => pathKey(item) === pathKey(directory))
-        ? directory
-        : undefined
-    const pending = extra ? WorktreeState.get(extra)?.status === "pending" : false
-
-    const ordered = effectiveWorkspaceOrder(local, dirs, store.workspaceOrder[project.worktree])
-    if (pending && extra) return [local, extra, ...ordered.filter((item) => item !== local)]
-    if (!extra) return ordered
-    if (pending) return ordered
-    return [...ordered, extra]
-  }
 
   function projectSessions(project: LocalProject) {
     return workspaceIds(project)

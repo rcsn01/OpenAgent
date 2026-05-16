@@ -15,7 +15,6 @@ import {
   untrack,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { createMediaQuery } from "@solid-primitives/media"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLocal } from "@/context/local"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
@@ -41,7 +40,6 @@ import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
 import { usePlatform } from "@/context/platform"
-import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
 import { createSessionComposerState, SessionComposerRegion } from "@/pages/session/composer"
 import {
   createOpenReviewFile,
@@ -59,38 +57,17 @@ import { SessionSidePanel } from "@/pages/session/side-panel"
 import { TerminalPanel } from "@/pages/session/terminal-panel"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
-import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
-import { Persist, persisted } from "@/utils/persist"
-import { pathKey } from "@/utils/path-key"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { same } from "@/utils/same"
 import { formatServerError } from "@/utils/server-errors"
+import { useSessionFollowups } from "./session/session-followups"
+import { useSessionPanelLayout } from "./session/session-panel-layout"
+import { useSessionTabHandoff } from "./session/session-tab-handoff"
 
 const emptyUserMessages: UserMessage[] = []
-type FollowupItem = FollowupDraft & { id: string }
-type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
-const emptyFollowups: FollowupItem[] = []
-type FollowupState = {
-  items: Record<string, FollowupItem[] | undefined>
-  failed: Record<string, string | undefined>
-  paused: Record<string, boolean | undefined>
-  edit: Record<string, FollowupEdit | undefined>
-}
-type FollowupByWorkspace = {
-  workspace: Record<string, FollowupState | undefined>
-}
-type FollowupValue<T> = T extends Record<string, infer V> ? V : never
-const emptyFollowupState = (): FollowupState => ({
-  items: {},
-  failed: {},
-  paused: {},
-  edit: {},
-})
-const COLLAPSED_SIDEBAR_WIDTH = 0
 const MIN_REVIEW_COLUMN_WIDTH = 200
 const MIN_SESSION_COLUMN_WIDTH = 420
-const MIN_SIDE_PANEL_WIDTH = 360
 
 type ChangeMode = "git" | "branch" | "turn"
 type VcsMode = "git" | "branch"
@@ -385,77 +362,7 @@ export default function Page() {
 
   const workspaceKey = createMemo(() => params.dir ?? "")
   const workspaceTabs = createMemo(() => layout.tabs(workspaceKey))
-
-  createEffect(
-    on(
-      () => params.id,
-      (id, prev) => {
-        if (!id) return
-        if (prev) return
-
-        const pending = layout.handoff.tabs()
-        if (!pending) return
-        if (Date.now() - pending.at > 60_000) {
-          layout.handoff.clearTabs()
-          return
-        }
-
-        if (pending.id !== id) return
-        layout.handoff.clearTabs()
-        if (pending.dir !== (params.dir ?? "")) return
-
-        const from = workspaceTabs().tabs()
-        if (from.all.length === 0 && !from.active) return
-
-        const current = tabs().tabs()
-        if (current.all.length > 0 || current.active) return
-
-        const all = normalizeTabs(from.all)
-        const active = from.active ? normalizeTab(from.active) : undefined
-        tabs().setAll(all)
-        tabs().setActive(active && all.includes(active) ? active : all[0])
-
-        workspaceTabs().setAll([])
-        workspaceTabs().setActive(undefined)
-      },
-      { defer: true },
-    ),
-  )
-
-  const isDesktop = createMediaQuery("(min-width: 768px)")
   const size = createSizing()
-  const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
-  const desktopSubagentsOpen = createMemo(() => isDesktop() && view().subagents.opened())
-  const desktopExtensionsOpen = createMemo(() => isDesktop() && view().extensions.opened())
-  const desktopContextOpen = createMemo(() => isDesktop() && view().context.opened())
-  const desktopMainPanelOpen = createMemo(
-    () => desktopReviewOpen() || desktopSubagentsOpen() || desktopExtensionsOpen() || desktopContextOpen(),
-  )
-  const fileTreeShown = createMemo(
-    () =>
-      platform.platform !== "desktop" ||
-      import.meta.env.VITE_OPENCODE_CHANNEL !== "beta" ||
-      settings.general.showFileTree(),
-  )
-  const desktopFileTreeOpen = createMemo(() => desktopReviewOpen() && fileTreeShown() && layout.fileTree.opened())
-  const desktopSidePanelOpen = createMemo(() => desktopMainPanelOpen())
-  const reviewResizeMax = () => {
-    if (typeof window === "undefined") return 1000
-    const sidebarWidth = layout.sidebar.opened() ? layout.sidebar.width() : COLLAPSED_SIDEBAR_WIDTH
-    const fileTreeReserve = desktopFileTreeOpen() ? layout.fileTree.width() : 0
-    const reserve = fileTreeReserve + MIN_SIDE_PANEL_WIDTH
-    return Math.max(MIN_SESSION_COLUMN_WIDTH, window.innerWidth - sidebarWidth - reserve)
-  }
-  const effectiveSessionWidth = createMemo(() => {
-    const width = Math.max(MIN_SESSION_COLUMN_WIDTH, layout.session.width())
-    if (!desktopSidePanelOpen()) return width
-    return Math.min(width, reviewResizeMax())
-  })
-  const sessionPanelWidth = createMemo(() => {
-    if (!desktopSidePanelOpen()) return "100%"
-    return `min(${effectiveSessionWidth()}px, calc(100% - ${MIN_SIDE_PANEL_WIDTH}px))`
-  })
-  const centered = createMemo(() => isDesktop() && !desktopMainPanelOpen())
 
   function normalizeTab(tab: string) {
     if (!tab.startsWith("file://")) return tab
@@ -473,6 +380,43 @@ export default function Page() {
     }
     return next
   }
+
+  useSessionTabHandoff({
+    sessionID: () => params.id,
+    directory: () => params.dir,
+    handoff: layout.handoff,
+    workspaceTabs,
+    tabs,
+    normalizeTab,
+    normalizeTabs,
+  })
+
+  const sessionPanel = useSessionPanelLayout({
+    reviewPanelOpened: () => view().reviewPanel.opened(),
+    subagentsOpened: () => view().subagents.opened(),
+    extensionsOpened: () => view().extensions.opened(),
+    contextOpened: () => view().context.opened(),
+    platform: () => platform.platform,
+    channel: () => import.meta.env.VITE_OPENCODE_CHANNEL,
+    showFileTreeSetting: settings.general.showFileTree,
+    fileTreeOpened: layout.fileTree.opened,
+    fileTreeWidth: layout.fileTree.width,
+    sidebarOpened: layout.sidebar.opened,
+    sidebarWidth: layout.sidebar.width,
+    sessionWidth: layout.session.width,
+  })
+  const isDesktop = sessionPanel.isDesktop
+  const desktopReviewOpen = sessionPanel.desktopReviewOpen
+  const desktopSubagentsOpen = sessionPanel.desktopSubagentsOpen
+  const desktopExtensionsOpen = sessionPanel.desktopExtensionsOpen
+  const desktopContextOpen = sessionPanel.desktopContextOpen
+  const desktopMainPanelOpen = sessionPanel.desktopMainPanelOpen
+  const desktopFileTreeOpen = sessionPanel.desktopFileTreeOpen
+  const desktopSidePanelOpen = sessionPanel.desktopSidePanelOpen
+  const reviewResizeMax = sessionPanel.reviewResizeMax
+  const effectiveSessionWidth = sessionPanel.effectiveSessionWidth
+  const sessionPanelWidth = sessionPanel.sessionPanelWidth
+  const centered = sessionPanel.centered
 
   const openReviewPanel = () => {
     if (!view().reviewPanel.opened()) view().reviewPanel.open()
@@ -566,41 +510,6 @@ export default function Page() {
     newSessionWorktree: "main",
     deferRender: false,
   })
-
-  const followupWorkspaceKey = createMemo(() => pathKey(sdk.directory))
-  const [followupStore, setFollowupStore] = persisted(
-    Persist.global("workspace-followup.v1"),
-    createStore<FollowupByWorkspace>({
-      workspace: {},
-    }),
-  )
-  const followupState = createMemo(() => followupStore.workspace[followupWorkspaceKey()] ?? emptyFollowupState())
-  const followup = {
-    get items() {
-      return followupState().items
-    },
-    get failed() {
-      return followupState().failed
-    },
-    get paused() {
-      return followupState().paused
-    },
-    get edit() {
-      return followupState().edit
-    },
-  }
-  const ensureFollowupWorkspace = () => {
-    const key = followupWorkspaceKey()
-    if (!followupStore.workspace[key]) setFollowupStore("workspace", key, emptyFollowupState())
-    return key
-  }
-  const setFollowup = <K extends keyof FollowupState>(
-    key: K,
-    sessionID: string,
-    value: FollowupValue<FollowupState[K]> | ((prev: FollowupValue<FollowupState[K]>) => FollowupValue<FollowupState[K]>),
-  ) => {
-    ;(setFollowupStore as (...args: unknown[]) => void)("workspace", ensureFollowupWorkspace(), key, sessionID, value)
-  }
 
   let reviewFrame: number | undefined
   let refreshFrame: number | undefined
@@ -1616,143 +1525,20 @@ export default function Page() {
     )
   }
 
-  const queuedFollowups = createMemo(() => {
-    const id = params.id
-    if (!id) return emptyFollowups
-    return followup.items[id] ?? emptyFollowups
+  const followup = useSessionFollowups({
+    directory: () => sdk.directory,
+    sessionID: () => params.id,
+    client: () => sdk.client,
+    sync: () => sync,
+    globalSync: () => globalSync,
+    optimisticBusy: (draft) => draft.sessionDirectory === sdk.directory,
+    isChildSession: (sessionID) => !!sync.session.get(sessionID)?.parentID,
+    isSessionBusy: busy,
+    blocked: composer.blocked,
+    fail,
+    resumeScroll,
+    attachmentLabel: () => language.t("common.attachment"),
   })
-
-  const editingFollowup = createMemo(() => {
-    const id = params.id
-    if (!id) return
-    return followup.edit[id]
-  })
-
-  const followupMutation = useMutation(() => ({
-    mutationFn: async (input: { sessionID: string; id: string; manual?: boolean }) => {
-      const item = (followup.items[input.sessionID] ?? []).find((entry) => entry.id === input.id)
-      if (!item) return
-
-      if (input.manual) setFollowup("paused", input.sessionID, undefined)
-      setFollowup("failed", input.sessionID, undefined)
-
-      const ok = await sendFollowupDraft({
-        client: sdk.client,
-        sync,
-        globalSync,
-        draft: item,
-        optimisticBusy: item.sessionDirectory === sdk.directory,
-      }).catch((err) => {
-        setFollowup("failed", input.sessionID, input.id)
-        fail(err)
-        return false
-      })
-      if (!ok) return
-
-      setFollowup("items", input.sessionID, (items) => (items ?? []).filter((entry) => entry.id !== input.id))
-      if (input.manual) resumeScroll()
-    },
-  }))
-
-  const followupBusy = (sessionID: string) =>
-    followupMutation.isPending && followupMutation.variables?.sessionID === sessionID
-
-  const sendingFollowup = createMemo(() => {
-    const id = params.id
-    if (!id) return
-    if (!followupBusy(id)) return
-    return followupMutation.variables?.id
-  })
-
-  const queueEnabled = createMemo(() => {
-    const id = params.id
-    if (!id) return false
-    return busy(id) && !composer.blocked() && !isChildSession()
-  })
-
-  const followupText = (item: FollowupDraft) => {
-    const text = item.prompt
-      .map((part) => {
-        if (part.type === "image") return `[image:${part.filename}]`
-        if (part.type === "file") return `[file:${part.path}]`
-        if (part.type === "agent") return `@${part.name}`
-        return part.content
-      })
-      .join("")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find((line) => !!line)
-
-    if (text) return text
-    return `[${language.t("common.attachment")}]`
-  }
-
-  const queueFollowup = (draft: FollowupDraft) => {
-    setFollowup("items", draft.sessionID, (items) => [
-      ...(items ?? []),
-      { id: Identifier.ascending("message"), ...draft },
-    ])
-    setFollowup("failed", draft.sessionID, undefined)
-    setFollowup("paused", draft.sessionID, undefined)
-  }
-
-  const followupDock = createMemo(() => queuedFollowups().map((item) => ({ id: item.id, text: followupText(item) })))
-
-  const sendFollowup = (sessionID: string, id: string, opts?: { manual?: boolean }) => {
-    if (sync.session.get(sessionID)?.parentID) return Promise.resolve()
-    const item = (followup.items[sessionID] ?? []).find((entry) => entry.id === id)
-    if (!item) return Promise.resolve()
-    if (followupBusy(sessionID)) return Promise.resolve()
-
-    return followupMutation.mutateAsync({ sessionID, id, manual: opts?.manual })
-  }
-
-  const editFollowup = (id: string) => {
-    const sessionID = params.id
-    if (!sessionID) return
-    if (followupBusy(sessionID)) return
-
-    const item = queuedFollowups().find((entry) => entry.id === id)
-    if (!item) return
-
-    setFollowup("items", sessionID, (items) => (items ?? []).filter((entry) => entry.id !== id))
-    setFollowup("failed", sessionID, (value) => (value === id ? undefined : value))
-    setFollowup("edit", sessionID, {
-      id: item.id,
-      prompt: item.prompt,
-      context: item.context,
-    })
-  }
-
-  const deleteFollowup = (id: string) => {
-    const sessionID = params.id
-    if (!sessionID) return
-    if (followupBusy(sessionID)) return
-
-    setFollowup("items", sessionID, (items) => (items ?? []).filter((entry) => entry.id !== id))
-    setFollowup("failed", sessionID, (value) => (value === id ? undefined : value))
-    setFollowup("edit", sessionID, (value) => (value?.id === id ? undefined : value))
-    const remaining = (followup.items[sessionID] ?? []).filter((entry) => entry.id !== id)
-    if (remaining.length === 0) setFollowup("paused", sessionID, undefined)
-  }
-
-  const clearFollowupEdit = () => {
-    const id = params.id
-    if (!id) return
-    setFollowup("edit", id, undefined)
-  }
-
-  const pauseFollowupAutoSend = () => {
-    const id = params.id
-    if (!id) return
-    setFollowup("paused", id, true)
-  }
-
-  const toggleFollowupAutoSend = () => {
-    const id = params.id
-    if (!id) return
-    setFollowup("paused", id, (value) => (value ? undefined : true))
-  }
 
   const halt = (sessionID: string) =>
     busy(sessionID) ? sdk.client.session.abort({ sessionID }).catch(() => {}) : Promise.resolve()
@@ -1849,16 +1635,16 @@ export default function Page() {
     const sessionID = params.id
     if (!sessionID) return
 
-    const item = queuedFollowups()[0]
+    const item = followup.queued()[0]
     if (!item) return
-    if (followupBusy(sessionID)) return
-    if (followup.failed[sessionID] === item.id) return
-    if (followup.paused[sessionID]) return
+    if (followup.busy(sessionID)) return
+    if (followup.state.failed[sessionID] === item.id) return
+    if (followup.state.paused[sessionID]) return
     if (isChildSession()) return
     if (composer.blocked()) return
     if (busy(sessionID)) return
 
-    void sendFollowup(sessionID, item.id)
+    void followup.send(sessionID, item.id)
   })
 
   createResizeObserver(
@@ -2039,20 +1825,20 @@ export default function Page() {
             followup={
               params.id && !isChildSession()
                 ? {
-                    queue: queueEnabled,
-                    items: followupDock(),
-                    sending: sendingFollowup(),
-                    autoSendPaused: !!followup.paused[params.id],
-                    edit: editingFollowup(),
-                    onQueue: queueFollowup,
-                    onAbort: pauseFollowupAutoSend,
+                    queue: followup.queueEnabled,
+                    items: followup.dock(),
+                    sending: followup.sending(),
+                    autoSendPaused: !!followup.state.paused[params.id],
+                    edit: followup.editing(),
+                    onQueue: followup.queue,
+                    onAbort: followup.pauseAutoSend,
                     onSend: (id) => {
-                      void sendFollowup(params.id!, id, { manual: true })
+                      void followup.send(params.id!, id, { manual: true })
                     },
-                    onDelete: deleteFollowup,
-                    onEdit: editFollowup,
-                    onToggleAutoSend: toggleFollowupAutoSend,
-                    onEditLoaded: clearFollowupEdit,
+                    onDelete: followup.remove,
+                    onEdit: followup.edit,
+                    onToggleAutoSend: followup.toggleAutoSend,
+                    onEditLoaded: followup.clearEdit,
                   }
                 : undefined
             }

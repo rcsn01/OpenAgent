@@ -40,6 +40,7 @@ import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
 import { PermissionProvider } from "@/context/permission"
 import { PromptProvider } from "@/context/prompt"
+import { usePlatform } from "@/context/platform"
 import { ServerConnection, ServerProvider, serverName, useServer } from "@/context/server"
 import { SettingsProvider } from "@/context/settings"
 import { TerminalProvider } from "@/context/terminal"
@@ -87,12 +88,7 @@ function UiI18nBridge(props: ParentProps) {
 declare global {
   interface Window {
     __OPENCODE__?: {
-      updaterEnabled?: boolean
       deepLinks?: string[]
-      wsl?: boolean
-    }
-    api?: {
-      setTitlebar?: (theme: { mode: "light" | "dark" }) => Promise<void>
     }
   }
 }
@@ -157,12 +153,13 @@ function RouterRoot(props: ParentProps<{ appChildren?: JSX.Element }>) {
 }
 
 export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
+  const platform = usePlatform()
   return (
     <MetaProvider>
       <Font />
       <ThemeProvider
         onThemeApplied={(_, mode) => {
-          void window.api?.setTitlebar?.({ mode })
+          void platform.setTitlebarTheme?.({ mode })
         }}
       >
         <LanguageProvider locale={props.locale}>

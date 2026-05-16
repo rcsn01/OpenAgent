@@ -44,7 +44,7 @@ How the system prompt is assembled layer by layer.
 
 ### Desktop
 
-How the Electron and Tauri desktop apps work, including GUI chat.
+How the Electron desktop app works, including GUI chat.
 
 - [[Desktop/Index|Desktop]] — overview and navigation
 - [[Desktop/Hidden Workspaces]] — hidden directory structure and per-chat workspaces

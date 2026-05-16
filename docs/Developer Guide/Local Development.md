@@ -6,7 +6,7 @@ OpenAgent is a personal fork of the upstream AI coding agent workspace with the 
 
 - `packages/opencode`: main CLI and TUI runtime
 - `packages/app`: local web UI used by desktop shells
-- `packages/desktop` and `packages/desktop-electron`: desktop wrappers
+- `packages/desktop-electron`: Electron desktop wrapper
 - `packages/core`, `packages/ui`, `packages/plugin`, `packages/sdk`, and related shared libraries
 - `sdks/vscode`: VS Code integration
 

@@ -2,8 +2,7 @@ import { app } from "electron"
 import { DEFAULT_SERVER_URL_KEY, WSL_ENABLED_KEY } from "./constants"
 import { getUserShell, loadShellEnv } from "./shell-env"
 import { getStore } from "./store"
-
-export type WslConfig = { enabled: boolean }
+import type { WslConfig } from "@opencode-ai/core/desktop"
 
 export type HealthCheck = { wait: Promise<void> }
 
