@@ -1,5 +1,4 @@
 import { Button } from "@opencode-ai/ui/button"
-import { Icon } from "@opencode-ai/ui/icon"
 import { List } from "@opencode-ai/ui/list"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { showToast } from "@opencode-ai/ui/toast"
@@ -448,11 +447,7 @@ export function SessionExtensionsPanel() {
         fallback={
           <>
             <div class="app-inner-border-b bg-background-stronger px-4 py-3">
-              <div class="flex items-center gap-2 text-14-medium text-text-strong">
-                <Icon name="mcp" size="small" class="text-icon-base" />
-                Extensions
-              </div>
-              <div class="mt-1 text-12-regular text-text-weak">
+              <div class="text-12-regular text-text-weak">
                 Project-scoped bundles of MCP servers and managed skills.
               </div>
               <Show when={query.isLoading}>

@@ -6,18 +6,17 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { showToast } from "@opencode-ai/ui/toast"
 import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
-import { createEffect, createMemo, createSignal, For, on, onMount, Show } from "solid-js"
+import { createEffect, createMemo, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { Portal } from "solid-js/web"
 import { useAppRoute } from "@/context/app-route"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
-import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useServer } from "@/context/server"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
+import { useLayoutHeaderSlots } from "@/pages/layout/header-slots"
 import { focusTerminalById } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { SessionContextUsage } from "@/components/session-context-usage"
@@ -130,8 +129,7 @@ const showRequestError = (language: ReturnType<typeof useLanguage>, err: unknown
   })
 }
 
-export function SessionHeader() {
-  const layout = useLayout()
+function SessionHeaderTrailingControls() {
   const command = useCommand()
   const server = useServer()
   const platform = usePlatform()
@@ -258,40 +256,8 @@ export function SessionHeader() {
       .catch((err: unknown) => showRequestError(language, err))
   }
 
-  const [centerMount, setCenterMount] = createSignal<HTMLElement | null>(null)
-  const [rightMount, setRightMount] = createSignal<HTMLElement | null>(null)
-  const syncTitlebarMounts = () => {
-    setCenterMount(document.getElementById("opencode-titlebar-center"))
-    setRightMount(document.getElementById("opencode-titlebar-right"))
-  }
-
-  onMount(() => {
-    syncTitlebarMounts()
-    requestAnimationFrame(syncTitlebarMounts)
-  })
-
-  createEffect(
-    on(
-      () => [layout.sidebar.opened(), params.id, route.page(), route.isChat()],
-      () => requestAnimationFrame(syncTitlebarMounts),
-      { defer: true },
-    ),
-  )
-
   return (
-    <>
-      <Show when={centerMount()}>
-        {(mount) => (
-          <Portal mount={mount()}>
-            <SessionTitleControl />
-          </Portal>
-        )}
-      </Show>
-
-      <Show when={rightMount()}>
-        {(mount) => (
-          <Portal mount={mount()}>
-            <div class="flex items-center justify-end gap-2 min-w-0">
+    <div class="flex items-center justify-end gap-2 min-w-0">
         <Show when={projectDirectory()}>
           <div class="hidden xl:flex items-center">
             <Show
@@ -484,10 +450,22 @@ export function SessionHeader() {
             />
           </div>
         </div>
-      </div>
-          </Portal>
-        )}
-      </Show>
-    </>
+    </div>
   )
+}
+
+export function SessionHeader() {
+  const slots = useLayoutHeaderSlots()
+
+  createEffect(() => {
+    slots.setMainCenter(<SessionTitleControl />)
+    slots.setMainTrailing(<SessionHeaderTrailingControls />)
+  })
+
+  onCleanup(() => {
+    slots.setMainCenter(undefined)
+    slots.setMainTrailing(undefined)
+  })
+
+  return null
 }

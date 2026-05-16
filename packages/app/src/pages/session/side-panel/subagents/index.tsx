@@ -108,11 +108,7 @@ export function SessionSubagentsPanel(props: { sessionID?: string }) {
     <div id="subagents-panel" class="size-full min-w-0 overflow-auto bg-background-stronger">
       <div class="min-w-0">
         <div class="sticky top-0 z-10 app-inner-border-b bg-background-stronger px-4 py-3">
-          <div class="flex items-center gap-2 text-14-medium text-text-strong">
-            <Icon name="branch" size="small" class="text-icon-base" />
-            {language.t("session.subagents.title")}
-          </div>
-          <div class="mt-2 grid grid-cols-5 gap-2 text-11-regular text-text-weak">
+          <div class="grid grid-cols-5 gap-2 text-11-regular text-text-weak">
             <div>
               <div class="text-13-medium text-text-base">{model().summary.graphs}</div>
               <div>{language.t("session.subagents.summary.graphs")}</div>

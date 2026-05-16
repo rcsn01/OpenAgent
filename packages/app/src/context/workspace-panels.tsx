@@ -9,6 +9,8 @@ export type WorkspaceRightPanel = {
   kind: WorkspaceRightPanelKind
   id: string
   label: string
+  header?: JSX.Element
+  headerClass?: string
   open: Accessor<boolean>
   targetWidth: Accessor<number>
   content: JSX.Element

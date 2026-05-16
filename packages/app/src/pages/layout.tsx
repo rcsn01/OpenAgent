@@ -12,6 +12,7 @@ import {
   Show,
   untrack,
   type Accessor,
+  type JSX,
 } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useNavigate } from "@solidjs/router"
@@ -58,7 +59,7 @@ import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
 import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
-import { Titlebar } from "@/components/titlebar"
+import { PanelHeader, TitlebarLeadingControls, TitlebarThemeSync } from "@/components/titlebar"
 import { DialogAutomations } from "@/components/dialog-automations"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
@@ -80,6 +81,7 @@ import {
 import { SidebarHub } from "./layout/sidebar-hub"
 import { ProjectActionsMenu } from "./layout/project-actions-menu"
 import { useLayoutDeepLinks } from "./layout/deep-link-handler"
+import { LayoutHeaderSlotsContext } from "./layout/header-slots"
 import { createWorkspaceProjectState } from "./layout/workspace-project-state"
 import { WorkspaceRightPanelHost } from "./layout/workspace-right-panel-host"
 import {
@@ -197,6 +199,10 @@ export default function Layout(props: ParentProps) {
     makeEventListener(window, "pointerup", stop)
     makeEventListener(window, "pointercancel", stop)
     makeEventListener(window, "blur", stop)
+
+    const desktopMedia = window.matchMedia("(min-width: 1280px)")
+    setDesktopPanels(desktopMedia.matches)
+    makeEventListener(desktopMedia, "change", (event) => setDesktopPanels(event.matches))
   })
 
   const sidebarHovering = createMemo(() => false)
@@ -207,6 +213,15 @@ export default function Layout(props: ParentProps) {
     setRightPanel: (panel: WorkspaceRightPanel) => setWorkspaceRightPanelSlot(panel),
     clearRightPanel: () => setWorkspaceRightPanelSlot(undefined),
   }
+  const [mainHeaderCenter, setMainHeaderCenter] = createSignal<JSX.Element>()
+  const [mainHeaderTrailing, setMainHeaderTrailing] = createSignal<JSX.Element>()
+  const headerSlots = {
+    setMainCenter: (slot: JSX.Element | undefined) => setMainHeaderCenter(() => slot),
+    setMainTrailing: (slot: JSX.Element | undefined) => setMainHeaderTrailing(() => slot),
+  }
+  const [desktopPanels, setDesktopPanels] = createSignal(
+    typeof window === "undefined" ? true : window.matchMedia("(min-width: 1280px)").matches,
+  )
 
   createEffect(() => {
     if (!state.autoselect) return
@@ -2393,57 +2408,87 @@ export default function Layout(props: ParentProps) {
   const workspaceRightDividerWidth = createMemo(() =>
     workspaceRightPanel() ? WORKSPACE_PANEL_DIVIDER_WIDTH : 0,
   )
-  const workspaceSidebarVisibleWidth = createMemo(() => (layout.sidebar.opened() ? side() : 0))
+  const leftPanelVisible = createMemo(() => desktopPanels() && layout.sidebar.opened())
+  const workspaceSidebarVisibleWidth = createMemo(() => (leftPanelVisible() ? side() : 0))
 
   return (
-    <WorkspacePanelsContext.Provider value={workspacePanels}>
-      <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
-        <Titlebar embedded />
-        <div class="flex-1 min-h-0 min-w-0 flex overflow-hidden">
+    <LayoutHeaderSlotsContext.Provider value={headerSlots}>
+      <WorkspacePanelsContext.Provider value={workspacePanels}>
+        <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex overflow-hidden select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
+          <TitlebarThemeSync />
           {autoselecting() ?? ""}
           <div
-            class="hidden xl:block relative min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            class="hidden xl:flex flex-col h-full min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             style={{
               width: `${workspaceSidebarVisibleWidth()}px`,
             }}
           >
-            <nav
-              aria-label={language.t("sidebar.nav.projectsAndSessions")}
-              data-component="sidebar-nav-desktop"
-              class="absolute inset-y-0 left-0 z-10 transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-              classList={{
-                "translate-x-0 opacity-100 pointer-events-auto": layout.sidebar.opened(),
-                "-translate-x-3 opacity-0 pointer-events-none": !layout.sidebar.opened(),
-              }}
-              style={{ width: `${side()}px` }}
-              inert={!layout.sidebar.opened()}
-            >
-              <div class="@container box-border w-full h-full contain-strict flex flex-col bg-background-base">
-                {sidebarContent(true)}
-              </div>
-            </nav>
-            <Show when={layout.sidebar.opened()}>
-              <nav
-                class="absolute inset-y-0 right-0 z-30 w-0 overflow-visible"
-                onPointerDown={() => setState("sizing", true)}
-              >
-                <ResizeHandle
-                  direction="horizontal"
-                  size={layout.sidebar.width()}
-                  min={MIN_SIDEBAR_WIDTH}
-                  max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.3 + 64}
-                  onResize={(w) => {
-                    setState("sizing", true)
-                    if (sizet !== undefined) clearTimeout(sizet)
-                    sizet = window.setTimeout(() => setState("sizing", false), 120)
-                    layout.sidebar.resize(w)
-                  }}
+            <PanelHeader
+              class="bg-background-base"
+              reserveTrafficLights={leftPanelVisible()}
+              left={
+                <TitlebarLeadingControls
+                  showSidebarToggle={true}
+                  showNewSession={false}
+                  showNavigation={true}
+                  showMobileToggle={false}
+                  showChannelBadge={false}
                 />
+              }
+            />
+            <div class="relative flex-1 min-h-0 min-w-0 overflow-hidden">
+              <nav
+                aria-label={language.t("sidebar.nav.projectsAndSessions")}
+                data-component="sidebar-nav-desktop"
+                class="absolute inset-y-0 left-0 z-10 transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+                classList={{
+                  "translate-x-0 opacity-100 pointer-events-auto": layout.sidebar.opened(),
+                  "-translate-x-3 opacity-0 pointer-events-none": !layout.sidebar.opened(),
+                }}
+                style={{ width: `${side()}px` }}
+                inert={!layout.sidebar.opened()}
+              >
+                <div class="@container box-border w-full h-full contain-strict flex flex-col bg-background-base">
+                  {sidebarContent(true)}
+                </div>
               </nav>
-            </Show>
+              <Show when={layout.sidebar.opened()}>
+                <nav
+                  class="absolute inset-y-0 right-0 z-30 w-0 overflow-visible"
+                  onPointerDown={() => setState("sizing", true)}
+                >
+                  <ResizeHandle
+                    direction="horizontal"
+                    size={layout.sidebar.width()}
+                    min={MIN_SIDEBAR_WIDTH}
+                    max={typeof window === "undefined" ? 1000 : window.innerWidth * 0.3 + 64}
+                    onResize={(w) => {
+                      setState("sizing", true)
+                      if (sizet !== undefined) clearTimeout(sizet)
+                      sizet = window.setTimeout(() => setState("sizing", false), 120)
+                      layout.sidebar.resize(w)
+                    }}
+                  />
+                </nav>
+              </Show>
+            </div>
           </div>
-          <div class="hidden xl:block min-h-0 app-panel-divider-x" />
+          <div class="hidden xl:block h-full min-h-0 app-panel-divider-x" />
           <div class="flex-1 min-h-0 min-w-0 flex flex-col relative">
+            <PanelHeader
+              class="bg-background-base"
+              reserveTrafficLights={!leftPanelVisible()}
+              reserveWindowsControls={!workspaceRightPanelOpen()}
+              left={
+                <TitlebarLeadingControls
+                  showSidebarToggle={!leftPanelVisible()}
+                  showNewSession={!leftPanelVisible()}
+                  showNavigation={!leftPanelVisible()}
+                />
+              }
+              center={mainHeaderCenter()}
+              right={mainHeaderTrailing()}
+            />
             <div class="flex-1 min-h-0 relative overflow-x-hidden">
               <div class="xl:hidden">
                 <div
@@ -2506,7 +2551,7 @@ export default function Layout(props: ParentProps) {
             {import.meta.env.DEV && <DebugBar />}
           </div>
           <div
-            class="hidden xl:block min-h-0 app-panel-divider-x transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            class="hidden xl:block h-full min-h-0 app-panel-divider-x transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             classList={{
               "opacity-100": workspaceRightDividerWidth() > 0,
               "opacity-0": workspaceRightDividerWidth() === 0,
@@ -2518,7 +2563,7 @@ export default function Layout(props: ParentProps) {
             aria-label={workspaceRightPanel()?.label}
             aria-hidden={!workspaceRightPanelOpen()}
             inert={!workspaceRightPanelOpen()}
-            class="hidden xl:block relative min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            class="hidden xl:flex flex-col relative min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             classList={{
               "pointer-events-none": !workspaceRightPanelOpen(),
             }}
@@ -2526,15 +2571,22 @@ export default function Layout(props: ParentProps) {
               width: `${workspaceRightPanelVisibleWidth()}px`,
             }}
           >
-            <WorkspaceRightPanelHost
-              panel={workspaceRightPanel}
-              open={workspaceRightPanelOpen}
-              targetWidth={workspaceRightPanelTargetWidth}
+            <PanelHeader
+              class={workspaceRightPanel()?.headerClass ?? "bg-background-base"}
+              reserveWindowsControls={workspaceRightPanelOpen()}
+              left={workspaceRightPanel()?.header}
             />
+            <div class="relative flex-1 min-h-0 min-w-0 overflow-hidden bg-background-base">
+              <WorkspaceRightPanelHost
+                panel={workspaceRightPanel}
+                open={workspaceRightPanelOpen}
+                targetWidth={workspaceRightPanelTargetWidth}
+              />
+            </div>
           </aside>
+          <Toast.Region />
         </div>
-        <Toast.Region />
-      </div>
-    </WorkspacePanelsContext.Provider>
+      </WorkspacePanelsContext.Provider>
+    </LayoutHeaderSlotsContext.Provider>
   )
 }
