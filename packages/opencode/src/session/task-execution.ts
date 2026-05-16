@@ -80,9 +80,7 @@ export const layer = Layer.effect(
 
     const prepare: Interface["prepare"] = Effect.fn("TaskExecution.prepare")(function* (input) {
       const cfg = yield* config.get()
-      const message = yield* Effect.sync(() =>
-        MessageV2.get({ sessionID: input.parentSessionID, messageID: input.parentMessageID }),
-      )
+      const message = yield* MessageV2.get({ sessionID: input.parentSessionID, messageID: input.parentMessageID })
       if (message.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
       const assistant = message.info
 

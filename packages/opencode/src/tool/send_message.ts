@@ -85,7 +85,7 @@ export const SendMessageTool = Tool.define<
           const ops = ctx.extra?.promptOps as TaskPromptOps | undefined
           if (!ops) return yield* Effect.fail(new Error("send_message requires promptOps in ctx.extra"))
 
-          const current = yield* Effect.sync(() => MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }))
+          const current = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID })
           if (current.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
 
           const prepared = yield* execution.prepare({

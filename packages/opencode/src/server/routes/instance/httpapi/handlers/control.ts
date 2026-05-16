@@ -7,6 +7,7 @@ import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { RootHttpApi } from "../api"
 import { LogInput } from "../groups/control"
+import * as ApiError from "../errors"
 
 export const controlHandlers = HttpApiBuilder.group(RootHttpApi, "control", (handlers) =>
   Effect.gen(function* () {
@@ -43,13 +44,13 @@ export const controlHandlers = HttpApiBuilder.group(RootHttpApi, "control", (han
     const experimentalChatGet = Effect.fn("ControlHttpApi.experimentalChatGet")(function* (ctx: {
       params: { sessionID: SessionID }
     }) {
-      return yield* generalChat.get(ctx.params.sessionID)
+      return yield* generalChat.get(ctx.params.sessionID).pipe(Effect.mapError((error) => ApiError.notFound(error.message)))
     })
 
     const experimentalChatDelete = Effect.fn("ControlHttpApi.experimentalChatDelete")(function* (ctx: {
       params: { sessionID: SessionID }
     }) {
-      yield* generalChat.delete(ctx.params.sessionID)
+      yield* generalChat.delete(ctx.params.sessionID).pipe(Effect.mapError((error) => ApiError.notFound(error.message)))
       return true
     })
 

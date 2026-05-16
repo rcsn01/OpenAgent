@@ -5,17 +5,25 @@ type Toast = {
   error: (err: unknown) => void
 }
 
+type FocusableSelectionTarget = {
+  hasSelection: () => boolean
+}
+
 type Renderer = {
-  getSelection: () => { getSelectedText: () => string } | null
+  getSelection: () => { getSelectedText: () => string; selectedRenderables: FocusableSelectionTarget[] } | null
   clearSelection: () => void
+  currentFocusedRenderable?: FocusableSelectionTarget | null
 }
 
-type Selection = {
-  getSelectedText: () => string
+type SelectionKeyEvent = {
+  ctrl?: boolean
+  name: string
+  preventDefault: () => void
+  stopPropagation: () => void
 }
 
-export function copySelection(selection: Selection | null, renderer: Pick<Renderer, "clearSelection">, toast: Toast): boolean {
-  const text = selection?.getSelectedText()
+export function copy(renderer: Renderer, toast: Toast): boolean {
+  const text = renderer.getSelection()?.getSelectedText()
   if (!text) return false
 
   Clipboard.copy(text)
@@ -26,7 +34,32 @@ export function copySelection(selection: Selection | null, renderer: Pick<Render
   return true
 }
 
-export function copy(renderer: Renderer, toast: Toast): boolean {
-  return copySelection(renderer.getSelection(), renderer, toast)
+export function handleSelectionKey(renderer: Renderer, toast: Toast, event: SelectionKeyEvent) {
+  const selection = renderer.getSelection()
+  if (!selection) return
+
+  if (event.ctrl && event.name === "c") {
+    if (!copy(renderer, toast)) {
+      renderer.clearSelection()
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
+  if (event.name === "escape") {
+    renderer.clearSelection()
+    event.preventDefault()
+    event.stopPropagation()
+    return
+  }
+
+  const focus = renderer.currentFocusedRenderable
+  if (focus?.hasSelection() && selection.selectedRenderables.includes(focus)) return
+
+  renderer.clearSelection()
 }
+
 export * as Selection from "./selection"

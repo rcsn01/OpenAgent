@@ -37,6 +37,10 @@ function formatTime(value?: number) {
   })
 }
 
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
 function compactRelativeTime(value?: number) {
   if (!value) return ""
   const diff = Math.max(0, Date.now() - value)
@@ -111,7 +115,7 @@ export function DialogAutomations(props: {
       const current = editing()
       if (!current) return []
       return client()
-        .automation.runs({ automationID: current.id, limit: 20 })
+        .automation.runs({ automationID: current.id, limit: "20" })
         .then((x) => x.data ?? [])
     },
     enabled: !!editing()?.id,
@@ -233,17 +237,17 @@ export function DialogAutomations(props: {
           automationID: current.id,
           name: snapshot.name,
           prompt: snapshot.prompt,
-          directory: snapshot.directory,
+          body_directory: snapshot.directory,
           schedule: snapshot.schedule,
           status: snapshot.status,
-          model: snapshot.model ?? null,
-          variant: snapshot.variant ?? null,
+          model: snapshot.model,
+          variant: snapshot.variant,
         })
       }
       return client().automation.create({
         name: snapshot.name,
         prompt: snapshot.prompt,
-        directory: snapshot.directory,
+        body_directory: snapshot.directory,
         schedule: snapshot.schedule,
         status: snapshot.status,
         model: snapshot.model,
@@ -570,8 +574,8 @@ export function DialogAutomations(props: {
                       </button>
                     </div>
                   </div>
-                  {detailRow("Next run", editing() ? formatTime(editing()!.nextRunAt) : "After creation")}
-                  {detailRow("Last ran", formatTime(editing()?.lastRunAt))}
+                  {detailRow("Next run", editing() ? formatTime(finiteNumber(editing()!.nextRunAt)) : "After creation")}
+                  {detailRow("Last ran", formatTime(finiteNumber(editing()?.lastRunAt)))}
                 </div>
               </section>
 
@@ -761,7 +765,7 @@ export function DialogAutomations(props: {
                             </span>
                           </span>
                           <span class="shrink-0 text-13-regular text-text-weak">
-                            {compactRelativeTime(run.completedAt ?? run.startedAt)}
+                            {compactRelativeTime(finiteNumber(run.completedAt) ?? finiteNumber(run.startedAt))}
                           </span>
                         </button>
                       )}

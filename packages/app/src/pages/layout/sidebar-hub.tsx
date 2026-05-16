@@ -388,7 +388,7 @@ export const SidebarHub = (props: {
   const otherProjects = createMemo(() => visibleProjects().filter((project) => !project.pinned))
 
   return (
-    <div class="flex h-full min-h-0 w-full min-w-0 flex-col border-r border-border-weaker-base bg-background-base px-2 pb-3 pt-2">
+    <div class="flex flex-1 min-h-0 w-full min-w-0 flex-col border-r border-border-weaker-base bg-background-base px-2 pb-3 pt-2">
       <div class={`shrink-0 ${sidebarItemGapClass}`}>
         <SidebarAction icon="new-session" label="New session" onClick={props.onNewChat} />
         <SidebarAction icon="magnifying-glass" label="Search" onClick={props.onSearch} />

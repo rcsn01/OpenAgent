@@ -134,7 +134,12 @@ function View(props: { api: TuiPluginApi; session_id: string }) {
           }}
         </For>
         <text fg={theme().textMuted} wrapMode="word">
-          {props.api.keybind.print("session_child_first")} open first · click to inspect
+          {props.api.tuiConfig.keybinds
+            .get("session.child.first")
+            .map((binding) => props.api.keys.formatSequence(Array.from(props.api.keymap.parseKeySequence(binding.key))))
+            .filter(Boolean)
+            .join(", ")}{" "}
+          open first · click to inspect
         </text>
       </Show>
     </box>

@@ -3,12 +3,11 @@ import { Cause, Effect, Exit, Layer } from "effect"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { SessionTaskGraph } from "../../src/session/task-graph"
 import { SessionID } from "../../src/session/schema"
-import { Instance } from "../../src/project/instance"
-import { provideTmpdirInstance } from "../fixture/fixture"
+import { disposeAllInstances, provideTmpdirInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
 afterEach(async () => {
-  await Instance.disposeAll()
+  await disposeAllInstances()
 })
 
 function defer<T>() {

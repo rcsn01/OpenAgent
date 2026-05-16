@@ -4,7 +4,7 @@ import { $ } from "bun"
 import { Context, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
 import { InstanceState } from "@/effect/instance-state"
 import { Instance } from "../../src/project/instance"
-import { provideInstance, tmpdirScoped } from "../fixture/fixture"
+import { disposeAllInstances, provideInstance, reloadTestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 
 const it = testEffect(CrossSpawnSpawner.defaultLayer)
@@ -19,7 +19,7 @@ const tmpdirGitScoped = Effect.gen(function* () {
 })
 
 afterEach(async () => {
-  await Instance.disposeAll()
+  await disposeAllInstances()
 })
 
 it.live("InstanceState caches values per directory", () =>
@@ -69,7 +69,7 @@ it.live("InstanceState invalidates on reload", () =>
     )
 
     const a = yield* access(state, dir)
-    yield* Effect.promise(() => Instance.reload({ directory: dir }))
+    yield* Effect.promise(() => reloadTestInstance({ directory: dir }))
     const b = yield* access(state, dir)
 
     expect(a).not.toBe(b)
@@ -94,7 +94,7 @@ it.live("InstanceState invalidates on disposeAll", () =>
 
     yield* access(state, one)
     yield* access(state, two)
-    yield* Effect.promise(() => Instance.disposeAll())
+    yield* Effect.promise(disposeAllInstances)
 
     expect(seen.sort()).toEqual([one, two].sort())
   }),
@@ -159,7 +159,7 @@ it.live("InstanceState preserves directory across async boundaries", () =>
 
           return Test.of({
             get: Effect.fn("Test.get")(function* () {
-              yield* Effect.promise(() => Bun.sleep(1))
+              yield* Effect.sleep(Duration.millis(1))
               yield* Effect.sleep(Duration.millis(1))
               for (let i = 0; i < 100; i++) {
                 yield* Effect.yieldNow
@@ -168,7 +168,7 @@ it.live("InstanceState preserves directory across async boundaries", () =>
                 yield* Effect.promise(() => Promise.resolve())
               }
               yield* Effect.sleep(Duration.millis(2))
-              yield* Effect.promise(() => Bun.sleep(1))
+              yield* Effect.sleep(Duration.millis(1))
               return yield* InstanceState.get(state)
             }),
           })
@@ -212,7 +212,7 @@ it.live("InstanceState survives high-contention concurrent access", () =>
           return Test.of({
             get: Effect.fn("Test.get")(function* () {
               for (let i = 0; i < 10; i++) {
-                yield* Effect.promise(() => Bun.sleep(Math.random() * 3))
+                yield* Effect.sleep(Duration.millis(Math.random() * 3))
                 yield* Effect.yieldNow
                 yield* Effect.promise(() => Promise.resolve())
               }
@@ -248,8 +248,8 @@ it.live("InstanceState correct after interleaved init and dispose", () =>
         Test,
         Effect.gen(function* () {
           const state = yield* InstanceState.make((ctx) =>
-            Effect.promise(async () => {
-              await Bun.sleep(5)
+            Effect.gen(function* () {
+              yield* Effect.sleep(Duration.millis(5))
               return ctx.directory
             }),
           )
@@ -269,7 +269,7 @@ it.live("InstanceState correct after interleaved init and dispose", () =>
 
       const [, b] = yield* Effect.all(
         [
-          Effect.promise(() => Instance.reload({ directory: one })),
+          Effect.promise(() => reloadTestInstance({ directory: one })),
           Test.use((svc) => svc.get()).pipe(provideInstance(two)),
         ],
         { concurrency: "unbounded" },
@@ -305,9 +305,9 @@ it.live("InstanceState dedupes concurrent lookups", () =>
     const dir = yield* tmpdirScoped()
     let n = 0
     const state = yield* InstanceState.make(() =>
-      Effect.promise(async () => {
+      Effect.gen(function* () {
         n += 1
-        await Bun.sleep(10)
+        yield* Effect.sleep(Duration.millis(10))
         return { n }
       }),
     )

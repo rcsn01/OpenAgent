@@ -4,6 +4,7 @@ import { ProviderID } from "@/provider/schema"
 import { SessionID } from "@/session/schema"
 import { Schema } from "effect"
 import { HttpApi, HttpApiEndpoint, HttpApiError, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
+import { ApiNotFoundError } from "../errors"
 import { described } from "./metadata"
 
 const AuthParams = Schema.Struct({
@@ -95,7 +96,7 @@ export const ControlApi = HttpApi.make("control").add(
       HttpApiEndpoint.get("experimentalChatGet", ControlPaths.experimentalChatByID, {
         params: Schema.Struct({ sessionID: SessionID }),
         success: described(GeneralChat.Info, "General chat"),
-        error: HttpApiError.BadRequest,
+        error: [HttpApiError.BadRequest, ApiNotFoundError],
       }).annotateMerge(
         OpenApi.annotations({
           identifier: "experimental.chat.get",
@@ -106,7 +107,7 @@ export const ControlApi = HttpApi.make("control").add(
       HttpApiEndpoint.delete("experimentalChatDelete", ControlPaths.experimentalChatByID, {
         params: Schema.Struct({ sessionID: SessionID }),
         success: described(Schema.Boolean, "General chat deleted"),
-        error: HttpApiError.BadRequest,
+        error: [HttpApiError.BadRequest, ApiNotFoundError],
       }).annotateMerge(
         OpenApi.annotations({
           identifier: "experimental.chat.delete",

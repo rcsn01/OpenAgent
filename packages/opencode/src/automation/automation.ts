@@ -51,8 +51,8 @@ const ScheduleSchema = z.discriminatedUnion("type", [DailySchedule, WeeklySchedu
 const StatusSchema = z.enum(["active", "paused"])
 const RunStatusSchema = z.enum(["running", "succeeded", "failed", "cancelled"])
 const ModelSchema = z.object({
-  providerID: ProviderID.zod,
-  modelID: ModelID.zod,
+  providerID: z.string().transform((x) => ProviderID.make(x)),
+  modelID: z.string().transform((x) => ModelID.make(x)),
 })
 
 export namespace Automation {
@@ -62,7 +62,7 @@ export namespace Automation {
 
   export const Info = z.object({
     id: AutomationID,
-    projectID: ProjectID.zod.optional(),
+    projectID: z.string().transform((x) => ProjectID.make(x)).optional(),
     directory: z.string(),
     name: z.string(),
     prompt: z.string(),
@@ -83,7 +83,7 @@ export namespace Automation {
     id: AutomationRunID,
     automationID: AutomationID,
     directory: z.string().optional(),
-    sessionID: SessionID.zod.optional(),
+    sessionID: z.string().transform((x) => SessionID.make(x)).optional(),
     status: RunStatusSchema,
     error: z.string().optional(),
     startedAt: z.number(),
@@ -183,7 +183,7 @@ function toInfo(row: AutomationRow): Automation.Info {
     status: row.status,
     model:
       row.model_provider_id && row.model_id
-        ? { providerID: ProviderID.zod.parse(row.model_provider_id), modelID: ModelID.zod.parse(row.model_id) }
+        ? { providerID: ProviderID.make(row.model_provider_id), modelID: ModelID.make(row.model_id) }
         : undefined,
     variant: row.variant ?? undefined,
     nextRunAt: row.next_run_at,
@@ -493,4 +493,8 @@ export const layer = Layer.effect(
   }),
 )
 
-export const defaultLayer = layer
+export const defaultLayer = layer.pipe(
+  Layer.provide(Project.defaultLayer),
+  Layer.provide(Session.defaultLayer),
+  Layer.provide(SessionPrompt.defaultLayer),
+)

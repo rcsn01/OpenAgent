@@ -25,7 +25,7 @@ describe("pickDirectoriesToEvict", () => {
 
 describe("loadRootSessionsWithFallback", () => {
   test("uses limited roots query when supported", async () => {
-    const calls: Array<{ directory: string; roots: true; limit?: number; excludeAutomation?: true }> = []
+    const calls: Array<{ directory: string; roots: true; limit?: number; excludeAutomation?: "true" }> = []
 
     const result = await loadRootSessionsWithFallback({
       directory: "dir",
@@ -38,11 +38,11 @@ describe("loadRootSessionsWithFallback", () => {
 
     expect(result.data).toEqual([])
     expect(result.limited).toBe(true)
-    expect(calls).toEqual([{ directory: "dir", roots: true, limit: 10, excludeAutomation: true }])
+    expect(calls).toEqual([{ directory: "dir", roots: true, limit: 10, excludeAutomation: "true" }])
   })
 
   test("falls back to full roots query on limited-query failure", async () => {
-    const calls: Array<{ directory: string; roots: true; limit?: number; excludeAutomation?: true }> = []
+    const calls: Array<{ directory: string; roots: true; limit?: number; excludeAutomation?: "true" }> = []
 
     const result = await loadRootSessionsWithFallback({
       directory: "dir",
@@ -57,8 +57,8 @@ describe("loadRootSessionsWithFallback", () => {
     expect(result.data).toEqual([])
     expect(result.limited).toBe(false)
     expect(calls).toEqual([
-      { directory: "dir", roots: true, limit: 25, excludeAutomation: true },
-      { directory: "dir", roots: true, excludeAutomation: true },
+      { directory: "dir", roots: true, limit: 25, excludeAutomation: "true" },
+      { directory: "dir", roots: true, excludeAutomation: "true" },
     ])
   })
 })

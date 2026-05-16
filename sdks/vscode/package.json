@@ -2,7 +2,7 @@
   "name": "openagent",
   "displayName": "OpenAgent",
   "description": "OpenAgent for VS Code",
-  "version": "1.14.31",
+  "version": "1.15.0",
   "publisher": "rcsn01",
   "repository": {
     "type": "git",

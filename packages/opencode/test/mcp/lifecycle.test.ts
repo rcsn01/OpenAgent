@@ -1,14 +1,15 @@
-import { test, expect, mock, beforeEach } from "bun:test"
-import { Effect, Layer, Stream } from "effect"
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
+import { expect, mock, beforeEach } from "bun:test"
+import { Effect, Exit } from "effect"
 import type { MCP as MCPNS } from "../../src/mcp/index"
+import { testEffect } from "../lib/effect"
 
 // --- Mock infrastructure ---
 
 // Per-client state for controlling mock behavior
 interface MockClientState {
-  tools: Array<{ name: string; description?: string; inputSchema: object }>
+  tools: Array<{ name: string; description?: string; inputSchema: object; outputSchema?: object }>
   listToolsCalls: number
+  requestCalls: number
   listToolsShouldFail: boolean
   listToolsError: string
   listPromptsShouldFail: boolean
@@ -24,15 +25,10 @@ let lastCreatedClientName: string | undefined
 let connectShouldFail = false
 let connectShouldHang = false
 let connectError = "Mock transport cannot connect"
-let connectFailuresRemaining = 0
 // Tracks how many Client instances were created (detects leaks)
 let clientCreateCount = 0
 // Tracks how many times transport.close() is called across all mock transports
 let transportCloseCount = 0
-const httpTransportCalls: Array<{ url: string }> = []
-const spawnCalls: Array<{ command: string; args: string[]; env: Record<string, string> | undefined }> = []
-let spawnKillCount = 0
-let mockedPort = 43123
 
 function getOrCreateClientState(name?: string): MockClientState {
   const key = name ?? "default"
@@ -41,6 +37,7 @@ function getOrCreateClientState(name?: string): MockClientState {
     state = {
       tools: [{ name: "test_tool", description: "A test tool", inputSchema: { type: "object", properties: {} } }],
       listToolsCalls: 0,
+      requestCalls: 0,
       listToolsShouldFail: false,
       listToolsError: "listTools failed",
       listPromptsShouldFail: false,
@@ -64,10 +61,6 @@ class MockStdioTransport {
   async start() {
     if (connectShouldHang) return new Promise<void>(() => {}) // never resolves
     if (connectShouldFail) throw new Error(connectError)
-    if (connectFailuresRemaining > 0) {
-      connectFailuresRemaining--
-      throw new Error(connectError)
-    }
   }
   async close() {
     transportCloseCount++
@@ -76,16 +69,10 @@ class MockStdioTransport {
 
 class MockStreamableHTTP {
   // oxlint-disable-next-line no-useless-constructor
-  constructor(url: URL, _opts?: any) {
-    httpTransportCalls.push({ url: url.toString() })
-  }
+  constructor(_url: URL, _opts?: any) {}
   async start() {
     if (connectShouldHang) return new Promise<void>(() => {}) // never resolves
     if (connectShouldFail) throw new Error(connectError)
-    if (connectFailuresRemaining > 0) {
-      connectFailuresRemaining--
-      throw new Error(connectError)
-    }
   }
   async close() {
     transportCloseCount++
@@ -125,21 +112,6 @@ void mock.module("@modelcontextprotocol/sdk/client/auth.js", () => ({
   },
 }))
 
-void mock.module("net", () => ({
-  createServer: () => {
-    let port = mockedPort
-    return {
-      address: () => ({ port }),
-      close: (callback?: (error?: Error) => void) => callback?.(),
-      listen: (_port: number, _host: string, callback?: () => void) => {
-        port = mockedPort
-        callback?.()
-      },
-      once: () => undefined,
-    }
-  },
-}))
-
 // Mock Client that delegates to per-name MockClientState
 void mock.module("@modelcontextprotocol/sdk/client/index.js", () => ({
   Client: class MockClient {
@@ -169,6 +141,12 @@ void mock.module("@modelcontextprotocol/sdk/client/index.js", () => ({
       return { tools: this._state?.tools ?? [] }
     }
 
+    async request(request: { method: string }, schema: { parse: (value: unknown) => unknown }) {
+      if (this._state) this._state.requestCalls++
+      if (request.method === "tools/list") return schema.parse({ tools: this._state?.tools ?? [] })
+      throw new Error(`unsupported request: ${request.method}`)
+    }
+
     async listPrompts() {
       if (this._state?.listPromptsShouldFail) {
         throw new Error("listPrompts failed")
@@ -195,256 +173,101 @@ beforeEach(() => {
   connectShouldFail = false
   connectShouldHang = false
   connectError = "Mock transport cannot connect"
-  connectFailuresRemaining = 0
   clientCreateCount = 0
   transportCloseCount = 0
-  httpTransportCalls.length = 0
-  spawnCalls.length = 0
-  spawnKillCount = 0
-  mockedPort = 43123
 })
 
 // Import after mocks
 const { MCP } = await import("../../src/mcp/index")
-const { Bus } = await import("../../src/bus")
-const { Config } = await import("../../src/config/config")
-const { McpAuth } = await import("../../src/mcp/auth")
-const { Instance } = await import("../../src/project/instance")
-const { tmpdir } = await import("../fixture/fixture")
-const { AppFileSystem } = await import("@opencode-ai/core/filesystem")
+const { McpOAuthCallback } = await import("../../src/mcp/oauth-callback")
 
-// --- Helper ---
+const it = testEffect(MCP.defaultLayer)
 
-function withInstance(
-  config: Record<string, unknown>,
-  fn: (mcp: MCPNS.Interface) => Effect.Effect<void, unknown, never>,
-  layer = MCP.defaultLayer,
-) {
-  return async () => {
-    await using tmp = await tmpdir({
-      init: async (dir) => {
-        await Bun.write(
-          `${dir}/opencode.json`,
-          JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
-            mcp: config,
-          }),
-        )
-      },
-    })
-
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        await Effect.runPromise(MCP.Service.use(fn).pipe(Effect.provide(layer)))
-        // dispose instance to clean up state between tests
-        await Instance.dispose()
-      },
-    })
-  }
+function statusName(status: Record<string, MCPNS.Status> | MCPNS.Status, server: string) {
+  if ("status" in status) return status.status
+  return status[server]?.status
 }
-
-function mockSpawner() {
-  return Layer.succeed(
-    ChildProcessSpawner.ChildProcessSpawner,
-    ChildProcessSpawner.make((command) => {
-      const std = ChildProcess.isStandardCommand(command) ? command : undefined
-      spawnCalls.push({
-        command: std?.command ?? "",
-        args: std?.args ? [...std.args] : [],
-        env: (std as any)?.options?.env ? { ...((std as any).options.env as Record<string, string>) } : undefined,
-      })
-
-      return Effect.succeed(
-        ChildProcessSpawner.makeHandle({
-          pid: ChildProcessSpawner.ProcessId(43210),
-          exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
-          isRunning: Effect.succeed(true),
-          kill: () => {
-            spawnKillCount++
-            return Effect.void
-          },
-          stdin: { [Symbol.for("effect/Sink/TypeId")]: Symbol.for("effect/Sink/TypeId") } as any,
-          stdout: Stream.empty,
-          stderr: Stream.empty,
-          all: Stream.empty,
-          getInputFd: () => ({ [Symbol.for("effect/Sink/TypeId")]: Symbol.for("effect/Sink/TypeId") }) as any,
-          getOutputFd: () => Stream.empty,
-          unref: Effect.succeed(Effect.void),
-        }),
-      )
-    }),
-  )
-}
-
-const localHttpLayer = MCP.layer.pipe(
-  Layer.provide(McpAuth.defaultLayer),
-  Layer.provide(Bus.layer),
-  Layer.provide(Config.defaultLayer),
-  Layer.provide(mockSpawner()),
-  Layer.provide(AppFileSystem.defaultLayer),
-)
 
 // ========================================================================
 // Test: tools() are cached after connect
 // ========================================================================
 
-test(
+it.instance(
   "tools() reuses cached tool definitions after connect",
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      lastCreatedClientName = "my-server"
-      const serverState = getOrCreateClientState("my-server")
-      serverState.tools = [
-        { name: "do_thing", description: "does a thing", inputSchema: { type: "object", properties: {} } },
-      ]
-
-      // First: add the server successfully
-      const addResult = yield* mcp.add("my-server", {
-        type: "local",
-        command: ["echo", "test"],
-      })
-      expect((addResult.status as any)["my-server"]?.status ?? (addResult.status as any).status).toBe("connected")
-
-      expect(serverState.listToolsCalls).toBe(1)
-
-      const toolsA = yield* mcp.tools()
-      const toolsB = yield* mcp.tools()
-      expect(Object.keys(toolsA).length).toBeGreaterThan(0)
-      expect(Object.keys(toolsB).length).toBeGreaterThan(0)
-      expect(serverState.listToolsCalls).toBe(1)
-    }),
-  ),
-)
-
-test(
-  "built-in computer use MCP exposes setup-aware native tools on macOS",
-  withInstance(
-    {
-      computer_use: {
-        type: "builtin",
-        id: "computer-use",
-      },
-    },
-    (mcp) =>
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
-        const status = yield* mcp.status()
-
-        if (process.platform !== "darwin") {
-          expect(status.computer_use?.status).toBe("failed")
-          return
-        }
-
-        expect(status.computer_use?.status).toBe("connected")
-        const definitions = yield* mcp.definitions()
-        expect(definitions.computer_use?.map((tool) => tool.name)).toEqual([
-          "list_apps",
-          "get_app_state",
-          "click",
-          "perform_secondary_action",
-          "scroll",
-          "drag",
-          "type_text",
-          "press_key",
-          "set_value",
-        ])
-
-        const tools = yield* mcp.tools()
-        expect(Object.keys(tools)).toContain("computer_use_list_apps")
-        const result = yield* Effect.promise(() =>
-          tools.computer_use_list_apps!.execute!({}, { toolCallId: "test", messages: [] } as any),
-        )
-        expect(result).toMatchObject({
-          isError: true,
-          content: [{ type: "text", text: expect.stringContaining("native OpenAgent desktop bridge") }],
-        })
-      }),
-  ),
-)
-
-test(
-  "MCP tool filters hide disallowed tools from definitions and tools()",
-  withInstance(
-    {
-      filtered: {
-        type: "local",
-        command: ["echo", "test"],
-        tool_filter: {
-          allow_prefixes: ["mail_", "calendar_"],
-          deny_prefixes: ["calendar_delete"],
-        },
-      },
-    },
-    (mcp) =>
-      Effect.gen(function* () {
-        lastCreatedClientName = "filtered"
-        const serverState = getOrCreateClientState("filtered")
+        lastCreatedClientName = "my-server"
+        const serverState = getOrCreateClientState("my-server")
         serverState.tools = [
-          { name: "mail_read", description: "read", inputSchema: { type: "object", properties: {} } },
-          { name: "calendar_list", description: "list", inputSchema: { type: "object", properties: {} } },
-          { name: "calendar_delete", description: "delete", inputSchema: { type: "object", properties: {} } },
-          { name: "teams_send", description: "send", inputSchema: { type: "object", properties: {} } },
+          { name: "do_thing", description: "does a thing", inputSchema: { type: "object", properties: {} } },
         ]
 
-        yield* mcp.connect("filtered")
+        // First: add the server successfully
+        const addResult = yield* mcp.add("my-server", {
+          type: "local",
+          command: ["echo", "test"],
+        })
+        expect((addResult.status as any)["my-server"]?.status ?? (addResult.status as any).status).toBe("connected")
 
-        const definitions = yield* mcp.definitions()
-        expect(definitions.filtered?.map((tool) => tool.name)).toEqual(["mail_read", "calendar_list"])
+        expect(serverState.listToolsCalls).toBe(1)
 
-        const tools = yield* mcp.tools()
-        expect(Object.keys(tools)).toEqual(["filtered_mail_read", "filtered_calendar_list"])
+        const toolsA = yield* mcp.tools()
+        const toolsB = yield* mcp.tools()
+        expect(Object.keys(toolsA).length).toBeGreaterThan(0)
+        expect(Object.keys(toolsB).length).toBeGreaterThan(0)
+        expect(serverState.listToolsCalls).toBe(1)
       }),
-  ),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: tool change notifications refresh the cache
 // ========================================================================
 
-test(
+it.instance(
   "tool change notifications refresh cached tool definitions",
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      lastCreatedClientName = "status-server"
-      const serverState = getOrCreateClientState("status-server")
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "status-server"
+        const serverState = getOrCreateClientState("status-server")
 
-      yield* mcp.add("status-server", {
-        type: "local",
-        command: ["echo", "test"],
-      })
+        yield* mcp.add("status-server", {
+          type: "local",
+          command: ["echo", "test"],
+        })
 
-      const before = yield* mcp.tools()
-      expect(Object.keys(before).some((key) => key.includes("test_tool"))).toBe(true)
-      expect(serverState.listToolsCalls).toBe(1)
+        const before = yield* mcp.tools()
+        expect(Object.keys(before).some((key) => key.includes("test_tool"))).toBe(true)
+        expect(serverState.listToolsCalls).toBe(1)
 
-      serverState.tools = [{ name: "next_tool", description: "next", inputSchema: { type: "object", properties: {} } }]
+        serverState.tools = [
+          { name: "next_tool", description: "next", inputSchema: { type: "object", properties: {} } },
+        ]
 
-      const handler = Array.from(serverState.notificationHandlers.values())[0]
-      expect(handler).toBeDefined()
-      yield* Effect.promise(() => handler?.())
+        const handler = Array.from(serverState.notificationHandlers.values())[0]
+        expect(handler).toBeDefined()
+        yield* Effect.promise(() => handler?.())
 
-      const after = yield* mcp.tools()
-      expect(Object.keys(after).some((key) => key.includes("next_tool"))).toBe(true)
-      expect(Object.keys(after).some((key) => key.includes("test_tool"))).toBe(false)
-      expect(serverState.listToolsCalls).toBe(2)
-    }),
-  ),
+        const after = yield* mcp.tools()
+        expect(Object.keys(after).some((key) => key.includes("next_tool"))).toBe(true)
+        expect(Object.keys(after).some((key) => key.includes("test_tool"))).toBe(false)
+        expect(serverState.listToolsCalls).toBe(2)
+      }),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: connect() / disconnect() lifecycle
 // ========================================================================
 
-test(
+it.instance(
   "disconnect sets status to disabled and removes client",
-  withInstance(
-    {
-      "disc-server": {
-        type: "local",
-        command: ["echo", "test"],
-      },
-    },
-    (mcp) =>
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         lastCreatedClientName = "disc-server"
         getOrCreateClientState("disc-server")
@@ -462,24 +285,27 @@ test(
         const statusAfter = yield* mcp.status()
         expect(statusAfter["disc-server"]?.status).toBe("disabled")
 
-        // Tools should be empty after disconnect
         const tools = yield* mcp.tools()
         const serverTools = Object.keys(tools).filter((k) => k.startsWith("disc-server"))
         expect(serverTools.length).toBe(0)
       }),
-  ),
-)
-
-test(
-  "connect() after disconnect() re-establishes the server",
-  withInstance(
-    {
-      "reconn-server": {
-        type: "local",
-        command: ["echo", "test"],
+    ),
+  {
+    config: {
+      mcp: {
+        "disc-server": {
+          type: "local",
+          command: ["echo", "test"],
+        },
       },
     },
-    (mcp) =>
+  },
+)
+
+it.instance(
+  "connect() after disconnect() re-establishes the server",
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         lastCreatedClientName = "reconn-server"
         const serverState = getOrCreateClientState("reconn-server")
@@ -495,225 +321,71 @@ test(
         yield* mcp.disconnect("reconn-server")
         expect((yield* mcp.status())["reconn-server"]?.status).toBe("disabled")
 
-        // Reconnect
         yield* mcp.connect("reconn-server")
         expect((yield* mcp.status())["reconn-server"]?.status).toBe("connected")
 
         const tools = yield* mcp.tools()
         expect(Object.keys(tools).some((k) => k.includes("my_tool"))).toBe(true)
       }),
-  ),
-)
-
-test(
-  "connect() uses spawned streamable-http local MCPs and cleans them up on disconnect",
-  withInstance(
-    {},
-    (mcp) =>
-      Effect.gen(function* () {
-        lastCreatedClientName = "local-http-server"
-        getOrCreateClientState("local-http-server")
-
-        const added = yield* mcp.add("local-http-server", {
+    ),
+  {
+    config: {
+      mcp: {
+        "reconn-server": {
           type: "local",
-          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
-          transport: {
-            type: "streamable-http",
-            host: "127.0.0.1",
-            path: "/mcp",
-            portEnv: "WORKSPACE_MCP_PORT",
-          },
-          oauth: {},
-        } as any)
-
-        expect((added.status as Record<string, { status: string }>)["local-http-server"]?.status).toBe("connected")
-        expect(spawnCalls).toHaveLength(1)
-        expect(spawnCalls[0]?.command).toBe("uvx")
-        expect(spawnCalls[0]?.env?.WORKSPACE_MCP_PORT).toMatch(/^\d+$/)
-        expect(httpTransportCalls.some((call) => call.url.startsWith("http://127.0.0.1:") && call.url.endsWith("/mcp"))).toBe(
-          true,
-        )
-
-        yield* mcp.disconnect("local-http-server")
-
-        const clientsAfter = yield* mcp.clients()
-        expect(clientsAfter["local-http-server"]).toBeUndefined()
-        expect(spawnKillCount).toBeGreaterThanOrEqual(1)
-      }),
-    localHttpLayer,
-  ),
-)
-
-test(
-  "connect() marks local OAuth MCPs as needing setup when Google credentials are missing",
-  withInstance(
-    {},
-    (mcp) =>
-      Effect.gen(function* () {
-        const added = yield* mcp.add("local-http-missing-google-client", {
-          type: "local",
-          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
-          transport: {
-            type: "streamable-http",
-            host: "127.0.0.1",
-            path: "/mcp",
-            portEnv: "WORKSPACE_MCP_PORT",
-          },
-          oauth: {},
-          environment: {
-            MCP_ENABLE_OAUTH21: "true",
-            GOOGLE_OAUTH_CLIENT_ID: "",
-            GOOGLE_OAUTH_CLIENT_SECRET: "",
-          },
-        } as any)
-
-        expect((added.status as Record<string, { status: string }>)["local-http-missing-google-client"]?.status).toBe(
-          "needs_client_registration",
-        )
-        expect(spawnCalls).toHaveLength(0)
-      }),
-    localHttpLayer,
-  ),
-)
-
-test(
-  "connect() injects a stable signing key for local OAuth 2.1 MCPs",
-  withInstance(
-    {},
-    (mcp) =>
-      Effect.gen(function* () {
-        lastCreatedClientName = "local-http-public-pkce"
-        getOrCreateClientState("local-http-public-pkce")
-
-        const added = yield* mcp.add("local-http-public-pkce", {
-          type: "local",
-          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
-          transport: {
-            type: "streamable-http",
-            host: "127.0.0.1",
-            path: "/mcp",
-            portEnv: "WORKSPACE_MCP_PORT",
-          },
-          oauth: {},
-          environment: {
-            MCP_ENABLE_OAUTH21: "true",
-            GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
-            GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret",
-          },
-        } as any)
-
-        expect((added.status as Record<string, { status: string }>)["local-http-public-pkce"]?.status).toBe("connected")
-        const firstKey = spawnCalls[0]?.env?.FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY
-        expect(firstKey).toMatch(/^[a-f0-9]{64}$/)
-
-        yield* mcp.disconnect("local-http-public-pkce")
-        yield* mcp.add("local-http-public-pkce", {
-          type: "local",
-          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
-          transport: {
-            type: "streamable-http",
-            host: "127.0.0.1",
-            path: "/mcp",
-            portEnv: "WORKSPACE_MCP_PORT",
-          },
-          oauth: {},
-          environment: {
-            MCP_ENABLE_OAUTH21: "true",
-            GOOGLE_OAUTH_CLIENT_ID: "google-client-id",
-            GOOGLE_OAUTH_CLIENT_SECRET: "google-client-secret",
-          },
-        } as any)
-
-        expect(spawnCalls[1]?.env?.FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY).toBe(firstKey)
-      }),
-    localHttpLayer,
-  ),
-)
-
-test(
-  "connect() retries spawned streamable-http local MCPs until the server is ready",
-  withInstance(
-    {},
-    (mcp) =>
-      Effect.gen(function* () {
-        lastCreatedClientName = "local-http-retry-server"
-        getOrCreateClientState("local-http-retry-server")
-        connectFailuresRemaining = 2
-        connectError = "fetch failed\nCaused by: connect ECONNREFUSED 127.0.0.1:43123 failed"
-
-        const added = yield* mcp.add("local-http-retry-server", {
-          type: "local",
-          command: ["uvx", "workspace-mcp", "--transport", "streamable-http"],
-          transport: {
-            type: "streamable-http",
-            host: "127.0.0.1",
-            path: "/mcp",
-            portEnv: "WORKSPACE_MCP_PORT",
-          },
-          oauth: {},
-        } as any)
-
-        expect((added.status as Record<string, { status: string }>)["local-http-retry-server"]?.status).toBe("connected")
-        expect(httpTransportCalls.filter((call) => call.url.endsWith("/mcp"))).toHaveLength(3)
-      }),
-    localHttpLayer,
-  ),
+          command: ["echo", "test"],
+        },
+      },
+    },
+  },
 )
 
 // ========================================================================
 // Test: add() closes existing client before replacing
 // ========================================================================
 
-test(
+it.instance(
   "add() closes the old client when replacing a server",
   // Don't put the server in config — add it dynamically so we control
   // exactly which client instance is "first" vs "second".
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      lastCreatedClientName = "replace-server"
-      const firstState = getOrCreateClientState("replace-server")
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "replace-server"
+        const firstState = getOrCreateClientState("replace-server")
 
-      yield* mcp.add("replace-server", {
-        type: "local",
-        command: ["echo", "test"],
-      })
+        yield* mcp.add("replace-server", {
+          type: "local",
+          command: ["echo", "test"],
+        })
 
-      expect(firstState.closed).toBe(false)
+        expect(firstState.closed).toBe(false)
 
-      // Create new state for second client
-      clientStates.delete("replace-server")
-      const secondState = getOrCreateClientState("replace-server")
+        // Create new state for second client
+        clientStates.delete("replace-server")
+        const secondState = getOrCreateClientState("replace-server")
 
-      // Re-add should close the first client
-      yield* mcp.add("replace-server", {
-        type: "local",
-        command: ["echo", "test"],
-      })
+        // Re-add should close the first client
+        yield* mcp.add("replace-server", {
+          type: "local",
+          command: ["echo", "test"],
+        })
 
-      expect(firstState.closed).toBe(true)
-      expect(secondState.closed).toBe(false)
-    }),
-  ),
+        expect(firstState.closed).toBe(true)
+        expect(secondState.closed).toBe(false)
+      }),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: state init with mixed success/failure
 // ========================================================================
 
-test(
+it.instance(
   "init connects available servers even when one fails",
-  withInstance(
-    {
-      "good-server": {
-        type: "local",
-        command: ["echo", "good"],
-      },
-      "bad-server": {
-        type: "local",
-        command: ["echo", "bad"],
-      },
-    },
-    (mcp) =>
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         // Set up good server
         const goodState = getOrCreateClientState("good-server")
@@ -745,24 +417,88 @@ test(
         const tools = yield* mcp.tools()
         expect(Object.keys(tools).some((k) => k.includes("good_tool"))).toBe(true)
       }),
-  ),
+    ),
+  {
+    config: {
+      mcp: {
+        "good-server": {
+          type: "local",
+          command: ["echo", "good"],
+        },
+        "bad-server": {
+          type: "local",
+          command: ["echo", "bad"],
+        },
+      },
+    },
+  },
+)
+
+it.instance(
+  "falls back when MCP output schema refs fail SDK tool discovery",
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "stitch-like-server"
+        const serverState = getOrCreateClientState("stitch-like-server")
+        serverState.listToolsShouldFail = true
+        serverState.listToolsError = "can't resolve reference #/$defs/ScreenInstance from id #"
+        serverState.tools = [
+          {
+            name: "render_screen",
+            description: "renders a screen",
+            inputSchema: { type: "object", properties: { prompt: { type: "string" } }, required: ["prompt"] },
+            outputSchema: { type: "object", properties: { screen: { $ref: "#/$defs/ScreenInstance" } } },
+          },
+        ]
+
+        const addResult = yield* mcp.add("stitch-like-server", {
+          type: "local",
+          command: ["echo", "test"],
+        })
+
+        expect(statusName(addResult.status, "stitch-like-server")).toBe("connected")
+
+        const tools = yield* mcp.tools()
+        expect(Object.keys(tools).some((key) => key.includes("render_screen"))).toBe(true)
+        expect(serverState.listToolsCalls).toBe(1)
+        expect(serverState.requestCalls).toBe(1)
+      }),
+    ),
+  { config: { mcp: {} } },
+)
+
+it.instance(
+  "does not fall back for non-schema MCP tool discovery errors",
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "broken-server"
+        const serverState = getOrCreateClientState("broken-server")
+        serverState.listToolsShouldFail = true
+        serverState.listToolsError = "transport closed"
+
+        const addResult = yield* mcp.add("broken-server", {
+          type: "local",
+          command: ["echo", "test"],
+        })
+
+        expect(statusName(addResult.status, "broken-server")).toBe("failed")
+        expect(serverState.listToolsCalls).toBe(1)
+        expect(serverState.requestCalls).toBe(0)
+      }),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: disabled server via config
 // ========================================================================
 
-test(
+it.instance(
   "disabled server is marked as disabled without attempting connection",
-  withInstance(
-    {
-      "disabled-server": {
-        type: "local",
-        command: ["echo", "test"],
-        enabled: false,
-      },
-    },
-    (mcp) =>
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         const countBefore = clientCreateCount
 
@@ -778,23 +514,28 @@ test(
         const status = yield* mcp.status()
         expect(status["disabled-server"]?.status).toBe("disabled")
       }),
-  ),
+    ),
+  {
+    config: {
+      mcp: {
+        "disabled-server": {
+          type: "local",
+          command: ["echo", "test"],
+          enabled: false,
+        },
+      },
+    },
+  },
 )
 
 // ========================================================================
 // Test: prompts() and resources()
 // ========================================================================
 
-test(
+it.instance(
   "prompts() returns prompts from connected servers",
-  withInstance(
-    {
-      "prompt-server": {
-        type: "local",
-        command: ["echo", "test"],
-      },
-    },
-    (mcp) =>
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         lastCreatedClientName = "prompt-server"
         const serverState = getOrCreateClientState("prompt-server")
@@ -811,19 +552,23 @@ test(
         expect(key).toContain("prompt-server")
         expect(key).toContain("my-prompt")
       }),
-  ),
-)
-
-test(
-  "resources() returns resources from connected servers",
-  withInstance(
-    {
-      "resource-server": {
-        type: "local",
-        command: ["echo", "test"],
+    ),
+  {
+    config: {
+      mcp: {
+        "prompt-server": {
+          type: "local",
+          command: ["echo", "test"],
+        },
       },
     },
-    (mcp) =>
+  },
+)
+
+it.instance(
+  "resources() returns resources from connected servers",
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         lastCreatedClientName = "resource-server"
         const serverState = getOrCreateClientState("resource-server")
@@ -840,19 +585,23 @@ test(
         expect(key).toContain("resource-server")
         expect(key).toContain("my-resource")
       }),
-  ),
-)
-
-test(
-  "prompts() skips disconnected servers",
-  withInstance(
-    {
-      "prompt-disc-server": {
-        type: "local",
-        command: ["echo", "test"],
+    ),
+  {
+    config: {
+      mcp: {
+        "resource-server": {
+          type: "local",
+          command: ["echo", "test"],
+        },
       },
     },
-    (mcp) =>
+  },
+)
+
+it.instance(
+  "prompts() skips disconnected servers",
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         lastCreatedClientName = "prompt-disc-server"
         const serverState = getOrCreateClientState("prompt-disc-server")
@@ -868,67 +617,77 @@ test(
         const prompts = yield* mcp.prompts()
         expect(Object.keys(prompts).length).toBe(0)
       }),
-  ),
+    ),
+  {
+    config: {
+      mcp: {
+        "prompt-disc-server": {
+          type: "local",
+          command: ["echo", "test"],
+        },
+      },
+    },
+  },
 )
 
 // ========================================================================
 // Test: connect() on nonexistent server
 // ========================================================================
 
-test(
+it.instance(
   "connect() on nonexistent server does not throw",
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      // Should not throw
-      yield* mcp.connect("nonexistent")
-      const status = yield* mcp.status()
-      expect(status["nonexistent"]).toBeUndefined()
-    }),
-  ),
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        // Should not throw
+        yield* mcp.connect("nonexistent")
+        const status = yield* mcp.status()
+        expect(status["nonexistent"]).toBeUndefined()
+      }),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: disconnect() on nonexistent server
 // ========================================================================
 
-test(
+it.instance(
   "disconnect() on nonexistent server does not throw",
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      yield* mcp.disconnect("nonexistent")
-      // Should complete without error
-    }),
-  ),
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        yield* mcp.disconnect("nonexistent")
+        // Should complete without error
+      }),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: tools() with no MCP servers configured
 // ========================================================================
 
-test(
+it.instance(
   "tools() returns empty when no MCP servers are configured",
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      const tools = yield* mcp.tools()
-      expect(Object.keys(tools).length).toBe(0)
-    }),
-  ),
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        const tools = yield* mcp.tools()
+        expect(Object.keys(tools).length).toBe(0)
+      }),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: connect failure during create()
 // ========================================================================
 
-test(
+it.instance(
   "server that fails to connect is marked as failed",
-  withInstance(
-    {
-      "fail-connect": {
-        type: "local",
-        command: ["echo", "test"],
-      },
-    },
-    (mcp) =>
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         lastCreatedClientName = "fail-connect"
         getOrCreateClientState("fail-connect")
@@ -950,57 +709,55 @@ test(
         const tools = yield* mcp.tools()
         expect(Object.keys(tools).length).toBe(0)
       }),
-  ),
+    ),
+  {
+    config: {
+      mcp: {
+        "fail-connect": {
+          type: "local",
+          command: ["echo", "test"],
+        },
+      },
+    },
+  },
 )
 
 // ========================================================================
 // Bug #5: McpOAuthCallback.cancelPending uses wrong key
 // ========================================================================
 
-test("McpOAuthCallback.cancelPending is keyed by mcpName but pendingAuths uses oauthState", async () => {
-  const { McpOAuthCallback } = await import("../../src/mcp/oauth-callback")
+it.live("McpOAuthCallback.cancelPending is keyed by mcpName but pendingAuths uses oauthState", () =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => McpOAuthCallback.waitForCallback("abc123hexstate", "my-mcp-server")),
+    (callback) =>
+      Effect.gen(function* () {
+        McpOAuthCallback.cancelPending("my-mcp-server")
 
-  // Register a pending auth with an oauthState key, associated to an mcpName
-  const oauthState = "abc123hexstate"
-  const callbackPromise = McpOAuthCallback.waitForCallback(oauthState, "my-mcp-server")
+        const exit = yield* Effect.tryPromise({
+          try: () => callback,
+          catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+        }).pipe(
+          Effect.timeoutOrElse({
+            duration: "1 second",
+            orElse: () => Effect.fail(new Error("timed out waiting for OAuth cancellation")),
+          }),
+          Effect.exit,
+        )
 
-  // cancelPending is called with mcpName — should find the entry via reverse index
-  McpOAuthCallback.cancelPending("my-mcp-server")
-
-  // The callback should still be pending because cancelPending looked up
-  // "my-mcp-server" in a map keyed by "abc123hexstate"
-  let rejected = false
-  callbackPromise.then(() => {}).catch(() => (rejected = true))
-
-  // Give it a tick
-  await new Promise((r) => setTimeout(r, 50))
-
-  // cancelPending("my-mcp-server") should have rejected the pending callback
-  expect(rejected).toBe(true)
-
-  await McpOAuthCallback.stop()
-})
-
-test("McpOAuthCallback keeps browser OAuth state alive long enough for Google consent", async () => {
-  const { CALLBACK_TIMEOUT_MS } = await import("../../src/mcp/oauth-callback")
-
-  expect(CALLBACK_TIMEOUT_MS).toBeGreaterThanOrEqual(30 * 60 * 1000)
-})
+        expect(Exit.isFailure(exit)).toBe(true)
+      }),
+    () => Effect.promise(() => McpOAuthCallback.stop()).pipe(Effect.ignore),
+  ),
+)
 
 // ========================================================================
 // Test: multiple tools from same server get correct name prefixes
 // ========================================================================
 
-test(
+it.instance(
   "tools() prefixes tool names with sanitized server name",
-  withInstance(
-    {
-      "my.special-server": {
-        type: "local",
-        command: ["echo", "test"],
-      },
-    },
-    (mcp) =>
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
       Effect.gen(function* () {
         lastCreatedClientName = "my.special-server"
         const serverState = getOrCreateClientState("my.special-server")
@@ -1023,87 +780,103 @@ test(
         expect(keys.some((k) => k.endsWith("tool_b"))).toBe(true)
         expect(keys.length).toBe(2)
       }),
-  ),
+    ),
+  {
+    config: {
+      mcp: {
+        "my.special-server": {
+          type: "local",
+          command: ["echo", "test"],
+        },
+      },
+    },
+  },
 )
 
 // ========================================================================
 // Test: transport leak — local stdio timeout (#19168)
 // ========================================================================
 
-test(
+it.instance(
   "local stdio transport is closed when connect times out (no process leak)",
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      lastCreatedClientName = "hanging-server"
-      getOrCreateClientState("hanging-server")
-      connectShouldHang = true
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "hanging-server"
+        getOrCreateClientState("hanging-server")
+        connectShouldHang = true
 
-      const addResult = yield* mcp.add("hanging-server", {
-        type: "local",
-        command: ["node", "fake.js"],
-        timeout: 100,
-      })
+        const addResult = yield* mcp.add("hanging-server", {
+          type: "local",
+          command: ["node", "fake.js"],
+          timeout: 100,
+        })
 
-      const serverStatus = (addResult.status as any)["hanging-server"] ?? addResult.status
-      expect(serverStatus.status).toBe("failed")
-      expect(serverStatus.error).toContain("timed out")
-      // Transport must be closed to avoid orphaned child process
-      expect(transportCloseCount).toBeGreaterThanOrEqual(1)
-    }),
-  ),
+        const serverStatus = (addResult.status as any)["hanging-server"] ?? addResult.status
+        expect(serverStatus.status).toBe("failed")
+        expect(serverStatus.error).toContain("timed out")
+        // Transport must be closed to avoid orphaned child process
+        expect(transportCloseCount).toBeGreaterThanOrEqual(1)
+      }),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: transport leak — remote timeout (#19168)
 // ========================================================================
 
-test(
+it.instance(
   "remote transport is closed when connect times out",
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      lastCreatedClientName = "hanging-remote"
-      getOrCreateClientState("hanging-remote")
-      connectShouldHang = true
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "hanging-remote"
+        getOrCreateClientState("hanging-remote")
+        connectShouldHang = true
 
-      const addResult = yield* mcp.add("hanging-remote", {
-        type: "remote",
-        url: "http://localhost:9999/mcp",
-        timeout: 100,
-        oauth: false,
-      })
+        const addResult = yield* mcp.add("hanging-remote", {
+          type: "remote",
+          url: "http://localhost:9999/mcp",
+          timeout: 100,
+          oauth: false,
+        })
 
-      const serverStatus = (addResult.status as any)["hanging-remote"] ?? addResult.status
-      expect(serverStatus.status).toBe("failed")
-      // Transport must be closed to avoid leaked HTTP connections
-      expect(transportCloseCount).toBeGreaterThanOrEqual(1)
-    }),
-  ),
+        const serverStatus = (addResult.status as any)["hanging-remote"] ?? addResult.status
+        expect(serverStatus.status).toBe("failed")
+        // Transport must be closed to avoid leaked HTTP connections
+        expect(transportCloseCount).toBeGreaterThanOrEqual(1)
+      }),
+    ),
+  { config: { mcp: {} } },
 )
 
 // ========================================================================
 // Test: transport leak — failed remote transports not closed (#19168)
 // ========================================================================
 
-test(
+it.instance(
   "failed remote transport is closed before trying next transport",
-  withInstance({}, (mcp) =>
-    Effect.gen(function* () {
-      lastCreatedClientName = "fail-remote"
-      getOrCreateClientState("fail-remote")
-      connectShouldFail = true
-      connectError = "Connection refused"
+  () =>
+    MCP.Service.use((mcp: MCPNS.Interface) =>
+      Effect.gen(function* () {
+        lastCreatedClientName = "fail-remote"
+        getOrCreateClientState("fail-remote")
+        connectShouldFail = true
+        connectError = "Connection refused"
 
-      const addResult = yield* mcp.add("fail-remote", {
-        type: "remote",
-        url: "http://localhost:9999/mcp",
-        timeout: 5000,
-        oauth: false,
-      })
+        const addResult = yield* mcp.add("fail-remote", {
+          type: "remote",
+          url: "http://localhost:9999/mcp",
+          timeout: 5000,
+          oauth: false,
+        })
 
-      const serverStatus = (addResult.status as any)["fail-remote"] ?? addResult.status
-      expect(serverStatus.status).toBe("failed")
-      // Both StreamableHTTP and SSE transports should be closed
-      expect(transportCloseCount).toBeGreaterThanOrEqual(2)
-    }),
-  ),
+        const serverStatus = (addResult.status as any)["fail-remote"] ?? addResult.status
+        expect(serverStatus.status).toBe("failed")
+        // Both StreamableHTTP and SSE transports should be closed
+        expect(transportCloseCount).toBeGreaterThanOrEqual(2)
+      }),
+    ),
+  { config: { mcp: {} } },
 )

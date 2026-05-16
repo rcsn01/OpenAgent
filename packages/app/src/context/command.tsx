@@ -81,6 +81,7 @@ export interface CommandOption {
   slash?: SlashCommand
   suggested?: boolean
   disabled?: boolean
+  hidden?: boolean
   onSelect?: (source?: "palette" | "keybind" | "slash") => void
   onHighlight?: () => (() => void) | void
 }
@@ -93,6 +94,7 @@ export type CommandCatalogItem = {
   category?: string
   keybind?: KeybindConfig
   slash?: ResolvedSlashCommand
+  hidden?: boolean
 }
 
 export type SlashCommand = string | { name: string; aliases?: string[] }
@@ -317,13 +319,15 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
       setCatalog(
         registered().reduce((acc, opt) => {
           const id = actionId(opt.id)
-          acc[id] = {
-            title: opt.title,
-            description: opt.description,
-            category: opt.category,
-            keybind: opt.keybind,
-            slash: normalizeSlash(opt.slash),
-          }
+          if (opt.title)
+            acc[id] = {
+              title: opt.title,
+              description: opt.description,
+              category: opt.category,
+              keybind: opt.keybind,
+              slash: normalizeSlash(opt.slash),
+              hidden: opt.hidden,
+            }
           return acc
         }, {} as CommandCatalog),
       )

@@ -49,6 +49,7 @@ export type State = {
   session_status: {
     [sessionID: string]: SessionStatus
   }
+  session_working(id: string): boolean
   session_diff: {
     [sessionID: string]: SnapshotFileDiff[]
   }
@@ -75,6 +76,9 @@ export type State = {
   }
   part: {
     [messageID: string]: Part[]
+  }
+  part_text_accum_delta: {
+    [partID: string]: string
   }
 }
 
@@ -124,7 +128,7 @@ export type DisposeCheck = {
 export type RootLoadArgs = {
   directory: string
   limit: number
-  list: (query: { directory: string; roots: true; limit?: number; excludeAutomation?: true }) => Promise<{
+  list: (query: { directory: string; roots: true; limit?: number; excludeAutomation?: "true" }) => Promise<{
     data?: Session[]
   }>
 }

@@ -25,7 +25,6 @@ export function DialogSessionGraphs(props: { sessionID: string; directory?: stri
       sdk.client.session
         .graphs({
           sessionID: props.sessionID,
-          directory: props.directory,
         })
         .then((result) => result.data),
   }))
