@@ -118,7 +118,7 @@ const SidebarAction = (props: {
 }) => (
   <button
     type="button"
-    class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors hover:bg-surface-base-hover active:bg-surface-base-active"
+    class="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover active:bg-surface-base-active"
     onClick={props.onClick}
   >
     <span class="flex size-5 shrink-0 items-center justify-center text-icon-base">
@@ -220,7 +220,7 @@ const ProjectSection = (props: {
 
             return (
               <section class="group/project space-y-1">
-                <div class="flex items-center justify-between gap-1 rounded-xl px-2 py-1 transition-colors hover:bg-surface-base-hover focus-within:bg-surface-base-hover">
+                <div class="flex items-center justify-between gap-1 rounded-xl px-2 py-0.5 transition-colors hover:bg-surface-base-hover focus-within:bg-surface-base-hover">
                   <button
                     type="button"
                     class="flex min-w-0 flex-1 items-center gap-2.5 text-left"
@@ -388,7 +388,7 @@ export const SidebarHub = (props: {
   const otherProjects = createMemo(() => visibleProjects().filter((project) => !project.pinned))
 
   return (
-    <div class="flex h-full min-h-0 w-full min-w-0 flex-col border-r border-border-weaker-base bg-background-base px-4 pb-3 pt-2">
+    <div class="flex h-full min-h-0 w-full min-w-0 flex-col border-r border-border-weaker-base bg-background-base px-2 pb-3 pt-2">
       <div class={`shrink-0 ${sidebarItemGapClass}`}>
         <SidebarAction icon="new-session" label="New session" onClick={props.onNewChat} />
         <SidebarAction icon="magnifying-glass" label="Search" onClick={props.onSearch} />
