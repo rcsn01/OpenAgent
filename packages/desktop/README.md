@@ -1,6 +1,6 @@
-# OpenCode Desktop
+# OpenAgent Desktop
 
-The OpenCode Desktop app, built with Electron.
+The OpenAgent Desktop app, built with Electron.
 
 ## Development
 

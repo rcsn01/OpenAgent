@@ -607,7 +607,7 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
                 <textarea
                   rows={4}
                   value={props.corrections()}
-                  placeholder={"codax => Codex\nopen code => OpenCode"}
+                  placeholder={"codax => Codex\nopen agent => OpenAgent"}
                   spellcheck={false}
                   autocorrect="off"
                   autocapitalize="off"

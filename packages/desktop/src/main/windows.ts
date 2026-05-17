@@ -85,7 +85,7 @@ export function createMainWindow() {
     height: state.height,
     show: false,
     autoHideMenuBar: true,
-    title: "OpenCode",
+    title: "OpenAgent",
     icon: iconPath(),
     backgroundColor,
     ...(process.platform === "darwin"

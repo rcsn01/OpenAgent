@@ -42,9 +42,9 @@ import { disposeSpeechTranscription } from "./speech"
 import { Deferred, Effect, Fiber } from "effect"
 
 const APP_NAMES: Record<string, string> = {
-  dev: "OpenCode Dev",
-  beta: "OpenCode Beta",
-  prod: "OpenCode",
+  dev: "OpenAgent Dev",
+  beta: "OpenAgent Beta",
+  prod: "OpenAgent",
 }
 const APP_IDS: Record<string, string> = {
   dev: "ai.opencode.desktop.dev",
@@ -145,7 +145,7 @@ const main = Effect.gen(function* () {
     process.env.XDG_STATE_HOME = join(root, "state")
     return root
   })()
-  app.setName(app.isPackaged ? APP_NAMES[CHANNEL] : "OpenCode Dev")
+  app.setName(app.isPackaged ? APP_NAMES[CHANNEL] : "OpenAgent Dev")
   app.setAppUserModelId(appId)
   app.setPath(
     "userData",

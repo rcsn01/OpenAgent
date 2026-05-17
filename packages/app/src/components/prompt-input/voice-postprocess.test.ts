@@ -18,11 +18,11 @@ describe("voice postprocess", () => {
 
   test("applies explicit correction rules before dictionary cleanup", () => {
     expect(
-      postprocessVoiceTranscript("run sonnet on open code", {
-        dictionary: "OpenCode",
+      postprocessVoiceTranscript("run sonnet on open agent", {
+        dictionary: "OpenAgent",
         corrections: "sonnet => Sonnet",
       }),
-    ).toBe("run Sonnet on OpenCode")
+    ).toBe("run Sonnet on OpenAgent")
   })
 
   test("parses settings text defensively", () => {

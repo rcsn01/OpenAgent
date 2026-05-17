@@ -49,9 +49,9 @@ const getBase = (): Configuration => ({
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
     extendInfo: {
-      NSMicrophoneUsageDescription: "OpenCode uses microphone access for hands-free local voice input.",
-      NSSpeechRecognitionUsageDescription: "OpenCode uses speech recognition for native local voice transcription.",
-      NSAppleEventsUsageDescription: "OpenCode uses Apple Events to inspect and control local apps when Computer Use is enabled.",
+      NSMicrophoneUsageDescription: "OpenAgent uses microphone access for hands-free local voice input.",
+      NSSpeechRecognitionUsageDescription: "OpenAgent uses speech recognition for native local voice transcription.",
+      NSAppleEventsUsageDescription: "OpenAgent uses Apple Events to inspect and control local apps when Computer Use is enabled.",
     },
     notarize: true,
     target: ["dmg", "zip"],
@@ -60,7 +60,7 @@ const getBase = (): Configuration => ({
     sign: true,
   },
   protocols: {
-    name: "OpenCode",
+    name: "OpenAgent",
     schemes: ["opencode"],
   },
   win: {
@@ -92,7 +92,7 @@ function getConfig() {
       return {
         ...base,
         appId: "ai.opencode.desktop.dev",
-        productName: "OpenCode Dev",
+        productName: "OpenAgent Dev",
         rpm: { packageName: "opencode-dev" },
       }
     }
@@ -100,8 +100,8 @@ function getConfig() {
       return {
         ...base,
         appId: "ai.opencode.desktop.beta",
-        productName: "OpenCode Beta",
-        protocols: { name: "OpenCode Beta", schemes: ["opencode"] },
+        productName: "OpenAgent Beta",
+        protocols: { name: "OpenAgent Beta", schemes: ["opencode"] },
         publish: { provider: "github", owner: "rcsn01", repo: "OpenAgent", channel: "latest" },
         rpm: { packageName: "opencode-beta" },
       }
@@ -110,8 +110,8 @@ function getConfig() {
       return {
         ...base,
         appId: "ai.opencode.desktop",
-        productName: "OpenCode",
-        protocols: { name: "OpenCode", schemes: ["opencode"] },
+        productName: "OpenAgent",
+        protocols: { name: "OpenAgent", schemes: ["opencode"] },
         publish: { provider: "github", owner: "rcsn01", repo: "OpenAgent", channel: "latest" },
         rpm: { packageName: "opencode" },
       }
