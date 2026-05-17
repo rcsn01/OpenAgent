@@ -21,7 +21,7 @@ type SessionRightPanelItem = {
 const rightPanelIcon = (kind: WorkspaceRightPanelKind) => {
   if (kind === "extensions") return "mcp"
   if (kind === "subagents") return "branch"
-  if (kind === "context") return "status"
+  if (kind === "context") return "pin"
   return "review"
 }
 

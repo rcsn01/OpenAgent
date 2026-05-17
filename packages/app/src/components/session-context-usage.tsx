@@ -54,7 +54,7 @@ export function SessionContextUsage(props: SessionContextUsageProps) {
 
   const sessionInfoIcon = () => (
     <Icon
-      name="status"
+      name="pin"
       size="small"
       classList={{
         "text-icon-strong": view().context.opened(),

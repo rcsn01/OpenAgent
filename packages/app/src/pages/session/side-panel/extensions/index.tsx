@@ -1,9 +1,11 @@
 import { Button } from "@opencode-ai/ui/button"
+import { Icon, type IconProps } from "@opencode-ai/ui/icon"
 import { List } from "@opencode-ai/ui/list"
+import { Select } from "@opencode-ai/ui/select"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { showToast } from "@opencode-ai/ui/toast"
 import { createQuery, useQueryClient } from "@tanstack/solid-query"
-import { createMemo, For, Match, Show, Switch } from "solid-js"
+import { createMemo, For, Match, Show, Switch, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useGlobalSync } from "@/context/global-sync"
@@ -22,7 +24,6 @@ type ExtensionListEntry = {
   extension: ExtensionPanelItem
   title: string
   description?: string
-  meta: string[]
   installed: boolean
   search: string
 }
@@ -36,8 +37,10 @@ const browseLabels: Record<ExtensionBrowseKind, string> = {
 const filterLabels: Record<ExtensionFilter, string> = {
   all: "All",
   installed: "Installed",
-  available: "Not Installed",
+  available: "Available",
 }
+
+const filterOptions: ExtensionFilter[] = ["all", "installed", "available"]
 
 function statusTone(status: ExtensionPanelItem["servers"][number]["status"]["status"]) {
   if (status === "connected") return "text-icon-success-base"
@@ -79,6 +82,16 @@ function itemStatus(item: ExtensionPanelItem) {
     return "Installed, auth needed"
   }
   return "Installed"
+}
+
+function statusBadgeClass(item: ExtensionPanelItem) {
+  if (!item.installed) return "bg-surface-raised-base text-text-weaker"
+  if (item.active) return "bg-surface-raised-base text-icon-success-base"
+  if (item.servers.some((server) => server.status.status === "failed")) return "bg-surface-raised-base text-text-danger-base"
+  if (item.servers.some((server) => server.status.status === "needs_auth" || server.status.status === "needs_client_registration")) {
+    return "bg-surface-raised-base text-icon-warning-base"
+  }
+  return "bg-surface-raised-base text-text-weak"
 }
 
 function filterItem<T extends { installed: boolean }>(item: T, filter: ExtensionFilter) {
@@ -125,7 +138,6 @@ export function SessionExtensionsPanel() {
         extension: item,
         title: item.name,
         description: item.description,
-        meta: [itemStatus(item), `${item.servers.length} MCP`, `${item.skills.length} skills`, ...item.tags.slice(0, 3)],
         installed: item.installed,
         search: item.search,
       }))
@@ -139,7 +151,6 @@ export function SessionExtensionsPanel() {
           extension: item,
           title: server.key,
           description: `${statusLabel(server.status.status)} in ${item.name}`,
-          meta: [item.name, itemStatus(item), `${server.tools.length} tools`],
           installed: item.installed,
           search: [item.search, server.key, statusLabel(server.status.status), ...server.tools.map((tool) => tool.name)]
             .filter(Boolean)
@@ -155,7 +166,6 @@ export function SessionExtensionsPanel() {
         extension: item,
         title: skill.name,
         description: skill.description,
-        meta: [item.name, itemStatus(item)],
         installed: item.installed,
         search: [item.search, skill.name, skill.description, skill.location].filter(Boolean).join(" "),
       })),
@@ -163,6 +173,14 @@ export function SessionExtensionsPanel() {
   })
   const filteredEntries = createMemo(() => {
     return entries().filter((entry) => filterItem(entry, view.filter))
+  })
+  const kindCounts = createMemo(() => {
+    const items = model()
+    return {
+      extensions: items.length,
+      mcp: items.reduce((sum, item) => sum + item.servers.length, 0),
+      skills: items.reduce((sum, item) => sum + item.skills.length, 0),
+    }
   })
   const selected = createMemo(() => model().find((item) => item.id === view.selected))
   const busy = createMemo(() => pending.install !== undefined || pending.remove !== undefined || pending.server !== undefined)
@@ -240,22 +258,36 @@ export function SessionExtensionsPanel() {
   const ExtensionAction = (props: { item: ExtensionPanelItem }) => (
     <Switch>
       <Match when={props.item.installed}>
-        <Button size="small" variant="secondary" disabled={busy()} onClick={() => void remove(props.item)}>
-          <Show when={pending.remove === props.item.id} fallback="Remove">
+        <Button
+          size="small"
+          variant="ghost"
+          class="size-7 !p-0 text-icon-success-base"
+          aria-label="Installed"
+          disabled={busy()}
+          onClick={() => void remove(props.item)}
+        >
+          <Show when={pending.remove === props.item.id} fallback={<Icon name="check" size="small" />}>
             <Spinner class="size-3" />
           </Show>
         </Button>
       </Match>
       <Match when={props.item.bundle}>
-        <Button size="small" disabled={busy()} onClick={() => void install(props.item)}>
-          <Show when={pending.install === props.item.id} fallback="Install">
+        <Button
+          size="small"
+          variant="ghost"
+          class="size-7 !p-0"
+          aria-label="Install"
+          disabled={busy()}
+          onClick={() => void install(props.item)}
+        >
+          <Show when={pending.install === props.item.id} fallback={<Icon name="plus-small" size="small" />}>
             <Spinner class="size-3" />
           </Show>
         </Button>
       </Match>
       <Match when={true}>
-        <Button size="small" variant="secondary" disabled>
-          Unavailable
+        <Button size="small" variant="ghost" class="size-7 !p-0" aria-label="Unavailable" disabled>
+          <Icon name="circle-ban-sign" size="small" />
         </Button>
       </Match>
     </Switch>
@@ -263,36 +295,55 @@ export function SessionExtensionsPanel() {
 
   const ExtensionDetails = (props: { item: ExtensionPanelItem; sourceKind: ExtensionBrowseKind | undefined }) => (
     <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-      <div class="app-inner-border-b bg-background-stronger px-4 py-3">
-        <Button size="small" variant="ghost" class="mb-3 -ml-2" onClick={() => setView({ selected: undefined, selectedKind: undefined })}>
+      <div class="app-inner-border-b bg-background-stronger px-4 py-3.5">
+        <Button
+          size="small"
+          variant="ghost"
+          icon="arrow-left"
+          class="mb-3 -ml-2"
+          onClick={() => setView({ selected: undefined, selectedKind: undefined })}
+        >
           Back
         </Button>
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">
-            <div class="text-16-medium text-text-strong">{props.item.name}</div>
+            <div class="flex min-w-0 items-center gap-2">
+              <div class="flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-raised-base text-icon-base">
+                <Icon name="mcp" size="small" />
+              </div>
+              <div class="min-w-0">
+                <div class="truncate text-16-medium text-text-strong">{props.item.name}</div>
+                <div class="mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-11-regular text-text-weaker">
+                  <span>{props.item.id}</span>
+                  <span>v{props.item.version}</span>
+                </div>
+              </div>
+            </div>
             <Show when={props.item.description}>
-              <div class="mt-1 text-12-regular text-text-weak">{props.item.description}</div>
+              <div class="mt-3 text-12-regular text-text-weak">{props.item.description}</div>
             </Show>
-            <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-11-regular text-text-weaker">
-              <span>{props.item.id}</span>
-              <span>v{props.item.version}</span>
-              <span>{itemStatus(props.item)}</span>
-              <For each={props.item.tags}>{(tag) => <span>{tag}</span>}</For>
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              <span class={`rounded-full px-2 py-0.5 text-10-medium uppercase ${statusBadgeClass(props.item)}`}>
+                {itemStatus(props.item)}
+              </span>
+              <For each={props.item.tags}>
+                {(tag) => <span class="rounded-full bg-surface-raised-base px-2 py-0.5 text-10-medium uppercase text-text-weaker">{tag}</span>}
+              </For>
             </div>
           </div>
-          <Show when={props.sourceKind === "extensions"}>
+          <Show when={props.sourceKind === "extensions" || props.item.bundle || props.item.installed}>
             <ExtensionAction item={props.item} />
           </Show>
         </div>
       </div>
 
-      <div class="space-y-4 p-4">
+      <div class="space-y-4 p-3">
         <Show when={hasSetupDetails(props.item)}>
           <section class="space-y-2">
-            <div class="text-11-medium uppercase text-text-weaker">Setup</div>
+            <SectionTitle icon="settings-gear">Setup</SectionTitle>
 
             <Show when={props.item.setup?.environment?.length}>
-              <div class="rounded-md bg-surface-raised-base px-3 py-2">
+              <div class="rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2">
                 <div class="text-12-medium text-text-base">API keys / environment required</div>
                 <div class="mt-1 flex flex-wrap gap-2">
                   <For each={props.item.setup?.environment ?? []}>
@@ -307,7 +358,7 @@ export function SessionExtensionsPanel() {
             </Show>
 
             <Show when={props.item.setup?.prerequisites?.length}>
-              <div class="rounded-md bg-surface-raised-base px-3 py-2">
+              <div class="rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2">
                 <div class="text-12-medium text-text-base">Prerequisites</div>
                 <div class="mt-1 flex flex-col gap-1 text-11-regular text-text-weak">
                   <For each={props.item.setup?.prerequisites ?? []}>{(prerequisite) => <div>{prerequisite}</div>}</For>
@@ -316,7 +367,7 @@ export function SessionExtensionsPanel() {
             </Show>
 
             <Show when={props.item.setup?.steps?.length}>
-              <div class="rounded-md bg-surface-raised-base px-3 py-2">
+              <div class="rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2">
                 <div class="text-12-medium text-text-base">Steps</div>
                 <div class="mt-1 flex flex-col gap-1 text-11-regular text-text-weak">
                   <For each={props.item.setup?.steps ?? []}>{(step) => <div>{step}</div>}</For>
@@ -325,7 +376,7 @@ export function SessionExtensionsPanel() {
             </Show>
 
             <Show when={props.item.setup?.links?.length}>
-              <div class="rounded-md bg-surface-raised-base px-3 py-2">
+              <div class="rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2">
                 <div class="text-12-medium text-text-base">Docs</div>
                 <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-11-regular">
                   <For each={props.item.setup?.links ?? []}>{(link) => <Link href={link.href}>{link.label}</Link>}</For>
@@ -336,14 +387,14 @@ export function SessionExtensionsPanel() {
         </Show>
 
         <section class="space-y-2">
-          <div class="text-11-medium uppercase text-text-weaker">Servers</div>
+          <SectionTitle icon="server">Servers</SectionTitle>
           <Show
             when={props.item.servers.length > 0}
-            fallback={<div class="rounded-md bg-surface-raised-base px-3 py-2 text-12-regular text-text-weak">No MCP servers.</div>}
+            fallback={<div class="rounded-md bg-background-stronger px-3 py-2 text-12-regular text-text-weak">No MCP servers.</div>}
           >
             <For each={props.item.servers}>
               {(server) => (
-                <div class="rounded-md bg-surface-raised-base px-3 py-2">
+                <div class="rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2">
                   <div class="flex items-center justify-between gap-3">
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2">
@@ -378,14 +429,14 @@ export function SessionExtensionsPanel() {
         </section>
 
         <section class="space-y-2">
-          <div class="text-11-medium uppercase text-text-weaker">Skills</div>
+          <SectionTitle icon="brain">Skills</SectionTitle>
           <Show
             when={props.item.skills.length > 0}
-            fallback={<div class="rounded-md bg-surface-raised-base px-3 py-2 text-12-regular text-text-weak">No managed skills.</div>}
+            fallback={<div class="rounded-md bg-background-stronger px-3 py-2 text-12-regular text-text-weak">No managed skills.</div>}
           >
             <For each={props.item.skills}>
               {(skill) => (
-                <div class="rounded-md bg-surface-raised-base px-3 py-2">
+                <div class="rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2">
                   <div class="text-13-medium text-text-base">{skill.name}</div>
                   <Show when={skill.description}>
                     {(description) => <div class="mt-1 text-11-regular text-text-weak">{description()}</div>}
@@ -402,8 +453,8 @@ export function SessionExtensionsPanel() {
         <Show when={props.item.config_path}>
           {(path) => (
             <section class="space-y-2">
-              <div class="text-11-medium uppercase text-text-weaker">Installed Config</div>
-              <div class="truncate rounded-md bg-surface-raised-base px-3 py-2 text-11-regular text-text-weak">
+              <SectionTitle icon="code">Installed Config</SectionTitle>
+              <div class="truncate rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2 text-11-regular text-text-weak">
                 {path()}
               </div>
             </section>
@@ -414,24 +465,34 @@ export function SessionExtensionsPanel() {
   )
 
   const SegmentGroup = <T extends string>(props: {
-    entries: Array<[T, string]>
+    entries: Array<{ value: T; label: string; count?: number }>
     value: T
     onChange: (value: T) => void
+    compact?: boolean
   }) => (
-    <div class="grid gap-2" style={{ "grid-template-columns": `repeat(${props.entries.length}, minmax(0, 1fr))` }}>
+    <div class="flex min-w-0 flex-wrap gap-1.5">
       <For each={props.entries}>
-        {([value, label]) => <SegmentButton active={props.value === value} onClick={() => props.onChange(value)}>{label}</SegmentButton>}
+        {(entry) => (
+          <SegmentButton active={props.value === entry.value} compact={props.compact} onClick={() => props.onChange(entry.value)}>
+            <span>{entry.label}</span>
+            <Show when={entry.count !== undefined}>
+              <span class="text-10-regular opacity-70">{entry.count}</span>
+            </Show>
+          </SegmentButton>
+        )}
       </For>
     </div>
   )
 
-  const SegmentButton = (props: { active: boolean; onClick: () => void; children: string }) => (
+  const SegmentButton = (props: { active: boolean; compact?: boolean; onClick: () => void; children: JSX.Element }) => (
     <button
       type="button"
-      class="min-h-9 rounded-lg px-2 py-2 text-12-medium transition-colors"
+      class="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-md border transition-colors"
       classList={{
-        "bg-surface-base-active text-text-strong": props.active,
-        "bg-surface-raised-base text-text-weak hover:bg-surface-base-hover hover:text-text-strong": !props.active,
+        "h-7 px-2.5 text-12-medium": !props.compact,
+        "h-6 px-2 text-11-medium": props.compact,
+        "border-border-weak-base bg-surface-base-active text-text-strong": props.active,
+        "border-border-weaker-base bg-transparent text-text-weak hover:bg-surface-base-hover hover:text-text-strong": !props.active,
       }}
       onClick={props.onClick}
     >
@@ -439,17 +500,21 @@ export function SessionExtensionsPanel() {
     </button>
   )
 
+  const SectionTitle = (props: { icon: IconProps["name"]; children: string }) => (
+    <div class="flex items-center gap-1.5 text-11-medium uppercase text-text-weaker">
+      <Icon name={props.icon} size="small" />
+      <span>{props.children}</span>
+    </div>
+  )
+
   return (
-    <div id="extensions-panel" class="size-full min-w-0 flex flex-col overflow-hidden bg-background-base">
+    <div id="extensions-panel" class="size-full min-w-0 flex flex-col overflow-hidden bg-background-stronger">
       <Show
         when={selected()}
         keyed
         fallback={
           <>
-            <div class="app-inner-border-b bg-background-stronger px-4 py-3">
-              <div class="text-12-regular text-text-weak">
-                Project-scoped bundles of MCP servers and managed skills.
-              </div>
+            <div class="app-inner-border-b bg-background-stronger px-4 py-3.5">
               <Show when={query.isLoading}>
                 <div class="mt-2 flex items-center gap-2 text-12-regular text-text-weak">
                   <Spinner class="size-3" />
@@ -462,89 +527,66 @@ export function SessionExtensionsPanel() {
                 </div>
               </Show>
 
-              <div class="mt-3">
+              <div>
                 <SegmentGroup
-                  entries={Object.entries(browseLabels) as Array<[ExtensionBrowseKind, string]>}
+                  entries={(Object.entries(browseLabels) as Array<[ExtensionBrowseKind, string]>).map(([value, label]) => ({
+                    value,
+                    label,
+                    count: kindCounts()[value],
+                  }))}
                   value={view.kind}
                   onChange={(kind) => setView("kind", kind)}
                 />
               </div>
 
-              <div class="mt-2">
-                <SegmentGroup
-                  entries={Object.entries(filterLabels) as Array<[ExtensionFilter, string]>}
-                  value={view.filter}
-                  onChange={(filter) => setView("filter", filter)}
+              <div class="mt-2.5">
+                <Select
+                  options={filterOptions}
+                  current={view.filter}
+                  label={(filter) => filterLabels[filter]}
+                  onSelect={(filter) => filter && setView("filter", filter)}
+                  size="small"
+                  variant="secondary"
+                  valueClass="text-12-medium"
                 />
               </div>
             </div>
 
             <List
-              class="flex-1 min-h-0 [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0 [&_[data-slot=list-items]]:gap-3 [&_[data-slot=list-item]]:p-0 [&_[data-slot=list-item][data-active=true]]:bg-transparent"
+              class="flex-1 min-h-0 !gap-2 !px-3 !pt-3 [&_[data-slot=list-search-wrapper]]:!mb-1 [&_[data-slot=list-search]]:!bg-background-base [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0 [&_[data-slot=list-items]]:gap-2 [&_[data-slot=list-item]]:p-0 [&_[data-slot=list-item][data-active=true]]:bg-transparent"
               search={{ placeholder: "Search extensions", autofocus: false }}
               emptyMessage={query.isLoading ? "Loading extensions..." : `No ${browseLabels[view.kind].toLowerCase()} match this filter.`}
               key={(entry) => entry.id}
               items={filteredEntries}
               filterKeys={["search"]}
+              onSelect={(entry) => entry && setView({ selected: entry.extension.id, selectedKind: entry.kind })}
             >
               {(entry) => (
                 <div
-                  role="button"
-                  tabIndex={0}
-                  class="w-full rounded-lg border px-3 py-3 text-left transition-colors hover:bg-surface-base-hover focus:outline-none focus-visible:border-border-focus"
+                  class="w-full rounded-md border px-3 py-2 text-left transition-colors hover:bg-surface-base-hover"
                   classList={{
-                    "border-border-weaker-base bg-background-stronger": entry.kind === "extensions",
-                    "border-border-weaker-base bg-background-base": entry.kind !== "extensions",
-                  }}
-                  onClick={() => setView({ selected: entry.extension.id, selectedKind: entry.kind })}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return
-                    event.preventDefault()
-                    setView({ selected: entry.extension.id, selectedKind: entry.kind })
+                    "border-border-weak-base bg-background-base": entry.kind === "extensions",
+                    "border-border-weaker-base bg-background-stronger": entry.kind !== "extensions",
                   }}
                 >
-                  <div class="flex items-start justify-between gap-3">
+                  <div class="flex min-w-0 items-center gap-3">
                     <div class="min-w-0 flex-1">
-                      <div class="flex min-w-0 items-center gap-2">
-                        <div
-                          class="truncate text-14-medium"
-                          classList={{
-                            "text-text-strong": entry.kind === "extensions",
-                            "text-text-weak": entry.kind !== "extensions",
-                          }}
-                        >
-                          {entry.title}
-                        </div>
-                        <span
-                          class="rounded-full px-2 py-0.5 text-10-medium uppercase"
-                          classList={{
-                            "bg-surface-raised-base text-text-weak": entry.kind === "extensions",
-                            "bg-surface-raised-base text-text-weaker": entry.kind !== "extensions",
-                          }}
-                        >
-                          {entry.installed ? "installed" : "not installed"}
-                        </span>
+                      <div
+                        class="truncate text-13-medium"
+                        classList={{
+                          "text-text-strong": entry.kind === "extensions",
+                          "text-text-base": entry.kind !== "extensions",
+                        }}
+                      >
+                        {entry.title}
                       </div>
                       <Show when={entry.description}>
-                        <div class="mt-1 line-clamp-2 text-12-regular text-text-weak">{entry.description}</div>
+                        <div class="mt-0.5 truncate text-12-regular text-text-weak">{entry.description}</div>
                       </Show>
-                      <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-11-regular text-text-weaker">
-                        <For each={entry.meta}>{(meta) => <span>{meta}</span>}</For>
-                      </div>
                     </div>
-
-                    <Show
-                      when={entry.kind === "extensions"}
-                      fallback={
-                        <div class="shrink-0 max-w-28 text-right text-11-regular text-text-weaker">
-                          Part of {entry.extension.name}
-                        </div>
-                      }
-                    >
-                      <div onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                        <ExtensionAction item={entry.extension} />
-                      </div>
-                    </Show>
+                    <div class="shrink-0" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                      <ExtensionAction item={entry.extension} />
+                    </div>
                   </div>
                 </div>
               )}
