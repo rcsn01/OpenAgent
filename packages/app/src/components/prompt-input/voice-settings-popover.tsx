@@ -5,7 +5,7 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Popover } from "@opencode-ai/ui/popover"
 import { RadioGroup } from "@opencode-ai/ui/radio-group"
 import { showToast } from "@opencode-ai/ui/toast"
-import { createMemo, createResource, Match, onCleanup, Show, Switch } from "solid-js"
+import { createMemo, createResource, For, Match, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Accessor } from "solid-js"
 import { formatKeybind } from "@/context/command"
@@ -134,6 +134,12 @@ const vadSensitivityOptions = [
   description: string
 }>
 
+type SliderOption<T extends string> = {
+  id: T
+  label: string
+  description: string
+}
+
 const autoSendDelayOptions = [
   {
     id: "short",
@@ -190,6 +196,73 @@ function recordKeybind(event: KeyboardEvent) {
   if (!key) return
   parts.push(key)
   return parts.join("+")
+}
+
+function optionIndex<T extends string>(options: readonly SliderOption<T>[], value: T) {
+  return Math.max(
+    0,
+    options.findIndex((item) => item.id === value),
+  )
+}
+
+function SettingsSlider<T extends string>(props: {
+  title: string
+  description: string
+  value: Accessor<T>
+  options: readonly SliderOption<T>[]
+  onChange: (value: T) => void
+}) {
+  const currentIndex = createMemo(() => optionIndex(props.options, props.value()))
+  const current = createMemo(() => props.options[currentIndex()] ?? props.options[0])
+  const progress = createMemo(() => {
+    const max = Math.max(1, props.options.length - 1)
+    return `${(currentIndex() / max) * 100}%`
+  })
+
+  return (
+    <div class="flex flex-col gap-3 rounded-lg border border-border-weak-base bg-surface-base p-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="text-12-medium text-text-strong">{props.title}</div>
+          <div class="text-11-regular text-text-weak">{props.description}</div>
+        </div>
+        <div class="shrink-0 rounded-md border border-border-weak-base bg-surface-inset-base px-2 py-1 text-11-medium text-text-strong">
+          {current()?.label}
+        </div>
+      </div>
+      <input
+        type="range"
+        min="0"
+        max={props.options.length - 1}
+        step="1"
+        value={currentIndex()}
+        aria-label={props.title}
+        data-component="voice-slider"
+        style={{ "--voice-slider-progress": progress() }}
+        onInput={(event) => {
+          const index = Math.max(0, Math.min(props.options.length - 1, Number(event.currentTarget.value)))
+          props.onChange(props.options[index].id)
+        }}
+      />
+      <div class="grid grid-cols-3 text-[11px] leading-4 text-text-dim">
+        <For each={props.options}>
+          {(item, index) => (
+            <button
+              type="button"
+              classList={{
+                "text-left first:text-left last:text-right": true,
+                "text-text-strong": item.id === props.value(),
+              }}
+              onClick={() => props.onChange(item.id)}
+            >
+              {item.label}
+            </button>
+          )}
+        </For>
+      </div>
+      <div class="text-11-regular text-text-weak">{current()?.description}</div>
+    </div>
+  )
 }
 
 export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
@@ -503,34 +576,20 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
           </Match>
           <Match when={state.view === "audio"}>
             <div class="flex flex-col gap-3">
-              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                <div class="text-12-medium text-text-strong">Mic sensitivity</div>
-                <div class="text-11-regular text-text-weak">
-                  Higher sensitivity starts capture more easily when your voice is quiet or you are farther from the mic.
-                </div>
-                <RadioGroup
-                  options={vadSensitivityOptions}
-                  current={vadSensitivityOptions.find((item) => item.id === props.vadSensitivity())}
-                  value={(item) => item.id}
-                  label={(item) => item.label}
-                  onSelect={(item) => item && props.onVadSensitivityChange(item.id)}
-                  fill
-                />
-              </div>
-              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                <div class="text-12-medium text-text-strong">Mic boost</div>
-                <div class="text-11-regular text-text-weak">
-                  Boost raises the captured input level before transcription. Try `Boost` first if the mic feels too quiet.
-                </div>
-                <RadioGroup
-                  options={inputGainOptions}
-                  current={inputGainOptions.find((item) => item.id === props.inputGain())}
-                  value={(item) => item.id}
-                  label={(item) => item.label}
-                  onSelect={(item) => item && props.onInputGainChange(item.id)}
-                  fill
-                />
-              </div>
+              <SettingsSlider
+                title="Mic sensitivity"
+                description="Higher sensitivity starts capture more easily when your voice is quiet or you are farther from the mic."
+                options={vadSensitivityOptions}
+                value={props.vadSensitivity}
+                onChange={props.onVadSensitivityChange}
+              />
+              <SettingsSlider
+                title="Mic boost"
+                description="Boost raises the captured input level before transcription."
+                options={inputGainOptions}
+                value={props.inputGain}
+                onChange={props.onInputGainChange}
+              />
               <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
                 <div class="flex items-center justify-between gap-3">
                   <div class="min-w-0 flex-1">

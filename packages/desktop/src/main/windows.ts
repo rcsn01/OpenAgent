@@ -9,6 +9,7 @@ const rendererRoot = join(root, "../renderer")
 const rendererProtocol = "oc"
 const rendererHost = "renderer"
 const clipboardWritePermission = "clipboard-sanitized-write"
+const mediaPermission = "media"
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -109,7 +110,7 @@ export function createMainWindow() {
     },
   })
 
-  allowClipboardWrite(win)
+  allowTrustedRendererPermissions(win)
 
   win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
     const { requestHeaders } = details
@@ -162,7 +163,7 @@ export function createLoadingWindow() {
     },
   })
 
-  allowClipboardWrite(win)
+  allowTrustedRendererPermissions(win)
 
   loadWindow(win, "loading.html")
 
@@ -199,19 +200,40 @@ function loadWindow(win: BrowserWindow, html: string) {
   void win.loadURL(`${rendererProtocol}://${rendererHost}/${html}`)
 }
 
-function allowClipboardWrite(win: BrowserWindow) {
+function allowTrustedRendererPermissions(win: BrowserWindow) {
   win.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    callback(
-      permission === clipboardWritePermission &&
-        isTrustedRendererUrl(details.requestingUrl) &&
-        webContents.id === win.webContents.id,
-    )
+    if (webContents.id !== win.webContents.id || !isTrustedRendererUrl(details.requestingUrl)) {
+      callback(false)
+      return
+    }
+
+    if (permission === clipboardWritePermission) {
+      callback(true)
+      return
+    }
+
+    if (permission === mediaPermission && isAudioOnlyMediaRequest(details)) {
+      callback(true)
+      return
+    }
+
+    callback(false)
   })
   win.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-    if (permission !== clipboardWritePermission) return false
     if (webContents && webContents.id !== win.webContents.id) return false
-    return isTrustedRendererUrl(details.requestingUrl) || isTrustedRendererUrl(requestingOrigin)
+    const trusted = isTrustedRendererUrl(details.requestingUrl) || isTrustedRendererUrl(requestingOrigin)
+    if (!trusted) return false
+    if (permission === clipboardWritePermission) return true
+    if (permission === mediaPermission) return true
+    return false
   })
+}
+
+function isAudioOnlyMediaRequest(details: unknown) {
+  if (!details || typeof details !== "object") return false
+  const mediaTypes = (details as { mediaTypes?: unknown }).mediaTypes
+  if (!Array.isArray(mediaTypes)) return false
+  return mediaTypes.includes("audio") && !mediaTypes.includes("video")
 }
 
 function isTrustedRendererUrl(value?: string) {
