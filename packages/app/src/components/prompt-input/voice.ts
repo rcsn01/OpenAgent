@@ -2,7 +2,6 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { createEffect, createMemo, onCleanup, type Accessor } from "solid-js"
 import { createStore } from "solid-js/store"
 import { matchKeybind, parseKeybind, type Keybind } from "@/context/command"
-import type { VoiceInputGain } from "@/context/settings"
 import type {
   SpeechCaptureChunkInput,
   SpeechCaptureLevelEvent,
@@ -29,14 +28,14 @@ type PromptVoiceInput = {
   mode: Accessor<"normal" | "shell">
   speechModel: Accessor<SpeechModelID>
   speechQuality: Accessor<SpeechTranscriptionQuality>
-  inputGain: Accessor<VoiceInputGain>
+  inputGain: Accessor<number>
   dictionary: Accessor<string>
   corrections: Accessor<string>
   audioProcessing: Accessor<boolean>
   pressToTalkKeybind: Accessor<string>
   baseSilenceMs: Accessor<number>
   maxSilenceMs: Accessor<number>
-  vadSensitivity: Accessor<"low" | "normal" | "high">
+  vadSensitivity: Accessor<number>
   prepareSpeechTranscription?: (config: SpeechRuntimeConfig) => Promise<void>
   startSpeechCaptureSession?: (config?: SpeechCaptureSessionConfig) => Promise<SpeechCaptureSessionInfo>
   appendSpeechCaptureSamples?: (input: SpeechCaptureSamplesInput) => Promise<void> | void
@@ -57,23 +56,19 @@ const PRE_ROLL_MS = 250
 const SPEECH_FRAME_COUNT = 3
 const SILENCE_FRAME_COUNT = 8
 
-const speechFactor = (value: "low" | "normal" | "high") => {
-  if (value === "high") return 1.7
-  if (value === "low") return 2.8
-  return 2.2
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
+
+const speechFactor = (value: number) => {
+  const normalized = clamp(value, 0, 100) / 100
+  return 3.1 - normalized * 1.7
 }
 
-const minSpeechThreshold = (value: "low" | "normal" | "high") => {
-  if (value === "high") return 0.0035
-  if (value === "low") return 0.0065
-  return 0.005
+const minSpeechThreshold = (value: number) => {
+  const normalized = clamp(value, 0, 100) / 100
+  return 0.0075 - normalized * 0.0048
 }
 
-const inputGainValue = (value: VoiceInputGain) => {
-  if (value === "max") return 6
-  if (value === "boost") return 3.5
-  return 1
-}
+const inputGainValue = (value: number) => clamp(value, 1, 6)
 
 const promptLength = (prompt: Prompt) =>
   prompt.reduce((total, part) => total + ("content" in part ? part.content.length : 0), 0)

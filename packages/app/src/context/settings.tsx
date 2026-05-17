@@ -4,7 +4,8 @@ import { createSimpleContext } from "@opencode-ai/ui/context"
 import { persisted } from "@/utils/persist"
 import type { SpeechModelID, SpeechTranscriptionQuality } from "./platform"
 
-export type VoiceInputGain = "normal" | "boost" | "max"
+export type VoiceInputGain = number
+export type VoiceVadSensitivity = number
 
 export interface NotificationSettings {
   agent: boolean
@@ -24,7 +25,7 @@ export interface SoundSettings {
 export interface VoiceSettings {
   baseSilenceMs: number
   maxSilenceMs: number
-  vadSensitivity: "low" | "normal" | "high"
+  vadSensitivity: VoiceVadSensitivity
   inputGain: VoiceInputGain
   dictionary: string
   corrections: string
@@ -159,8 +160,8 @@ const defaultSettings: Settings = {
   voice: {
     baseSilenceMs: defaultVoiceBaseSilenceMs,
     maxSilenceMs: defaultVoiceMaxSilenceMs,
-    vadSensitivity: "normal",
-    inputGain: "boost",
+    vadSensitivity: 50,
+    inputGain: 3.5,
     dictionary: "",
     corrections: "",
     model: "parakeet-tdt-v3",
@@ -186,14 +187,35 @@ const defaultSettings: Settings = {
 function migrateSettings(value: unknown) {
   if (!record(value)) return value
   if (!record(value.voice)) return value
-  if (value.voice.model !== "apple-speech") return value
+
   return {
     ...value,
     voice: {
       ...value.voice,
-      model: "parakeet-tdt-v3",
+      model: value.voice.model === "apple-speech" ? "parakeet-tdt-v3" : value.voice.model,
+      vadSensitivity: normalizeVoiceSensitivity(value.voice.vadSensitivity),
+      inputGain: normalizeVoiceInputGain(value.voice.inputGain),
     },
   }
+}
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback
+  return Math.max(min, Math.min(max, value))
+}
+
+function normalizeVoiceSensitivity(value: unknown) {
+  if (value === "low") return 25
+  if (value === "normal") return 50
+  if (value === "high") return 75
+  return clampNumber(value, defaultSettings.voice.vadSensitivity, 0, 100)
+}
+
+function normalizeVoiceInputGain(value: unknown) {
+  if (value === "normal") return 1
+  if (value === "boost") return 3.5
+  if (value === "max") return 6
+  return clampNumber(value, defaultSettings.voice.inputGain, 1, 6)
 }
 
 export const SettingsTesting = {
@@ -363,7 +385,7 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         },
         inputGain: withFallback(() => store.voice?.inputGain, defaultSettings.voice.inputGain),
         setInputGain(value: VoiceInputGain) {
-          setStore("voice", "inputGain", value)
+          setStore("voice", "inputGain", normalizeVoiceInputGain(value))
         },
         dictionary: withFallback(() => store.voice?.dictionary, defaultSettings.voice.dictionary),
         setDictionary(value: string) {
@@ -397,7 +419,7 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         },
         vadSensitivity: withFallback(() => store.voice?.vadSensitivity, defaultSettings.voice.vadSensitivity),
         setVadSensitivity(value: VoiceSettings["vadSensitivity"]) {
-          setStore("voice", "vadSensitivity", value)
+          setStore("voice", "vadSensitivity", normalizeVoiceSensitivity(value))
         },
       },
       notifications: {

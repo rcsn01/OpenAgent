@@ -52,4 +52,38 @@ describe("settings migration", () => {
     expect(normalized).toBeTruthy()
     expect(JSON.parse(normalized!).voice.model).toBe("parakeet-tdt-v2")
   })
+
+  test("migrates legacy voice preset controls to numeric sliders", () => {
+    const normalized = PersistTesting.normalize(
+      SettingsTesting.defaults,
+      JSON.stringify({
+        voice: {
+          vadSensitivity: "high",
+          inputGain: "max",
+        },
+      }),
+      SettingsTesting.migrate,
+    )
+
+    expect(normalized).toBeTruthy()
+    expect(JSON.parse(normalized!).voice.vadSensitivity).toBe(75)
+    expect(JSON.parse(normalized!).voice.inputGain).toBe(6)
+  })
+
+  test("clamps numeric voice slider values", () => {
+    const normalized = PersistTesting.normalize(
+      SettingsTesting.defaults,
+      JSON.stringify({
+        voice: {
+          vadSensitivity: 200,
+          inputGain: 0,
+        },
+      }),
+      SettingsTesting.migrate,
+    )
+
+    expect(normalized).toBeTruthy()
+    expect(JSON.parse(normalized!).voice.vadSensitivity).toBe(100)
+    expect(JSON.parse(normalized!).voice.inputGain).toBe(1)
+  })
 })

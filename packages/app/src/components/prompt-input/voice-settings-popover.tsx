@@ -5,7 +5,7 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Popover } from "@opencode-ai/ui/popover"
 import { RadioGroup } from "@opencode-ai/ui/radio-group"
 import { showToast } from "@opencode-ai/ui/toast"
-import { createMemo, createResource, For, Match, onCleanup, Show, Switch } from "solid-js"
+import { createMemo, createResource, Match, onCleanup, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Accessor } from "solid-js"
 import { formatKeybind } from "@/context/command"
@@ -90,56 +90,6 @@ const qualityOptions = [
   description: string
 }>
 
-const inputGainOptions = [
-  {
-    id: "normal",
-    label: "Normal",
-    description: "No extra preamp. Best if your microphone already sounds loud enough.",
-  },
-  {
-    id: "boost",
-    label: "Boost",
-    description: "Adds a strong input boost for quieter voices and farther mics.",
-  },
-  {
-    id: "max",
-    label: "Max",
-    description: "Adds a very aggressive input boost. Best for very quiet microphones.",
-  },
-] satisfies Array<{
-  id: VoiceInputGain
-  label: string
-  description: string
-}>
-
-const vadSensitivityOptions = [
-  {
-    id: "low",
-    label: "Low",
-    description: "Reduces false triggers in noisy rooms, but needs louder speech.",
-  },
-  {
-    id: "normal",
-    label: "Normal",
-    description: "Balanced detection for most microphones and rooms.",
-  },
-  {
-    id: "high",
-    label: "High",
-    description: "Starts listening sooner for quieter speech and more distance.",
-  },
-] satisfies Array<{
-  id: VoiceSettings["vadSensitivity"]
-  label: string
-  description: string
-}>
-
-type SliderOption<T extends string> = {
-  id: T
-  label: string
-  description: string
-}
-
 const autoSendDelayOptions = [
   {
     id: "short",
@@ -198,25 +148,39 @@ function recordKeybind(event: KeyboardEvent) {
   return parts.join("+")
 }
 
-function optionIndex<T extends string>(options: readonly SliderOption<T>[], value: T) {
-  return Math.max(
-    0,
-    options.findIndex((item) => item.id === value),
-  )
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
 }
 
-function SettingsSlider<T extends string>(props: {
+function formatSensitivity(value: number) {
+  if (value <= 34) return "Low"
+  if (value >= 67) return "High"
+  return "Normal"
+}
+
+function formatInputGain(value: number) {
+  if (value <= 1.05) return "Normal"
+  if (value >= 5.5) return "Max"
+  return `${value.toFixed(1)}x`
+}
+
+function NumericSettingsSlider(props: {
   title: string
   description: string
-  value: Accessor<T>
-  options: readonly SliderOption<T>[]
-  onChange: (value: T) => void
+  value: Accessor<number>
+  min: number
+  max: number
+  step: number
+  minLabel: string
+  maxLabel: string
+  format: (value: number) => string
+  detail: (value: number) => string
+  onChange: (value: number) => void
 }) {
-  const currentIndex = createMemo(() => optionIndex(props.options, props.value()))
-  const current = createMemo(() => props.options[currentIndex()] ?? props.options[0])
+  const value = createMemo(() => clampNumber(props.value(), props.min, props.max))
   const progress = createMemo(() => {
-    const max = Math.max(1, props.options.length - 1)
-    return `${(currentIndex() / max) * 100}%`
+    const span = props.max - props.min || 1
+    return `${((value() - props.min) / span) * 100}%`
   })
 
   return (
@@ -227,40 +191,31 @@ function SettingsSlider<T extends string>(props: {
           <div class="text-11-regular text-text-weak">{props.description}</div>
         </div>
         <div class="shrink-0 rounded-md border border-border-weak-base bg-surface-inset-base px-2 py-1 text-11-medium text-text-strong">
-          {current()?.label}
+          {props.format(value())}
         </div>
       </div>
       <input
         type="range"
-        min="0"
-        max={props.options.length - 1}
-        step="1"
-        value={currentIndex()}
+        min={props.min}
+        max={props.max}
+        step={props.step}
+        value={value()}
         aria-label={props.title}
         data-component="voice-slider"
         style={{ "--voice-slider-progress": progress() }}
         onInput={(event) => {
-          const index = Math.max(0, Math.min(props.options.length - 1, Number(event.currentTarget.value)))
-          props.onChange(props.options[index].id)
+          props.onChange(clampNumber(Number(event.currentTarget.value), props.min, props.max))
         }}
       />
-      <div class="grid grid-cols-3 text-[11px] leading-4 text-text-dim">
-        <For each={props.options}>
-          {(item, index) => (
-            <button
-              type="button"
-              classList={{
-                "text-left first:text-left last:text-right": true,
-                "text-text-strong": item.id === props.value(),
-              }}
-              onClick={() => props.onChange(item.id)}
-            >
-              {item.label}
-            </button>
-          )}
-        </For>
+      <div class="flex items-center justify-between text-[11px] leading-4 text-text-dim">
+        <button type="button" class="text-left" onClick={() => props.onChange(props.min)}>
+          {props.minLabel}
+        </button>
+        <button type="button" class="text-right" onClick={() => props.onChange(props.max)}>
+          {props.maxLabel}
+        </button>
       </div>
-      <div class="text-11-regular text-text-weak">{current()?.description}</div>
+      <div class="text-11-regular text-text-weak">{props.detail(value())}</div>
     </div>
   )
 }
@@ -312,8 +267,8 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
     return `${mode} mode with ${model}. ${downloaded}.`
   })
   const audioSummary = createMemo(() => {
-    const sensitivity = vadSensitivityOptions.find((item) => item.id === props.vadSensitivity())?.label ?? "Normal"
-    const gain = inputGainOptions.find((item) => item.id === props.inputGain())?.label ?? "Normal"
+    const sensitivity = formatSensitivity(props.vadSensitivity())
+    const gain = formatInputGain(props.inputGain())
     return `${sensitivity} sensitivity, ${gain} boost, cleanup ${props.audioProcessing() ? "on" : "off"}.`
   })
   const vocabularySummary = createMemo(() => {
@@ -576,18 +531,36 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
           </Match>
           <Match when={state.view === "audio"}>
             <div class="flex flex-col gap-3">
-              <SettingsSlider
+              <NumericSettingsSlider
                 title="Mic sensitivity"
                 description="Higher sensitivity starts capture more easily when your voice is quiet or you are farther from the mic."
-                options={vadSensitivityOptions}
                 value={props.vadSensitivity}
+                min={0}
+                max={100}
+                step={1}
+                minLabel="Low"
+                maxLabel="High"
+                format={formatSensitivity}
+                detail={(value) => `${Math.round(value)}% sensitivity`}
                 onChange={props.onVadSensitivityChange}
               />
-              <SettingsSlider
+              <NumericSettingsSlider
                 title="Mic boost"
                 description="Boost raises the captured input level before transcription."
-                options={inputGainOptions}
                 value={props.inputGain}
+                min={1}
+                max={6}
+                step={0.1}
+                minLabel="Normal"
+                maxLabel="Max"
+                format={formatInputGain}
+                detail={(value) =>
+                  value <= 1.05
+                    ? "No extra preamp. Best if your microphone already sounds loud enough."
+                    : value >= 5.5
+                      ? "Very aggressive input boost for quiet microphones."
+                      : "Raises the captured input level before transcription."
+                }
                 onChange={props.onInputGainChange}
               />
               <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
