@@ -83,6 +83,7 @@ export type SpeechTranscription = {
   text: string
   language?: string
   confidence?: number
+  originalDurationMs?: number
   segments?: SpeechTranscriptionSegment[]
   tokens?: SpeechTranscriptionToken[]
 }

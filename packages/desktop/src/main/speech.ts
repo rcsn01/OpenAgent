@@ -82,6 +82,7 @@ type WorkerResponseMessage = {
   text: string
   language?: string
   confidence?: number
+  originalDurationMs?: number
   segments?: SpeechTranscription["segments"]
   tokens?: SpeechTranscription["tokens"]
 }
@@ -98,6 +99,7 @@ type PendingRequest = {
   resolve: (value: SpeechTranscription) => void
   reject: (error: Error) => void
   timer: NodeJS.Timeout
+  originalDurationMs?: number
 }
 
 type WorkerState = {
@@ -423,6 +425,7 @@ function startWorker(model: SpeechModelID, quality?: SpeechTranscriptionQuality)
             text: message.text,
             language: message.language,
             confidence: message.confidence,
+            originalDurationMs: message.originalDurationMs ?? pending.originalDurationMs,
             segments: message.segments,
             tokens: message.tokens,
           })
@@ -633,7 +636,10 @@ export async function transcribeSpeech(input: SpeechTranscriptionInput) {
     const audioPath = join(speechRequestsRoot(), `${id}.wav`)
     await writeFile(audioPath, Buffer.from(input.audio))
     try {
-      return await transcribeWithAppleSpeech(audioPath)
+      return {
+        ...(await transcribeWithAppleSpeech(audioPath)),
+        originalDurationMs: input.originalDurationMs,
+      }
     } catch (error) {
       appleSpeechUnavailable = true
       const fallback = await fallbackParakeetConfig(input.quality)
@@ -671,7 +677,7 @@ export async function transcribeSpeech(input: SpeechTranscriptionInput) {
         reject(new Error("Local voice transcription timed out"))
       }, 2 * 60 * 1000)
 
-      workerState.pending.set(id, { resolve, reject, timer })
+      workerState.pending.set(id, { resolve, reject, timer, originalDurationMs: input.originalDurationMs })
       workerState.process.stdin.write(
         `${JSON.stringify({
           type: "transcribe",

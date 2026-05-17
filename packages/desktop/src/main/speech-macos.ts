@@ -16,6 +16,7 @@ type AppleSpeechTranscription = {
   text: string
   language?: string
   confidence?: number
+  originalDurationMs?: number
   segments?: Array<{
     text: string
     startMs?: number

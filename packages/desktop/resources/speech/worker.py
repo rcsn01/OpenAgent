@@ -140,6 +140,8 @@ def transcribe(model: Any, request: dict[str, Any]) -> None:
         "text": text,
         "segments": build_segments(text, confidence, duration_ms),
     }
+    if duration_ms is not None:
+        response["originalDurationMs"] = duration_ms
     if confidence is not None:
         response["confidence"] = confidence
     if tokens is not None:

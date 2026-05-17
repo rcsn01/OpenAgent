@@ -19,6 +19,7 @@ import { adoptSpeechCaptureSession } from "./voice-capture-session"
 import { shouldAutoSubmitVoiceTurn } from "./voice-endpoint"
 import { getVoicePromptTerms, postprocessVoiceTranscript } from "./voice-postprocess"
 import { applyVoiceTranscript } from "./voice-prompt"
+import { shouldAcceptVoiceTranscript, type VoiceCaptureMode, type VoiceTranscriptPhase } from "./voice-transcript-filter"
 
 type PromptVoiceInput = {
   prompt: {
@@ -53,7 +54,7 @@ const TRANSCRIPTION_MIME = "audio/wav"
 const MIN_TRANSCRIBE_MS = 200
 const MIN_PADDED_TRANSCRIBE_MS = 1000
 const PRE_ROLL_MS = 250
-const SPEECH_FRAME_COUNT = 3
+const SPEECH_FRAME_COUNT = 5
 const SILENCE_FRAME_COUNT = 8
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
@@ -200,6 +201,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
   let capturingTurn = false
   let finalizingTurn = false
   let sessionRuntime: SpeechRuntimeConfig | undefined
+  let sessionCaptureMode: VoiceCaptureMode = "always-on"
   let speechCaptureSession: SpeechCaptureSessionInfo | undefined
   let disposeSpeechCaptureLevel: (() => void) | undefined
   let sessionRun = 0
@@ -266,6 +268,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
     resetChunkCapture()
     resetTurn()
     if (options?.clearRuntime) sessionRuntime = undefined
+    if (options?.clearRuntime) sessionCaptureMode = "always-on"
   }
 
   const resetSpeechFrames = () => {
@@ -465,12 +468,13 @@ export function createPromptVoice(input: PromptVoiceInput) {
   const queueTranscriptionTask = (
     task: () => Promise<SpeechTranscription | undefined>,
     run: number,
-    options?: { final?: boolean; submit?: boolean; basePrompt?: Prompt },
+    options?: { final?: boolean; submit?: boolean; basePrompt?: Prompt; captureMode?: VoiceCaptureMode; phase?: VoiceTranscriptPhase },
   ) => {
     pendingTranscriptions += 1
     resetEndpointTimer()
     setState("transcribing", true)
     let failed = false
+    let accepted = false
 
     const next = transcriptionQueue
       .catch(() => undefined)
@@ -481,6 +485,17 @@ export function createPromptVoice(input: PromptVoiceInput) {
           corrections: input.corrections(),
         })
         if (!transcript) return
+        if (
+          !shouldAcceptVoiceTranscript({
+            transcript,
+            transcription: result,
+            captureMode: options?.captureMode ?? sessionCaptureMode,
+            phase: options?.phase ?? (options?.final ? "final" : "chunk"),
+          })
+        ) {
+          return
+        }
+        accepted = true
         const nextPrompt = applyVoiceTranscript(options?.basePrompt ?? input.prompt.current(), transcript)
         input.prompt.set(nextPrompt, promptLength(nextPrompt))
         if (run !== sessionRun) return
@@ -497,7 +512,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
         resetEndpointTimer()
         if (options?.final) {
           resetTurn()
-          if (!failed && options.submit && run === sessionRun && state.manualMicEnabled) input.onAutoSubmit?.()
+          if (!failed && accepted && options.submit && run === sessionRun && state.manualMicEnabled) input.onAutoSubmit?.()
           return
         }
         if (run === sessionRun) maybeFinalizeTurn()
@@ -512,6 +527,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
     finalizingTurn = true
     const run = sessionRun
     const runtime = currentRuntime()
+    const captureMode = sessionCaptureMode
     const basePrompt = turnBasePrompt ? clonePrompt(turnBasePrompt) : clonePrompt(input.prompt.current())
     if (speechCaptureSession && input.transcribeSpeechCaptureTurn) {
       const sessionId = speechCaptureSession.id
@@ -523,9 +539,9 @@ export function createPromptVoice(input: PromptVoiceInput) {
             model: runtime.model,
             quality: runtime.quality,
             promptTerms: promptTerms(),
-          }),
+        }),
         run,
-        { final: true, submit: true, basePrompt },
+        { final: true, submit: true, basePrompt, captureMode, phase: "final" },
       )
       return true
     }
@@ -542,9 +558,9 @@ export function createPromptVoice(input: PromptVoiceInput) {
               quality: runtime.quality,
               originalDurationMs: clip.originalDurationMs,
               promptTerms: promptTerms(),
-            }),
+          }),
           run,
-          { final: true, submit: true, basePrompt },
+          { final: true, submit: true, basePrompt, captureMode, phase: "final" },
         )
         return true
       }
@@ -561,6 +577,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
   ) => {
     if (!input.transcribeSpeech) return transcriptionQueue
     const transcribeSpeech = input.transcribeSpeech
+    const captureMode = sessionCaptureMode
     return queueTranscriptionTask(
       () =>
         transcribeSpeech({
@@ -572,6 +589,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
           promptTerms: promptTerms(),
         }),
       run,
+      { captureMode, phase: "chunk" },
     )
   }
 
@@ -583,6 +601,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
   ) => {
     if (!input.transcribeSpeechCaptureChunk) return transcriptionQueue
     const transcribeSpeechCaptureChunk = input.transcribeSpeechCaptureChunk
+    const captureMode = sessionCaptureMode
     return queueTranscriptionTask(async () => {
       try {
         return await transcribeSpeechCaptureChunk({
@@ -595,7 +614,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
         if (!stopAfter) return
         await Promise.resolve(input.stopSpeechCaptureSession?.(sessionId))
       }
-    }, run)
+    }, run, { captureMode, phase: "chunk" })
   }
 
   const flushRecording = (run = sessionRun) => {
@@ -616,6 +635,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
     const run = sessionRun
     const runtime = currentRuntime()
     const currentCaptureSession = speechCaptureSession
+    const captureMode = sessionCaptureMode
     const basePrompt = turnBasePrompt ? clonePrompt(turnBasePrompt) : clonePrompt(input.prompt.current())
     speechCaptureSession = undefined
     sessionRun += 1
@@ -652,7 +672,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
             }
           },
           run,
-          { final: true, basePrompt },
+          { final: true, basePrompt, captureMode, phase: "final" },
         )
         return
       }
@@ -680,7 +700,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
           promptTerms: promptTerms(),
         }),
       run,
-      { final: true, basePrompt },
+      { final: true, basePrompt, captureMode, phase: "final" },
     )
   }
 
@@ -727,6 +747,7 @@ export function createPromptVoice(input: PromptVoiceInput) {
       model: input.speechModel(),
       quality: input.speechQuality(),
     }
+    sessionCaptureMode = state.pressToTalkActive && !state.manualMicEnabled ? "press-to-talk" : "always-on"
     setState("error", undefined)
     setState("preparing", true)
 
