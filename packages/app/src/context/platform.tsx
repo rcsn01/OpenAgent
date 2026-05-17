@@ -83,6 +83,9 @@ export type Platform = {
   /** Write a UTF-8 text file (desktop only) */
   writeTextFile?(path: string, content: string): Promise<void>
 
+  /** Read a UTF-8 text file (desktop only) */
+  readTextFile?(path: string): Promise<string>
+
   /** Storage mechanism, defaults to localStorage */
   storage?: (name?: string) => SyncStorage | AsyncStorage
 

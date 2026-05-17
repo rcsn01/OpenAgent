@@ -309,14 +309,16 @@ const main = Effect.gen(function* () {
     return
   }
 
-  const sharedServer = yield* Effect.promise(() => findOrStartSharedServer()).pipe(
-    Effect.catch((error) =>
-      Effect.sync(() => {
-        logger.warn("shared server discovery failed", error)
-        return undefined
-      }),
-    ),
-  )
+  const sharedServer = app.isPackaged
+    ? yield* Effect.promise(() => findOrStartSharedServer()).pipe(
+        Effect.catch((error) =>
+          Effect.sync(() => {
+            logger.warn("shared server discovery failed", error)
+            return undefined
+          }),
+        ),
+      )
+    : undefined
   if (sharedServer) {
     logger.log("using shared server", { url: sharedServer.url })
     yield* Deferred.succeed(serverReady, {

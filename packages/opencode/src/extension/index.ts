@@ -151,7 +151,7 @@ function parseConfigText(file: string, text: string) {
   )
 }
 
-function patchJsonc(text: string, patch: unknown, keys: string[] = []): string {
+export function patchJsonc(text: string, patch: unknown, keys: string[] = []): string {
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
     return applyEdits(
       text,
@@ -164,7 +164,20 @@ function patchJsonc(text: string, patch: unknown, keys: string[] = []): string {
     )
   }
 
-  return Object.entries(patch).reduce((acc, [key, value]) => patchJsonc(acc, value, [...keys, key]), text)
+  const entries = Object.entries(patch)
+  if (!entries.length) {
+    return applyEdits(
+      text,
+      modify(text, keys, patch, {
+        formattingOptions: {
+          insertSpaces: true,
+          tabSize: 2,
+        },
+      }),
+    )
+  }
+
+  return entries.reduce((acc, [key, value]) => patchJsonc(acc, value, [...keys, key]), text)
 }
 
 async function writeConfigDocument(

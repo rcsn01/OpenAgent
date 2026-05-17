@@ -9,11 +9,12 @@ import { createMemo, For, Match, Show, Switch, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useGlobalSync } from "@/context/global-sync"
+import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { OFFICIAL_EXTENSIONS } from "@/extensions/registry"
 import { formatServerError } from "@/utils/server-errors"
-import { installExtension } from "./install"
+import { installExtension, missingSetupVariables } from "./install"
 import { buildExtensionsPanelModel, type ExtensionPanelItem } from "./model"
 
 type ExtensionBrowseKind = "skills" | "mcp" | "extensions"
@@ -103,6 +104,7 @@ function filterItem<T extends { installed: boolean }>(item: T, filter: Extension
 export function SessionExtensionsPanel() {
   const sdk = useSDK()
   const sync = useSync()
+  const platform = usePlatform()
   const globalSync = useGlobalSync()
   const queryClient = useQueryClient()
   const client = () => sdk.client.experimental.extensions
@@ -117,6 +119,7 @@ export function SessionExtensionsPanel() {
     selected: undefined as string | undefined,
     selectedKind: undefined as ExtensionBrowseKind | undefined,
   })
+  const [setupValues, setSetupValues] = createStore<Record<string, Record<string, string>>>({})
 
   const query = createQuery(() => ({
     queryKey: [sdk.directory, "experimental", "extensions"],
@@ -199,6 +202,51 @@ export function SessionExtensionsPanel() {
     })
   }
 
+  const setupFor = (item: ExtensionPanelItem) => setupValues[item.id] ?? {}
+
+  const setupMissing = (item: ExtensionPanelItem) => {
+    if (!item.bundle) return []
+    return missingSetupVariables(item.bundle, setupFor(item))
+  }
+
+  const requiresSetupInput = (item: ExtensionPanelItem) => {
+    return !!item.bundle && setupMissing(item).length > 0 && !!item.setup?.environment?.length
+  }
+
+  const setSetupVariable = (item: ExtensionPanelItem, variable: string, value: string) => {
+    setSetupValues(item.id, (current) => ({
+      ...(current ?? {}),
+      [variable]: value,
+    }))
+  }
+
+  const importOAuthJson = async (item: ExtensionPanelItem) => {
+    if (!platform.openFilePickerDialog || !platform.readTextFile) return
+    try {
+      const picked = await platform.openFilePickerDialog({
+        title: "Choose Google OAuth client JSON",
+        extensions: ["json"],
+      })
+      const file = Array.isArray(picked) ? picked[0] : picked
+      if (!file) return
+      const raw = await platform.readTextFile(file)
+      const parsed = JSON.parse(raw) as {
+        installed?: { client_id?: string; client_secret?: string }
+        web?: { client_id?: string; client_secret?: string }
+      }
+      const credentials = parsed.installed ?? parsed.web
+      const clientID = credentials?.client_id?.trim()
+      const clientSecret = credentials?.client_secret?.trim()
+      if (!clientID || !clientSecret) {
+        throw new Error("Selected JSON does not contain a Google OAuth client_id and client_secret.")
+      }
+      setSetupVariable(item, "GOOGLE_OAUTH_CLIENT_ID", clientID)
+      setSetupVariable(item, "GOOGLE_OAUTH_CLIENT_SECRET", clientSecret)
+    } catch (error) {
+      fail(error)
+    }
+  }
+
   const install = async (item: ExtensionPanelItem) => {
     if (!item.bundle || busy()) return
     setPending("install", item.id)
@@ -217,6 +265,7 @@ export function SessionExtensionsPanel() {
           },
         },
         refresh,
+        setup: setupFor(item),
       })
     } catch (error) {
       await refresh()
@@ -266,7 +315,15 @@ export function SessionExtensionsPanel() {
           disabled={busy()}
           onClick={() => void remove(props.item)}
         >
-          <Show when={pending.remove === props.item.id} fallback={<Icon name="check" size="small" />}>
+          <Show
+            when={pending.remove === props.item.id}
+            fallback={
+              <span class="group inline-flex size-full items-center justify-center">
+                <Icon name="check" size="small" class="group-hover:hidden" />
+                <Icon name="close-small" size="small" class="hidden text-text-danger-base group-hover:block" />
+              </span>
+            }
+          >
             <Spinner class="size-3" />
           </Show>
         </Button>
@@ -278,7 +335,13 @@ export function SessionExtensionsPanel() {
           class="size-7 !p-0"
           aria-label="Install"
           disabled={busy()}
-          onClick={() => void install(props.item)}
+          onClick={() => {
+            if (requiresSetupInput(props.item)) {
+              setView({ selected: props.item.id, selectedKind: "extensions" })
+              return
+            }
+            void install(props.item)
+          }}
         >
           <Show when={pending.install === props.item.id} fallback={<Icon name="plus-small" size="small" />}>
             <Spinner class="size-3" />
@@ -344,15 +407,46 @@ export function SessionExtensionsPanel() {
 
             <Show when={props.item.setup?.environment?.length}>
               <div class="rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2">
-                <div class="text-12-medium text-text-base">API keys / environment required</div>
-                <div class="mt-1 flex flex-wrap gap-2">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="min-w-0">
+                    <div class="text-12-medium text-text-base">OAuth credentials</div>
+                    <div class="mt-0.5 text-11-regular text-text-weak">
+                      Import a Google OAuth client JSON, or paste the values below. These values are written to this extension's managed MCP config.
+                    </div>
+                  </div>
+                  <Show when={platform.openFilePickerDialog && platform.readTextFile}>
+                    <Button size="small" variant="secondary" onClick={() => void importOAuthJson(props.item)}>
+                      Import JSON
+                    </Button>
+                  </Show>
+                </div>
+                <div class="mt-2 flex flex-col gap-2">
                   <For each={props.item.setup?.environment ?? []}>
                     {(variable) => (
-                      <code class="rounded bg-background-base px-1.5 py-0.5 font-mono text-11-regular text-text-base">
-                        {variable}
-                      </code>
+                      <label class="flex flex-col gap-1">
+                        <span class="font-mono text-11-regular text-text-weaker">{variable}</span>
+                        <input
+                          class="h-8 rounded-md border border-border-weaker-base bg-background-base px-2 font-mono text-12-regular text-text-base outline-none focus:border-border-strong-base"
+                          type={variable.toLowerCase().includes("secret") ? "password" : "text"}
+                          value={setupFor(props.item)[variable] ?? ""}
+                          placeholder={variable}
+                          onInput={(event) => setSetupVariable(props.item, variable, event.currentTarget.value)}
+                        />
+                      </label>
                     )}
                   </For>
+                </div>
+                <div class="mt-2 flex items-center justify-between gap-3">
+                  <Show when={setupMissing(props.item).length}>
+                    <div class="min-w-0 text-11-regular text-icon-warning-base">
+                      Required before install: {setupMissing(props.item).join(", ")}
+                    </div>
+                  </Show>
+                  <Button size="small" variant="primary" disabled={!props.item.bundle || busy()} onClick={() => void install(props.item)}>
+                    <Show when={pending.install === props.item.id} fallback={props.item.installed ? "Update setup" : "Install"}>
+                      <Spinner class="size-3" />
+                    </Show>
+                  </Button>
                 </div>
               </div>
             </Show>

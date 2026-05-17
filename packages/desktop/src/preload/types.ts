@@ -84,6 +84,7 @@ export type ElectronAPI = {
   }) => Promise<string | string[] | null>
   saveFilePicker: (opts?: { title?: string; defaultPath?: string }) => Promise<string | null>
   writeTextFile: (path: string, content: string) => Promise<void>
+  readTextFile: (path: string) => Promise<string>
   openLink: (url: string) => void
   openPath: (path: string, app?: string) => Promise<void>
   readClipboardImage: () => Promise<{ buffer: ArrayBuffer; width: number; height: number } | null>

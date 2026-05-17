@@ -13,6 +13,8 @@ export type ExtensionInstallClient = {
   }
 }
 
+export type ExtensionSetupValues = Record<string, string | undefined>
+
 function unwrapClientResult(result: unknown) {
   if (typeof result === "object" && result !== null && "data" in result) return result.data
   return result
@@ -33,14 +35,61 @@ function assertSuccessfulAction(result: unknown, name: string) {
   throw new Error(`MCP server ${name} returned ${data.status.replaceAll("_", " ")}`)
 }
 
+function cloneBundle(bundle: ExtensionBundle): ExtensionBundle {
+  return JSON.parse(JSON.stringify(bundle)) as ExtensionBundle
+}
+
+function envPlaceholder(value: unknown) {
+  if (typeof value !== "string") return
+  const match = value.match(/^\{env:([^}]+)\}$/)
+  return match?.[1]
+}
+
+export function missingSetupVariables(bundle: ExtensionBundle, setup?: ExtensionSetupValues) {
+  const missing = new Set<string>()
+
+  for (const config of Object.values(bundle.mcp)) {
+    if (!("environment" in config)) continue
+    for (const value of Object.values(config.environment ?? {})) {
+      const variable = envPlaceholder(value)
+      if (!variable) continue
+      if (!setup?.[variable]?.trim()) missing.add(variable)
+    }
+  }
+
+  return [...missing]
+}
+
+export function applySetupValues(bundle: ExtensionBundle, setup?: ExtensionSetupValues) {
+  const missing = missingSetupVariables(bundle, setup)
+  if (missing.length) {
+    throw new Error(`Enter ${missing.join(", ")} in Setup before installing ${bundle.name}.`)
+  }
+
+  const next = cloneBundle(bundle)
+  for (const config of Object.values(next.mcp)) {
+    if (!("environment" in config)) continue
+    const environment = config.environment
+    if (!environment) continue
+    for (const [key, value] of Object.entries(environment)) {
+      const variable = envPlaceholder(value)
+      if (!variable) continue
+      environment[key] = setup?.[variable]?.trim() ?? ""
+    }
+  }
+  return next
+}
+
 export async function installExtension(input: {
   bundle: ExtensionBundle
   client: ExtensionInstallClient
   refresh: () => Promise<void>
+  setup?: ExtensionSetupValues
 }) {
-  assertSuccessfulAction(await input.client.experimental.install(input.bundle), input.bundle.id)
+  const bundle = applySetupValues(input.bundle, input.setup)
+  assertSuccessfulAction(await input.client.experimental.install(bundle), bundle.id)
   await Promise.all(
-    extensionInstallActions(input.bundle).map(async (server) => {
+    extensionInstallActions(bundle).map(async (server) => {
       if (server.action === "authenticate") {
         const authenticated = readActionResult(await input.client.mcp.auth.authenticate({ name: server.key }), server.key)
         if (

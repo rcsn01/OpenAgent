@@ -134,14 +134,37 @@ function localHTTPTransport(mcp: ConfigMCP.Local) {
   return mcp.transport?.type === "streamable-http" ? mcp.transport : undefined
 }
 
+function hasInferredLocalOAuth(mcp: ConfigMCP.Local) {
+  return !!localHTTPTransport(mcp) && mcp.oauth !== false && mcp.environment?.MCP_ENABLE_OAUTH21 === "true"
+}
+
 function supportsOAuthConfig(mcp: ConfigMCP.Info) {
   if (mcp.type === "remote") return mcp.oauth !== false
   if (mcp.type === "builtin") return false
-  return !!localHTTPTransport(mcp) && typeof mcp.oauth === "object"
+  return !!localHTTPTransport(mcp) && (typeof mcp.oauth === "object" || hasInferredLocalOAuth(mcp))
+}
+
+function unsupportedOAuthConfigMessage(name: string, mcp: ConfigMCP.Info | undefined) {
+  if (!mcp) return `MCP server ${name} not found or disabled`
+  if (mcp.type === "builtin") {
+    return `MCP server ${name} is a built-in server and does not support OAuth. Use Connect instead of Authenticate.`
+  }
+  if (mcp.type === "remote") {
+    if (mcp.oauth === false) return `MCP server ${name} has OAuth explicitly disabled with oauth: false.`
+    return `MCP server ${name} is not OAuth-capable according to its current remote MCP config.`
+  }
+  if (mcp.transport?.type !== "streamable-http") {
+    return `MCP server ${name} is a local stdio MCP server without OAuth support. Local OAuth requires transport.type="streamable-http" and oauth: {}.`
+  }
+  if (typeof mcp.oauth !== "object" && !hasInferredLocalOAuth(mcp)) {
+    return `MCP server ${name} is configured for streamable HTTP but is missing oauth: {}. Its installed extension config is stale; remove and reinstall the extension.`
+  }
+  return `MCP server ${name} does not support OAuth with its current MCP config.`
 }
 
 function oauthConfig(mcp: ConfigMCP.Info) {
   if (mcp.type === "builtin") return undefined
+  if (mcp.type === "local" && hasInferredLocalOAuth(mcp)) return typeof mcp.oauth === "object" ? mcp.oauth : {}
   return typeof mcp.oauth === "object" ? mcp.oauth : undefined
 }
 
@@ -877,16 +900,23 @@ export const layer = Layer.effect(
         const environmentStatus = localOAuthEnvironmentStatus(key, mcp)
         if (environmentStatus) return { status: environmentStatus } satisfies CreateResult
 
+        const effectiveOAuth = oauthConfig(mcp)
+        const serverUrl = stableLocalOAuthServerURL(key, streamable)
+        const authEntry = effectiveOAuth ? yield* auth.getForUrl(key, serverUrl) : undefined
+        if (effectiveOAuth && !authEntry?.tokens) {
+          return { status: { status: "needs_auth" } } satisfies CreateResult
+        }
+
         const local = yield* connectLocalHTTPProcess(key, mcp)
         const authProvider = supportsOAuthConfig(mcp)
           ? new McpOAuthProvider(
               key,
-              local.serverUrl,
+              serverUrl,
               {
-                clientId: oauthConfig(mcp)?.clientId,
-                clientSecret: oauthConfig(mcp)?.clientSecret,
-                scope: oauthConfig(mcp)?.scope,
-                redirectUri: oauthConfig(mcp)?.redirectUri,
+                clientId: effectiveOAuth?.clientId,
+                clientSecret: effectiveOAuth?.clientSecret,
+                scope: effectiveOAuth?.scope,
+                redirectUri: effectiveOAuth?.redirectUri,
               },
               {
                 onRedirect: async (url) => {
@@ -1326,8 +1356,8 @@ export const layer = Layer.effect(
 
     const beginAuth = Effect.fn("MCP.beginAuth")(function* (mcpName: string) {
       const mcpConfig = yield* getMcpConfig(mcpName)
-      if (!mcpConfig) throw new Error(`MCP server ${mcpName} not found or disabled`)
-      if (!supportsOAuthConfig(mcpConfig)) throw new Error(`MCP server ${mcpName} does not support OAuth`)
+      if (!mcpConfig) throw new Error(unsupportedOAuthConfigMessage(mcpName, mcpConfig))
+      if (!supportsOAuthConfig(mcpConfig)) throw new Error(unsupportedOAuthConfigMessage(mcpName, mcpConfig))
       if (mcpConfig.type === "local") {
         const environmentStatus = localOAuthEnvironmentStatus(mcpName, mcpConfig)
         if (environmentStatus) {
@@ -1357,7 +1387,7 @@ export const layer = Layer.effect(
       }
 
       if (mcpConfig.type === "builtin") {
-        throw new Error(`MCP server ${mcpName} does not support OAuth`)
+        throw new Error(unsupportedOAuthConfigMessage(mcpName, mcpConfig))
       }
 
       const local = yield* connectLocalHTTPProcess(mcpName, mcpConfig)

@@ -173,7 +173,10 @@ describe("mcp HttpApi", () => {
 
             expect(response).toEqual({
               status: 400,
-              body: JSON.stringify({ error: "MCP server demo does not support OAuth" }),
+              body: JSON.stringify({
+                error:
+                  'MCP server demo is a local stdio MCP server without OAuth support. Local OAuth requires transport.type="streamable-http" and oauth: {}.',
+              }),
             })
           }),
         )
@@ -187,6 +190,81 @@ describe("mcp HttpApi", () => {
             type: "local",
             command: ["echo", "demo"],
             enabled: false,
+          },
+        },
+      },
+    },
+  )
+
+  it.instance("explains stale local HTTP OAuth config", () =>
+    Effect.gen(function* () {
+      const tmp = yield* TestInstance
+      const response = yield* readResponse({
+        app: app(),
+        path: "/mcp/google_workspace_calendar/auth/authenticate",
+        headers: { "x-opencode-directory": tmp.directory },
+      })
+
+      expect(response).toEqual({
+        status: 400,
+        body: JSON.stringify({
+          error:
+            "MCP server google_workspace_calendar is configured for streamable HTTP but is missing oauth: {}. Its installed extension config is stale; remove and reinstall the extension.",
+        }),
+      })
+    }),
+    {
+      config: {
+        formatter: false,
+        lsp: false,
+        mcp: {
+          google_workspace_calendar: {
+            type: "local",
+            command: ["uvx", "workspace-mcp"],
+            transport: {
+              type: "streamable-http",
+              host: "localhost",
+              path: "/mcp",
+              portEnv: "WORKSPACE_MCP_PORT",
+            },
+            enabled: true,
+          },
+        },
+      },
+    },
+  )
+
+  it.instance(
+    "treats legacy Workspace OAuth config as auth-capable when OAuth 2.1 env is enabled",
+    () =>
+      Effect.gen(function* () {
+        const tmp = yield* TestInstance
+        const handler = yield* handlerScoped
+        const response = yield* request(handler, McpPaths.status, tmp.directory)
+
+        expect(response.status).toBe(200)
+        expect(yield* json(response)).toEqual({ google_workspace_gmail: { status: "needs_auth" } })
+      }),
+    {
+      config: {
+        formatter: false,
+        lsp: false,
+        mcp: {
+          google_workspace_gmail: {
+            type: "local",
+            command: ["this-command-should-not-run"],
+            transport: {
+              type: "streamable-http",
+              host: "localhost",
+              path: "/mcp",
+              portEnv: "WORKSPACE_MCP_PORT",
+            },
+            environment: {
+              MCP_ENABLE_OAUTH21: "true",
+              GOOGLE_OAUTH_CLIENT_ID: "client-id",
+              GOOGLE_OAUTH_CLIENT_SECRET: "client-secret",
+            },
+            enabled: true,
           },
         },
       },

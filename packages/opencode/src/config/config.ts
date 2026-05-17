@@ -16,6 +16,7 @@ import { existsSync } from "fs"
 import { Account } from "@/account/account"
 import * as GeneralChatProfile from "@/general-chat/profile"
 import { isRecord } from "@/util/record"
+import { LocalContext } from "@/util/local-context"
 import type { ConsoleState } from "./console-state"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { InstanceState } from "@/effect/instance-state"
@@ -805,6 +806,12 @@ export const layer = Layer.effect(
 
     const invalidate = Effect.fn("Config.invalidate")(function* () {
       yield* invalidateGlobal
+      yield* InstanceState.invalidate(state).pipe(
+        Effect.catchDefect((defect) => {
+          if (defect instanceof LocalContext.NotFound) return Effect.void
+          return Effect.die(defect)
+        }),
+      )
     })
 
     const updateGlobal = Effect.fn("Config.updateGlobal")(function* (config: Info) {

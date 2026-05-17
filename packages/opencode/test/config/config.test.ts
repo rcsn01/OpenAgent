@@ -13,7 +13,7 @@ import { Account } from "../../src/account/account"
 import { AccessToken, AccountID, OrgID } from "../../src/account/schema"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { Env } from "../../src/env"
-import { provideTestInstance, provideTmpdirInstance } from "../fixture/fixture"
+import { provideTestInstance, provideTmpdirInstance, TestInstance } from "../fixture/fixture"
 import { tmpdir } from "../fixture/fixture"
 import { InstanceRuntime } from "@/project/instance-runtime"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
@@ -994,6 +994,49 @@ test("updates config and writes to file", async () => {
     },
   })
 })
+
+it.instance("invalidates the active workspace config cache", () =>
+  Effect.gen(function* () {
+    const instance = yield* TestInstance
+    const cfg = yield* Config.Service
+
+    const initial = yield* cfg.get()
+    expect(initial.mcp?.google_workspace_calendar).toBeUndefined()
+
+    yield* Effect.promise(() =>
+      writeConfig(instance.directory, {
+        mcp: {
+          google_workspace_calendar: {
+            type: "local",
+            command: ["uvx", "workspace-mcp"],
+            transport: {
+              type: "streamable-http",
+              host: "localhost",
+              path: "/mcp",
+              portEnv: "WORKSPACE_MCP_PORT",
+            },
+            oauth: {},
+          },
+        },
+      }),
+    )
+
+    const stale = yield* cfg.get()
+    expect(stale.mcp?.google_workspace_calendar).toBeUndefined()
+
+    yield* cfg.invalidate()
+
+    const fresh = yield* cfg.get()
+    expect(fresh.mcp?.google_workspace_calendar).toMatchObject({
+      type: "local",
+      oauth: {},
+      transport: {
+        type: "streamable-http",
+        path: "/mcp",
+      },
+    })
+  }),
+)
 
 test("gets config directories", async () => {
   await using tmp = await tmpdir()

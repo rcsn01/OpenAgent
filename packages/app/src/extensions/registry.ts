@@ -67,8 +67,8 @@ const googleCalendar = {
     environment: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
     steps: [
       "Create a Google OAuth client in Google Cloud for a local desktop workflow.",
-      "Export GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET before launching OpenAgent Desktop.",
-      "Install the extension to launch Google sign-in for google_workspace_calendar.",
+      "Import the downloaded OAuth client JSON here, or paste GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET into the setup fields.",
+      "Install or update the extension to launch Google sign-in for google_workspace_calendar.",
     ],
     links: [{ label: "Workspace MCP docs", href: "https://github.com/taylorwilsdon/google_workspace_mcp" }],
   },
@@ -274,8 +274,8 @@ const gmail = {
     environment: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
     steps: [
       "Create a Google OAuth client in Google Cloud for a local desktop workflow.",
-      "Export GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET before launching OpenAgent.",
-      "Install the extension to launch Google sign-in for google_workspace_gmail.",
+      "Import the downloaded OAuth client JSON here, or paste GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET into the setup fields.",
+      "Install or update the extension to launch Google sign-in for google_workspace_gmail.",
     ],
     links: [{ label: "Workspace MCP docs", href: "https://github.com/taylorwilsdon/google_workspace_mcp" }],
   },
@@ -338,8 +338,8 @@ const googleDrive = {
     environment: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"],
     steps: [
       "Create a Google OAuth client in Google Cloud for a local desktop workflow.",
-      "Export GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET before launching OpenAgent.",
-      "Install the extension to launch Google sign-in for google_workspace_drive.",
+      "Import the downloaded OAuth client JSON here, or paste GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET into the setup fields.",
+      "Install or update the extension to launch Google sign-in for google_workspace_drive.",
     ],
     links: [{ label: "Workspace MCP docs", href: "https://github.com/taylorwilsdon/google_workspace_mcp" }],
   },

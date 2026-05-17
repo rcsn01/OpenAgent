@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { writeFile } from "node:fs/promises"
+import { readFile, writeFile } from "node:fs/promises"
 import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
@@ -197,6 +197,10 @@ export function registerIpcHandlers(deps: Deps) {
 
   ipcMain.handle("write-text-file", async (_event: IpcMainInvokeEvent, path: string, content: string) => {
     await writeFile(path, content, "utf8")
+  })
+
+  ipcMain.handle("read-text-file", async (_event: IpcMainInvokeEvent, path: string) => {
+    return readFile(path, "utf8")
   })
 
   ipcMain.on("open-link", (_event: IpcMainEvent, url: string) => {
