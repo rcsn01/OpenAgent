@@ -1,7 +1,6 @@
 import type { Config } from "@/config/config"
 
 export const openswarmAgents = [
-  "virtual-assistant",
   "deep-research",
   "data-analyst",
   "slides-agent",
@@ -12,7 +11,7 @@ export const openswarmAgents = [
 
 export const sendMessageAgents = ["general", ...openswarmAgents] as const
 
-export type CommunicationMode = "send_message" | "transfer"
+export type CommunicationMode = "send_message"
 export type Flow = {
   from: string
   to: string
@@ -25,12 +24,7 @@ export function defaultFlows(): Flow[] {
     to,
     modes: ["send_message" as const],
   }))
-  const transfer = [...openswarmAgents].map((to) => ({
-    from: "assistant",
-    to,
-    modes: ["transfer" as const],
-  }))
-  return [...sendMessage, ...transfer]
+  return sendMessage
 }
 
 export function flows(cfg: Pick<Config.Info, "agent_communication">): Flow[] {

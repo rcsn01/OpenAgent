@@ -12,7 +12,7 @@ The system has three layers:
 2. Spawnable specialist subagents
 3. Blocking subagent delegation and assistant-only orchestration tools
 
-`build` and `assistant` can use the blocking `task` tool to spawn a subagent and wait for the result. Only `assistant` can use background tasks, graph tasks, `send_message`, and `transfer`.
+`build` and `assistant` can use the blocking `task` tool to spawn a subagent and wait for the result. Only `assistant` can use background tasks, graph tasks, and `send_message`.
 
 ## Primary Agents
 
@@ -38,7 +38,6 @@ The OpenSwarm-style specialist team is registered as native subagents:
 
 | Agent | Owns |
 |-------|------|
-| `virtual-assistant` | everyday assistant workflows, external systems, messaging, scheduling, Composio integrations |
 | `deep-research` | web research, citations, source-backed synthesis |
 | `data-analyst` | structured data analysis, charts, statistics, isolated Python-style work |
 | `slides-agent` | HTML slide decks and PPTX exports |
@@ -47,7 +46,7 @@ The OpenSwarm-style specialist team is registered as native subagents:
 | `video-generation-agent` | video generation, editing, assembly, and clip workflows |
 
 `general` and `explore` are also built-in subagents:
-- `general` is a generic provider-prompt subagent with `todowrite` denied. It is useful as a lightweight fallback worker and is a default `send_message` recipient, but it is not one of the OpenSwarm specialists and is not a `transfer` recipient.
+- `general` is a generic provider-prompt subagent with `todowrite` denied. It is useful as a lightweight fallback worker and is a default `send_message` recipient, but it is not one of the OpenSwarm specialists.
 - `explore` is a fast codebase exploration subagent restricted to `grep`, `glob`, `list`, `bash`, `webfetch`, `websearch`, and `read`. It is spawnable but is not a default communication recipient.
 
 ## Spawn Rules
@@ -86,12 +85,6 @@ Default `send_message` recipients include `general` plus the OpenSwarm specialis
 
 The child result returns to `assistant`; control does not move to the child.
 
-### `transfer`
-
-`transfer` is the single-specialist handoff surface.
-
-Use it when the current conversation should move to one specialist. The recipient gets useful conversation context and continues with the user. After transfer, `assistant` should not keep answering as if it still owns the turn.
-
 ## Tool Access Rules
 
 Blocking subagent delegation is available to:
@@ -111,9 +104,8 @@ The rest of the orchestration and OpenSwarm communication tools are assistant-on
 - `background_task_graph_get`
 - `background_task_graph_cancel`
 - `send_message`
-- `transfer`
 
-`send_message` can target `general` and the OpenSwarm specialists. `transfer` stays specialist-only by default.
+`send_message` can target `general` and the OpenSwarm specialists. Conversation handoff is not a tool surface; the primary agent keeps ownership and reports results back to the user.
 
 Those assistant-only tools are denied for:
 
@@ -131,7 +123,7 @@ Specialist tools remain owner-gated. For example:
 - `docs` tools only go to `docs-agent`
 - `slides` tools only go to `slides-agent`
 - `data_kernel` tools only go to `data-analyst`
-- `composio` tools only go to `virtual-assistant`
+- `composio` tools only go to `assistant`
 - image tools only go to `image-generation-agent`
 - video tools only go to `video-generation-agent`
 
@@ -162,7 +154,7 @@ The first implementation prioritizes the native routing and production-shaped to
 
 Current specialist tooling includes:
 
-- Composio setup-aware Virtual Assistant contracts
+- Composio setup-aware assistant contracts
 - native research report generation with a source ledger shape
 - local Data Analyst kernel scaffolding with artifact paths and timeout/error reporting
 - native docs artifact helpers
@@ -195,7 +187,6 @@ Tool results should return structured metadata and file attachments where possib
 | `packages/opencode/src/tool/task.ts` | Synchronous/background subagent entry point |
 | `packages/opencode/src/session/task-execution.ts` | Shared child-session execution machinery |
 | `packages/opencode/src/tool/send_message.ts` | Bounded subagent/specialist delegation |
-| `packages/opencode/src/tool/transfer.ts` | Session handoff event/tool |
 | `packages/opencode/src/integration/auth.ts` | Per-user integration credential service |
 | `packages/opencode/src/server/routes/instance/integration.ts` | Integration OAuth/status APIs |
 | `packages/opencode/src/tool/openswarm/` | Shared OpenSwarm specialist artifact/tool helpers |
@@ -212,9 +203,7 @@ Core tests cover:
 - plan/specialists not receiving delegation/meta tools
 - blocked spawn names
 - allowed and denied communication flows
-- same pair supporting multiple communication modes
 - `send_message` child-session execution
-- `transfer` handoff event behavior
 - docs/slides artifact creation
 - missing-credential guidance
 - per-user OAuth service behavior

@@ -2,17 +2,20 @@ import { makeEventListener } from "@solid-primitives/event-listener"
 import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Popover } from "@opencode-ai/ui/popover"
 import { RadioGroup } from "@opencode-ai/ui/radio-group"
 import { showToast } from "@opencode-ai/ui/toast"
-import { createMemo, createResource, Match, onCleanup, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { Accessor } from "solid-js"
 import { formatKeybind } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import type { VoiceInputGain, VoiceSettings } from "@/context/settings"
-import { usePlatform, type SpeechModelID, type SpeechModelInfo, type SpeechTranscriptionQuality } from "@/context/platform"
-import { parseVoiceCorrections, parseVoiceDictionary } from "./voice-postprocess"
+import {
+  usePlatform,
+  type SpeechModelID,
+  type SpeechModelInfo,
+  type SpeechTranscriptionQuality,
+} from "@/context/platform"
 
 const IS_MAC = typeof navigator === "object" && /(Mac|iPod|iPhone|iPad)/.test(navigator.platform)
 
@@ -47,8 +50,7 @@ const fallbackModels: SpeechModelInfo[] = [
   },
 ]
 
-interface VoiceSettingsPopoverProps {
-  disabled: boolean
+interface VoiceSettingsPanelProps {
   model: Accessor<SpeechModelID>
   onModelChange: (value: SpeechModelID) => void
   quality: Accessor<SpeechTranscriptionQuality>
@@ -69,9 +71,8 @@ interface VoiceSettingsPopoverProps {
   onAudioProcessingChange: (value: boolean) => void
   pressToTalkKeybind: Accessor<string>
   onPressToTalkKeybindChange: (value: string) => void
+  onClose?: () => void
 }
-
-type VoiceSettingsView = "main" | "transcription" | "audio" | "vocabulary"
 
 const qualityOptions = [
   {
@@ -152,15 +153,7 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
 
-function formatSensitivity(value: number) {
-  if (value <= 34) return "Low"
-  if (value >= 67) return "High"
-  return "Normal"
-}
-
 function formatInputGain(value: number) {
-  if (value <= 1.05) return "Normal"
-  if (value >= 5.5) return "Max"
   return `${value.toFixed(1)}x`
 }
 
@@ -171,10 +164,7 @@ function NumericSettingsSlider(props: {
   min: number
   max: number
   step: number
-  minLabel: string
-  maxLabel: string
   format: (value: number) => string
-  detail: (value: number) => string
   onChange: (value: number) => void
 }) {
   const value = createMemo(() => clampNumber(props.value(), props.min, props.max))
@@ -207,27 +197,155 @@ function NumericSettingsSlider(props: {
           props.onChange(clampNumber(Number(event.currentTarget.value), props.min, props.max))
         }}
       />
-      <div class="flex items-center justify-between text-[11px] leading-4 text-text-dim">
-        <button type="button" class="text-left" onClick={() => props.onChange(props.min)}>
-          {props.minLabel}
-        </button>
-        <button type="button" class="text-right" onClick={() => props.onChange(props.max)}>
-          {props.maxLabel}
-        </button>
-      </div>
-      <div class="text-11-regular text-text-weak">{props.detail(value())}</div>
     </div>
   )
 }
 
-export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
+function VoiceLevelMeter(props: { audioProcessing: Accessor<boolean>; inputGain: Accessor<number> }) {
+  const [level, setLevel] = createSignal(0)
+  const [status, setStatus] = createSignal<"starting" | "ready" | "unavailable">("starting")
+  const progress = createMemo(() => `${Math.round(level())}%`)
+
+  createEffect(() => {
+    const audioProcessing = props.audioProcessing()
+    let disposed = false
+    let stream: MediaStream | undefined
+    let context: AudioContext | undefined
+    let source: MediaStreamAudioSourceNode | undefined
+    let analyser: AnalyserNode | undefined
+    let buffer: Uint8Array<ArrayBuffer> | undefined
+    let animationFrame = 0
+
+    const cleanup = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame)
+      animationFrame = 0
+
+      try {
+        source?.disconnect()
+      } catch {}
+      source = undefined
+
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop())
+        stream = undefined
+      }
+
+      if (context) {
+        void context.close().catch(() => undefined)
+        context = undefined
+      }
+
+      analyser = undefined
+      buffer = undefined
+    }
+
+    setStatus("starting")
+    setLevel(0)
+
+    void (async () => {
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices?.getUserMedia ||
+        typeof AudioContext === "undefined"
+      ) {
+        setStatus("unavailable")
+        return
+      }
+
+      try {
+        const nextStream = await navigator.mediaDevices.getUserMedia({
+          audio: audioProcessing
+            ? {
+                autoGainControl: true,
+                echoCancellation: true,
+                noiseSuppression: true,
+              }
+            : {
+                autoGainControl: false,
+                echoCancellation: false,
+                noiseSuppression: false,
+              },
+        })
+
+        if (disposed) {
+          nextStream.getTracks().forEach((track) => track.stop())
+          return
+        }
+
+        stream = nextStream
+        context = new AudioContext()
+        if (context.state === "suspended") await context.resume().catch(() => undefined)
+        if (disposed || !context) {
+          cleanup()
+          return
+        }
+
+        analyser = context.createAnalyser()
+        analyser.fftSize = 2048
+        buffer = new Uint8Array<ArrayBuffer>(new ArrayBuffer(analyser.fftSize))
+        source = context.createMediaStreamSource(stream)
+        source.connect(analyser)
+        setStatus("ready")
+
+        const step = () => {
+          if (disposed || !analyser || !buffer) return
+
+          analyser.getByteTimeDomainData(buffer)
+          let total = 0
+          for (const sample of buffer) {
+            const normalized = (sample - 128) / 128
+            total += normalized * normalized
+          }
+
+          const rms = Math.sqrt(total / buffer.length)
+          const boostedRms = clampNumber(rms * clampNumber(props.inputGain(), 1, 6), 0, 1)
+          const nextLevel = clampNumber(Math.sqrt(boostedRms) * 260, 0, 100)
+          setLevel((current) => current * 0.65 + nextLevel * 0.35)
+          animationFrame = requestAnimationFrame(step)
+        }
+
+        animationFrame = requestAnimationFrame(step)
+      } catch {
+        if (disposed) return
+        cleanup()
+        setLevel(0)
+        setStatus("unavailable")
+      }
+    })()
+
+    onCleanup(() => {
+      disposed = true
+      cleanup()
+    })
+  })
+
+  return (
+    <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-12-medium text-text-strong">Mic level</div>
+          <div class="text-11-regular text-text-weak">
+            {status() === "unavailable" ? "Microphone input is unavailable." : "Live input level from your microphone."}
+          </div>
+        </div>
+        <div class="shrink-0 rounded-md border border-border-weak-base bg-surface-inset-base px-2 py-1 text-11-medium text-text-strong">
+          {status() === "starting" ? "Starting" : progress()}
+        </div>
+      </div>
+      <div data-component="voice-level-meter" aria-hidden="true" style={{ "--voice-level": progress() }}>
+        <div data-slot="bar" />
+      </div>
+    </div>
+  )
+}
+
+export function VoiceSettingsPanel(props: VoiceSettingsPanelProps) {
   const language = useLanguage()
   const platform = usePlatform()
   const [state, setState] = createStore({
     open: false,
     installing: undefined as SpeechModelID | undefined,
     capturing: false,
-    view: "main" as VoiceSettingsView,
   })
   const [models, actions] = createResource(
     () => props.quality(),
@@ -239,7 +357,9 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
   )
 
   const selected = createMemo(
-    () => models.latest.find((item) => item.id === props.model()) ?? fallbackModels.find((item) => item.id === props.model()),
+    () =>
+      models.latest.find((item) => item.id === props.model()) ??
+      fallbackModels.find((item) => item.id === props.model()),
   )
   const autoSendDelay = createMemo(() => {
     if (props.maxSilenceMs() >= 4200 || props.baseSilenceMs() >= 1600) return autoSendDelayOptions[2]
@@ -250,34 +370,6 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
     if (state.capturing) return "Press keys"
     return formatKeybind(props.pressToTalkKeybind(), language.t) || "Unassigned"
   })
-  const viewTitle = createMemo(() => {
-    if (state.view === "transcription") return "Transcription settings"
-    if (state.view === "audio") return "Audio settings"
-    if (state.view === "vocabulary") return "Vocabulary"
-    return "Voice settings"
-  })
-  const viewDescription = createMemo(() => {
-    if (state.view !== "main") return undefined
-    return "Tune hands-free send, transcription models, mic behavior, and custom corrections."
-  })
-  const transcriptionSummary = createMemo(() => {
-    const mode = props.quality() === "accurate" ? "Accurate" : "Fast"
-    const model = selected()?.label ?? "No model selected"
-    const downloaded = selected()?.downloaded ? "Downloaded" : "Needs download"
-    return `${mode} mode with ${model}. ${downloaded}.`
-  })
-  const audioSummary = createMemo(() => {
-    const sensitivity = formatSensitivity(props.vadSensitivity())
-    const gain = formatInputGain(props.inputGain())
-    return `${sensitivity} sensitivity, ${gain} boost, cleanup ${props.audioProcessing() ? "on" : "off"}.`
-  })
-  const vocabularySummary = createMemo(() => {
-    const termCount = parseVoiceDictionary(props.dictionary()).length
-    const correctionCount = parseVoiceCorrections(props.corrections()).length
-    if (!termCount && !correctionCount) return "No custom terms or correction rules yet."
-    return `${termCount} custom term${termCount === 1 ? "" : "s"} and ${correctionCount} correction rule${correctionCount === 1 ? "" : "s"}.`
-  })
-
   const download = async () => {
     const info = selected()
     if (!info || !platform.installSpeechModel) return
@@ -306,11 +398,6 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
 
   function stopCapture() {
     setState("capturing", false)
-  }
-
-  function setView(view: VoiceSettingsView) {
-    stopCapture()
-    setState("view", view)
   }
 
   if (typeof document !== "undefined") {
@@ -352,305 +439,241 @@ export function VoiceSettingsPopover(props: VoiceSettingsPopoverProps) {
 
   onCleanup(stopCapture)
 
+  createEffect(() => {
+    if (!state.open) {
+      setState("open", true)
+      void actions.refetch()
+    }
+  })
+
   return (
-    <Popover
-      open={state.open}
-      onOpenChange={(value) => {
-        setState("open", value)
-        if (!value) {
-          stopCapture()
-          setState("view", "main")
-          return
-        }
-        setState("view", "main")
-        void actions.refetch()
-      }}
-      triggerAs={IconButton}
-      triggerProps={{
-        icon: "settings-gear",
-        variant: "ghost",
-        size: "small",
-        class: "size-7",
-        "aria-label": "Voice settings",
-        disabled: props.disabled,
-      }}
-      title={
-        <div class="flex min-w-0 items-center gap-1">
-          <Show when={state.view !== "main"}>
-            <IconButton
-              icon="arrow-left"
-              size="small"
-              variant="ghost"
-              aria-label={language.t("common.goBack")}
-              onClick={() => setView("main")}
-            />
-          </Show>
-          <span class="truncate">{viewTitle()}</span>
+    <div class="flex h-full min-h-0 flex-col bg-background-base">
+      <div class="flex shrink-0 items-start justify-between gap-4 border-b border-border-weak-base px-6 py-4">
+        <div class="min-w-0">
+          <div class="text-16-medium text-text-strong">Voice settings</div>
+          <div class="text-13-regular text-text-weak">Tune capture, transcription, and vocabulary.</div>
         </div>
-      }
-      description={viewDescription()}
-      class="w-[360px] max-w-[calc(100vw-24px)]"
-      placement="top-end"
-    >
-      <div class="flex max-h-[min(72vh,640px)] flex-col gap-3 overflow-y-auto pr-1">
-        <Switch>
-          <Match when={state.view === "main"}>
-            <div class="flex flex-col gap-3">
-              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                <div class="text-12-medium text-text-strong">Pause before send</div>
-                <div class="text-11-regular text-text-weak">
-                  Longer delay waits through more natural pauses before voice sends automatically.
-                </div>
-                <RadioGroup
-                  options={autoSendDelayOptions}
-                  current={autoSendDelay()}
-                  value={(item) => item.id}
-                  label={(item) => item.label}
-                  onSelect={(item) => {
-                    if (!item) return
-                    props.onBaseSilenceMsChange(item.baseSilenceMs)
-                    props.onMaxSilenceMsChange(item.maxSilenceMs)
-                  }}
-                  fill
-                />
-              </div>
-              <button
-                type="button"
-                class="flex w-full items-center justify-between gap-3 rounded-lg border border-border-weak-base bg-surface-base p-3 text-left transition-colors hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active"
-                onClick={() => setView("transcription")}
-              >
-                <div class="min-w-0 flex-1">
-                  <div class="text-12-medium text-text-strong">Transcription settings</div>
-                  <div class="text-11-regular text-text-weak">{transcriptionSummary()}</div>
-                </div>
-                <Icon name="chevron-right" size="small" />
-              </button>
-              <button
-                type="button"
-                class="flex w-full items-center justify-between gap-3 rounded-lg border border-border-weak-base bg-surface-base p-3 text-left transition-colors hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active"
-                onClick={() => setView("audio")}
-              >
-                <div class="min-w-0 flex-1">
-                  <div class="text-12-medium text-text-strong">Audio settings</div>
-                  <div class="text-11-regular text-text-weak">{audioSummary()}</div>
-                </div>
-                <Icon name="chevron-right" size="small" />
-              </button>
-              <button
-                type="button"
-                class="flex w-full items-center justify-between gap-3 rounded-lg border border-border-weak-base bg-surface-base p-3 text-left transition-colors hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active"
-                onClick={() => setView("vocabulary")}
-              >
-                <div class="min-w-0 flex-1">
-                  <div class="text-12-medium text-text-strong">Vocabulary and corrections</div>
-                  <div class="text-11-regular text-text-weak">{vocabularySummary()}</div>
-                </div>
-                <Icon name="chevron-right" size="small" />
-              </button>
-            </div>
-          </Match>
-          <Match when={state.view === "transcription"}>
-            <div class="flex flex-col gap-3">
-              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                <div class="text-12-medium text-text-strong">Transcription mode</div>
-                <div class="text-11-regular text-text-weak">
-                  Fast is lower latency. Accurate is slower but can catch more words.
-                </div>
-                <RadioGroup
-                  options={qualityOptions}
-                  current={qualityOptions.find((item) => item.id === props.quality())}
-                  value={(item) => item.id}
-                  label={(item) => item.label}
-                  onSelect={(item) => item && props.onQualityChange(item.id)}
-                  fill
-                />
-              </div>
-              <div class="flex flex-col gap-2">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="text-12-medium text-text-strong">Model</span>
-                  <Show when={selected()?.recommended}>
-                    <span class="rounded-full bg-surface-base px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-text-dim">
-                      Recommended
-                    </span>
-                  </Show>
-                </div>
-                <RadioGroup
-                  options={models.latest}
-                  current={selected()}
-                  value={(item) => item.id}
-                  label={(item) => item.label.replace("Parakeet ", "")}
-                  onSelect={(item) => item && props.onModelChange(item.id)}
-                  fill
-                />
-              </div>
-              <Show when={selected()}>
-                {(info) => (
-                  <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                    <div class="flex items-start gap-2">
-                      <div class="pt-0.5 text-text-dim">
-                        <Icon
-                          name={info().downloaded ? "circle-check" : state.installing === info().id ? "download" : "warning"}
-                          size="small"
-                        />
-                      </div>
-                      <div class="min-w-0 flex-1">
-                        <div class="text-12-medium text-text-strong">
-                          {state.installing === info().id
-                            ? `Downloading ${info().label}...`
-                            : info().downloaded
-                              ? `${info().label} is downloaded`
-                              : `${info().label} is not downloaded`}
-                        </div>
-                        <div class="text-11-regular text-text-weak">{info().description}</div>
-                      </div>
-                    </div>
-                    <Show when={info().downloaded && info().path}>
-                      <div class="rounded-md bg-surface-inset-base px-2 py-1 text-[11px] leading-4 break-all text-text-dim">
-                        {info().path}
-                      </div>
-                    </Show>
-                    <Show when={!info().downloaded}>
-                      <Button
-                        type="button"
-                        size="small"
-                        variant="secondary"
-                        icon="download"
-                        disabled={!!state.installing || !platform.installSpeechModel}
-                        onClick={download}
-                      >
-                        {state.installing === info().id ? "Downloading..." : "Download model"}
-                      </Button>
-                    </Show>
-                  </div>
-                )}
-              </Show>
-              <p class="text-11-regular leading-4 text-text-weak">
-                Download the selected model for the current mode before turning on the microphone.
-              </p>
-            </div>
-          </Match>
-          <Match when={state.view === "audio"}>
-            <div class="flex flex-col gap-3">
-              <NumericSettingsSlider
-                title="Mic sensitivity"
-                description="Higher sensitivity starts capture more easily when your voice is quiet or you are farther from the mic."
-                value={props.vadSensitivity}
-                min={0}
-                max={100}
-                step={1}
-                minLabel="Low"
-                maxLabel="High"
-                format={formatSensitivity}
-                detail={(value) => `${Math.round(value)}% sensitivity`}
-                onChange={props.onVadSensitivityChange}
-              />
-              <NumericSettingsSlider
-                title="Mic boost"
-                description="Boost raises the captured input level before transcription."
-                value={props.inputGain}
-                min={1}
-                max={6}
-                step={0.1}
-                minLabel="Normal"
-                maxLabel="Max"
-                format={formatInputGain}
-                detail={(value) =>
-                  value <= 1.05
-                    ? "No extra preamp. Best if your microphone already sounds loud enough."
-                    : value >= 5.5
-                      ? "Very aggressive input boost for quiet microphones."
-                      : "Raises the captured input level before transcription."
-                }
-                onChange={props.onInputGainChange}
-              />
-              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                <div class="flex items-center justify-between gap-3">
-                  <div class="min-w-0 flex-1">
-                    <div class="text-12-medium text-text-strong">Audio cleanup</div>
-                    <div class="text-11-regular text-text-weak">
-                      {props.audioProcessing()
-                        ? "Browser echo cancellation, noise suppression, and gain control are on."
-                        : "Raw microphone capture is on. This can help if cleanup is distorting speech."}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={props.audioProcessing()}
-                    classList={{
-                      "h-8 min-w-[64px] rounded-md px-3 text-12-regular": true,
-                      "bg-surface-base text-text-subtle hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active":
-                        !props.audioProcessing(),
-                      "border border-border-weak-base bg-surface-inset-base text-text-strong": props.audioProcessing(),
-                    }}
-                    onClick={() => props.onAudioProcessingChange(!props.audioProcessing())}
-                  >
-                    {props.audioProcessing() ? "On" : "Off"}
-                  </button>
-                </div>
-              </div>
-              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                <div class="flex items-center justify-between gap-3">
-                  <div class="min-w-0 flex-1">
-                    <div class="text-12-medium text-text-strong">Press-to-talk</div>
-                    <div class="text-11-regular text-text-weak">Hold this shortcut while the mic is off to transcribe.</div>
-                  </div>
-                  <button
-                    type="button"
-                    data-voice-ptt-capture="true"
-                    classList={{
-                      "h-8 min-w-[88px] rounded-md px-3 text-12-regular": true,
-                      "border border-border-weak-base bg-surface-inset-base text-text-weak": state.capturing,
-                      "bg-surface-base text-text-subtle hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active":
-                        !state.capturing,
-                    }}
-                    onClick={() => setState("capturing", !state.capturing)}
-                  >
-                    {pressToTalkDisplay()}
-                  </button>
-                </div>
-                <div class="text-[11px] leading-4 text-text-dim">Press `Esc` to cancel or `Backspace` to clear.</div>
-              </div>
-            </div>
-          </Match>
-          <Match when={state.view === "vocabulary"}>
-            <div class="flex flex-col gap-3">
-              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                <div class="text-12-medium text-text-strong">Custom terms</div>
-                <div class="text-11-regular text-text-weak">
-                  Add names or technical words to preserve preferred casing. Separate entries with commas or new lines.
-                </div>
-                <textarea
-                  rows={4}
-                  value={props.dictionary()}
-                  placeholder={"OpenAI\nWhisperKit\nTypeScript"}
-                  spellcheck={false}
-                  autocorrect="off"
-                  autocapitalize="off"
-                  class="w-full resize-y rounded-md border border-border-weak-base bg-surface-inset-base px-3 py-2 text-12-regular text-text-strong outline-none focus:outline-none placeholder:text-text-dim"
-                  onInput={(event) => props.onDictionaryChange(event.currentTarget.value)}
-                />
-              </div>
-              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
-                <div class="text-12-medium text-text-strong">Corrections</div>
-                <div class="text-11-regular text-text-weak">
-                  Fix recurring substitutions with one rule per line, like `codax =&gt; Codex`.
-                </div>
-                <textarea
-                  rows={4}
-                  value={props.corrections()}
-                  placeholder={"codax => Codex\nopen agent => OpenAgent"}
-                  spellcheck={false}
-                  autocorrect="off"
-                  autocapitalize="off"
-                  class="w-full resize-y rounded-md border border-border-weak-base bg-surface-inset-base px-3 py-2 text-12-regular text-text-strong outline-none focus:outline-none placeholder:text-text-dim"
-                  onInput={(event) => props.onCorrectionsChange(event.currentTarget.value)}
-                />
-              </div>
-            </div>
-          </Match>
-        </Switch>
+        <Show when={props.onClose}>
+          <IconButton
+            icon="close"
+            size="small"
+            variant="ghost"
+            aria-label="Close voice settings"
+            onClick={() => {
+              stopCapture()
+              props.onClose?.()
+            }}
+          />
+        </Show>
       </div>
-    </Popover>
+      <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div class="mx-auto flex w-full max-w-[560px] flex-col gap-3">
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="text-12-medium text-text-strong">Pause before send</div>
+            <div class="text-11-regular text-text-weak">
+              Longer delay waits through more natural pauses before voice sends automatically.
+            </div>
+            <RadioGroup
+              options={autoSendDelayOptions}
+              current={autoSendDelay()}
+              value={(item) => item.id}
+              label={(item) => item.label}
+              onSelect={(item) => {
+                if (!item) return
+                props.onBaseSilenceMsChange(item.baseSilenceMs)
+                props.onMaxSilenceMsChange(item.maxSilenceMs)
+              }}
+              fill
+            />
+          </div>
+
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="text-12-medium text-text-strong">Transcription mode</div>
+            <div class="text-11-regular text-text-weak">
+              Fast is lower latency. Accurate is slower but can catch more words.
+            </div>
+            <RadioGroup
+              options={qualityOptions}
+              current={qualityOptions.find((item) => item.id === props.quality())}
+              value={(item) => item.id}
+              label={(item) => item.label}
+              onSelect={(item) => item && props.onQualityChange(item.id)}
+              fill
+            />
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-12-medium text-text-strong">Model</span>
+              <Show when={selected()?.recommended}>
+                <span class="rounded-full bg-surface-base px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-text-dim">
+                  Recommended
+                </span>
+              </Show>
+            </div>
+            <RadioGroup
+              options={models.latest}
+              current={selected()}
+              value={(item) => item.id}
+              label={(item) => item.label.replace("Parakeet ", "")}
+              onSelect={(item) => item && props.onModelChange(item.id)}
+              fill
+            />
+          </div>
+
+          <Show when={selected()}>
+            {(info) => (
+              <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+                <div class="flex items-start gap-2">
+                  <div class="pt-0.5 text-text-dim">
+                    <Icon
+                      name={
+                        info().downloaded ? "circle-check" : state.installing === info().id ? "download" : "warning"
+                      }
+                      size="small"
+                    />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="text-12-medium text-text-strong">
+                      {state.installing === info().id
+                        ? `Downloading ${info().label}...`
+                        : info().downloaded
+                          ? `${info().label} is downloaded`
+                          : `${info().label} is not downloaded`}
+                    </div>
+                    <div class="text-11-regular text-text-weak">{info().description}</div>
+                  </div>
+                </div>
+                <Show when={info().downloaded && info().path}>
+                  <div class="rounded-md bg-surface-inset-base px-2 py-1 text-[11px] leading-4 break-all text-text-dim">
+                    {info().path}
+                  </div>
+                </Show>
+                <Show when={!info().downloaded}>
+                  <Button
+                    type="button"
+                    size="small"
+                    variant="secondary"
+                    icon="download"
+                    disabled={!!state.installing || !platform.installSpeechModel}
+                    onClick={download}
+                  >
+                    {state.installing === info().id ? "Downloading..." : "Download model"}
+                  </Button>
+                </Show>
+              </div>
+            )}
+          </Show>
+
+          <NumericSettingsSlider
+            title="Mic sensitivity"
+            description="Higher sensitivity starts capture more easily when your voice is quiet or you are farther from the mic."
+            value={props.vadSensitivity}
+            min={0}
+            max={100}
+            step={1}
+            format={(value) => `${Math.round(value)}%`}
+            onChange={props.onVadSensitivityChange}
+          />
+
+          <NumericSettingsSlider
+            title="Mic boost"
+            description="Adjust microphone preamp."
+            value={props.inputGain}
+            min={1}
+            max={6}
+            step={0.1}
+            format={formatInputGain}
+            onChange={props.onInputGainChange}
+          />
+
+          <VoiceLevelMeter audioProcessing={props.audioProcessing} inputGain={props.inputGain} />
+
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="text-12-medium text-text-strong">Audio cleanup</div>
+                <div class="text-11-regular text-text-weak">
+                  {props.audioProcessing()
+                    ? "Browser echo cancellation, noise suppression, and gain control are on."
+                    : "Raw microphone capture is on. This can help if cleanup is distorting speech."}
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={props.audioProcessing()}
+                classList={{
+                  "h-8 min-w-[64px] rounded-md px-3 text-12-regular": true,
+                  "bg-surface-base text-text-subtle hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active":
+                    !props.audioProcessing(),
+                  "border border-border-weak-base bg-surface-inset-base text-text-strong": props.audioProcessing(),
+                }}
+                onClick={() => props.onAudioProcessingChange(!props.audioProcessing())}
+              >
+                {props.audioProcessing() ? "On" : "Off"}
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="flex items-center justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="text-12-medium text-text-strong">Press-to-talk</div>
+                <div class="text-11-regular text-text-weak">Hold this shortcut while the mic is off to transcribe.</div>
+              </div>
+              <button
+                type="button"
+                data-voice-ptt-capture="true"
+                classList={{
+                  "h-8 min-w-[88px] rounded-md px-3 text-12-regular": true,
+                  "border border-border-weak-base bg-surface-inset-base text-text-weak": state.capturing,
+                  "bg-surface-base text-text-subtle hover:bg-surface-raised-base-hover active:bg-surface-raised-base-active":
+                    !state.capturing,
+                }}
+                onClick={() => setState("capturing", !state.capturing)}
+              >
+                {pressToTalkDisplay()}
+              </button>
+            </div>
+            <div class="text-[11px] leading-4 text-text-dim">Press `Esc` to cancel or `Backspace` to clear.</div>
+          </div>
+
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="text-12-medium text-text-strong">Custom terms</div>
+            <div class="text-11-regular text-text-weak">
+              Add names or technical words to preserve preferred casing. Separate entries with commas or new lines.
+            </div>
+            <textarea
+              rows={4}
+              value={props.dictionary()}
+              placeholder={"OpenAI\nWhisperKit\nTypeScript"}
+              spellcheck={false}
+              autocorrect="off"
+              autocapitalize="off"
+              class="w-full resize-y rounded-md border border-border-weak-base bg-surface-inset-base px-3 py-2 text-12-regular text-text-strong outline-none focus:outline-none placeholder:text-text-dim"
+              onInput={(event) => props.onDictionaryChange(event.currentTarget.value)}
+            />
+          </div>
+
+          <div class="flex flex-col gap-2 rounded-lg border border-border-weak-base bg-surface-base p-3">
+            <div class="text-12-medium text-text-strong">Corrections</div>
+            <div class="text-11-regular text-text-weak">
+              Fix recurring substitutions with one rule per line, like `codax =&gt; Codex`.
+            </div>
+            <textarea
+              rows={4}
+              value={props.corrections()}
+              placeholder={"codax => Codex\nopen agent => OpenAgent"}
+              spellcheck={false}
+              autocorrect="off"
+              autocapitalize="off"
+              class="w-full resize-y rounded-md border border-border-weak-base bg-surface-inset-base px-3 py-2 text-12-regular text-text-strong outline-none focus:outline-none placeholder:text-text-dim"
+              onInput={(event) => props.onCorrectionsChange(event.currentTarget.value)}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

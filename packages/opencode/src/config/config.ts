@@ -216,13 +216,13 @@ export const Info = Schema.Struct({
             Schema.Struct({
               from: Schema.String,
               to: Schema.String,
-              modes: Schema.mutable(Schema.Array(Schema.Literals(["send_message", "transfer"]))),
+              modes: Schema.mutable(Schema.Array(Schema.Literals(["send_message"]))),
             }),
           ),
         ),
       ).annotate({
         description:
-          "Directional agent communication flows. When omitted, OpenSwarm defaults are used: assistant send_message/transfer to specialists.",
+          "Directional agent communication flows. When omitted, OpenSwarm defaults are used: assistant send_message to managed subagents.",
       }),
     }),
   ),

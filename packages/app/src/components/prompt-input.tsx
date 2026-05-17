@@ -51,7 +51,6 @@ import {
 import { createPromptSubmit, type FollowupDraft } from "./prompt-input/submit"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { createPromptVoice } from "./prompt-input/voice"
-import { VoiceSettingsPopover } from "./prompt-input/voice-settings-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
 import { PromptDragOverlay } from "./prompt-input/drag-overlay"
@@ -72,6 +71,7 @@ interface PromptInputProps {
   onQueue?: (draft: FollowupDraft) => void
   onAbort?: () => void
   onSubmit?: () => void
+  onOpenVoiceSettings?: () => void
 }
 
 const EXAMPLES = [
@@ -1672,28 +1672,14 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       </span>
                     </button>
                   </Tooltip>
-                  <VoiceSettingsPopover
+                  <IconButton
+                    icon="settings-gear"
+                    variant="ghost"
+                    size="small"
+                    class="size-7"
+                    aria-label="Voice settings"
                     disabled={store.mode !== "normal" || !voice.supported()}
-                    model={settings.voice.model}
-                    onModelChange={settings.voice.setModel}
-                    quality={settings.voice.quality}
-                    onQualityChange={settings.voice.setQuality}
-                    baseSilenceMs={settings.voice.baseSilenceMs}
-                    onBaseSilenceMsChange={settings.voice.setBaseSilenceMs}
-                    maxSilenceMs={settings.voice.maxSilenceMs}
-                    onMaxSilenceMsChange={settings.voice.setMaxSilenceMs}
-                    inputGain={settings.voice.inputGain}
-                    onInputGainChange={settings.voice.setInputGain}
-                    dictionary={settings.voice.dictionary}
-                    onDictionaryChange={settings.voice.setDictionary}
-                    corrections={settings.voice.corrections}
-                    onCorrectionsChange={settings.voice.setCorrections}
-                    vadSensitivity={settings.voice.vadSensitivity}
-                    onVadSensitivityChange={settings.voice.setVadSensitivity}
-                    audioProcessing={settings.voice.audioProcessing}
-                    onAudioProcessingChange={settings.voice.setAudioProcessing}
-                    pressToTalkKeybind={settings.voice.pressToTalkKeybind}
-                    onPressToTalkKeybindChange={settings.voice.setPressToTalkKeybind}
+                    onClick={props.onOpenVoiceSettings}
                   />
                 </div>
               </div>

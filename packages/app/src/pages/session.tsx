@@ -61,6 +61,7 @@ import { diffs as list } from "@/utils/diffs"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { same } from "@/utils/same"
 import { formatServerError } from "@/utils/server-errors"
+import { VoiceSettingsPanel } from "@/components/prompt-input/voice-settings-popover"
 import { useSessionFollowups } from "./session/session-followups"
 import { createSessionHistoryWindow } from "./session/session-history-window"
 import { useSessionPanelLayout } from "./session/session-panel-layout"
@@ -104,6 +105,7 @@ export default function Page() {
   })
 
   const [ui, setUi] = createStore({
+    voiceSettingsOpen: false,
     pendingMessage: undefined as string | undefined,
     scrollGesture: 0,
     scroll: {
@@ -1468,6 +1470,31 @@ export default function Page() {
         >
           <div class="flex-1 min-h-0 overflow-hidden">
             <Switch>
+              <Match when={ui.voiceSettingsOpen}>
+                <VoiceSettingsPanel
+                  model={settings.voice.model}
+                  onModelChange={settings.voice.setModel}
+                  quality={settings.voice.quality}
+                  onQualityChange={settings.voice.setQuality}
+                  baseSilenceMs={settings.voice.baseSilenceMs}
+                  onBaseSilenceMsChange={settings.voice.setBaseSilenceMs}
+                  maxSilenceMs={settings.voice.maxSilenceMs}
+                  onMaxSilenceMsChange={settings.voice.setMaxSilenceMs}
+                  inputGain={settings.voice.inputGain}
+                  onInputGainChange={settings.voice.setInputGain}
+                  dictionary={settings.voice.dictionary}
+                  onDictionaryChange={settings.voice.setDictionary}
+                  corrections={settings.voice.corrections}
+                  onCorrectionsChange={settings.voice.setCorrections}
+                  vadSensitivity={settings.voice.vadSensitivity}
+                  onVadSensitivityChange={settings.voice.setVadSensitivity}
+                  audioProcessing={settings.voice.audioProcessing}
+                  onAudioProcessingChange={settings.voice.setAudioProcessing}
+                  pressToTalkKeybind={settings.voice.pressToTalkKeybind}
+                  onPressToTalkKeybindChange={settings.voice.setPressToTalkKeybind}
+                  onClose={() => setUi("voiceSettingsOpen", false)}
+                />
+              </Match>
               <Match when={params.id}>
                 <MessageTimeline
                   actions={actions}
@@ -1519,6 +1546,7 @@ export default function Page() {
               resumeScroll()
             }}
             onResponseSubmit={resumeScroll}
+            onOpenVoiceSettings={() => setUi("voiceSettingsOpen", true)}
             followup={
               params.id && !isChildSession()
                 ? {

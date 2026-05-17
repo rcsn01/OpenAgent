@@ -1,7 +1,6 @@
 export const blockedSpawnAgentNames = new Set(["build", "plan", "assistant", "chat", "orchestrator"])
 
 export const openAgentFeatureAgentNames = new Set([
-  "virtual-assistant",
   "deep-research",
   "data-analyst",
   "slides-agent",

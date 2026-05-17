@@ -17,11 +17,16 @@ import { Skill } from "@/skill"
 import { Agent } from "@/agent/agent"
 import { BackgroundJob } from "@/background/job"
 import { Session } from "@/session/session"
+import { SessionBackgroundTask } from "@/session/background-task"
 import { SessionStatus } from "@/session/status"
+import { SessionTaskGraph } from "@/session/task-graph"
+import { TaskExecution } from "@/session/task-execution"
 import { Provider } from "@/provider/provider"
 import { Git } from "@/git"
 import { LSP } from "@/lsp/lsp"
 import { Instruction } from "@/session/instruction"
+import { IntegrationAuth } from "@/integration/auth"
+import { OpenSwarmArtifacts } from "@/tool/openswarm/artifact"
 import { Bus } from "@/bus"
 import { FetchHttpClient } from "effect/unstable/http"
 import { Format } from "@/format"
@@ -50,9 +55,14 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(Agent.defaultLayer),
       Layer.provide(Session.defaultLayer),
       Layer.provide(Layer.mergeAll(SessionStatus.defaultLayer, BackgroundJob.defaultLayer)),
+      Layer.provide(TaskExecution.defaultLayer),
+      Layer.provide(SessionTaskGraph.defaultLayer),
+      Layer.provide(SessionBackgroundTask.defaultLayer),
       Layer.provide(Provider.defaultLayer),
       Layer.provide(Git.defaultLayer),
       Layer.provide(Reference.defaultLayer),
+    )
+    .pipe(
       Layer.provide(LSP.defaultLayer),
       Layer.provide(Instruction.defaultLayer),
       Layer.provide(AppFileSystem.defaultLayer),
@@ -62,6 +72,8 @@ const registryLayer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Layer.provide(node),
       Layer.provide(Ripgrep.defaultLayer),
       Layer.provide(Truncate.defaultLayer),
+      Layer.provide(IntegrationAuth.defaultLayer),
+      Layer.provide(OpenSwarmArtifacts.defaultLayer),
     )
     .pipe(Layer.provide(RuntimeFlags.layer(flags)))
 const noRequirements = <ROut, E, RIn>(layer: Layer.Layer<ROut, E, RIn>) => layer as Layer.Layer<ROut, E, never>

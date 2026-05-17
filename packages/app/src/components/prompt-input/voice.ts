@@ -438,7 +438,10 @@ export function createPromptVoice(input: PromptVoiceInput) {
 
   const handleVoiceLevel = (rms: number, now = performance.now()) => {
     if (!state.speaking) noiseFloor = noiseFloor * 0.92 + rms * 0.08
-    const threshold = Math.max(minSpeechThreshold(input.vadSensitivity()), noiseFloor * speechFactor(input.vadSensitivity()))
+    const threshold = Math.max(
+      minSpeechThreshold(input.vadSensitivity()),
+      noiseFloor * speechFactor(input.vadSensitivity()),
+    )
     const forceCapture = state.pressToTalkActive && !state.manualMicEnabled
     handleVoiceActivity(forceCapture || rms > threshold, now)
   }
@@ -551,7 +554,11 @@ export function createPromptVoice(input: PromptVoiceInput) {
     return true
   }
 
-  const queueTranscription = (clip: { audio: ArrayBuffer; originalDurationMs: number }, runtime: SpeechRuntimeConfig, run: number) => {
+  const queueTranscription = (
+    clip: { audio: ArrayBuffer; originalDurationMs: number },
+    runtime: SpeechRuntimeConfig,
+    run: number,
+  ) => {
     if (!input.transcribeSpeech) return transcriptionQueue
     const transcribeSpeech = input.transcribeSpeech
     return queueTranscriptionTask(
@@ -568,25 +575,27 @@ export function createPromptVoice(input: PromptVoiceInput) {
     )
   }
 
-  const queueDesktopCaptureTranscription = (sessionId: string, runtime: SpeechRuntimeConfig, run: number, stopAfter: boolean) => {
+  const queueDesktopCaptureTranscription = (
+    sessionId: string,
+    runtime: SpeechRuntimeConfig,
+    run: number,
+    stopAfter: boolean,
+  ) => {
     if (!input.transcribeSpeechCaptureChunk) return transcriptionQueue
     const transcribeSpeechCaptureChunk = input.transcribeSpeechCaptureChunk
-    return queueTranscriptionTask(
-      async () => {
-        try {
-          return await transcribeSpeechCaptureChunk({
-            sessionId,
-            model: runtime.model,
-            quality: runtime.quality,
-            promptTerms: promptTerms(),
-          })
-        } finally {
-          if (!stopAfter) return
-          await Promise.resolve(input.stopSpeechCaptureSession?.(sessionId))
-        }
-      },
-      run,
-    )
+    return queueTranscriptionTask(async () => {
+      try {
+        return await transcribeSpeechCaptureChunk({
+          sessionId,
+          model: runtime.model,
+          quality: runtime.quality,
+          promptTerms: promptTerms(),
+        })
+      } finally {
+        if (!stopAfter) return
+        await Promise.resolve(input.stopSpeechCaptureSession?.(sessionId))
+      }
+    }, run)
   }
 
   const flushRecording = (run = sessionRun) => {
@@ -733,7 +742,8 @@ export function createPromptVoice(input: PromptVoiceInput) {
           .startSpeechCaptureSession({ gain: inputGainValue(input.inputGain()) })
           .catch(() => undefined)
         if (run !== sessionRun || !shouldRunSession()) {
-          if (nextSpeechCaptureSession) void Promise.resolve(input.stopSpeechCaptureSession?.(nextSpeechCaptureSession.id))
+          if (nextSpeechCaptureSession)
+            void Promise.resolve(input.stopSpeechCaptureSession?.(nextSpeechCaptureSession.id))
           return
         }
         const activeSpeechCaptureSession = adoptSpeechCaptureSession(nextSpeechCaptureSession)
@@ -747,7 +757,8 @@ export function createPromptVoice(input: PromptVoiceInput) {
           setState("starting", false)
           return
         }
-        if (nextSpeechCaptureSession) void Promise.resolve(input.stopSpeechCaptureSession?.(nextSpeechCaptureSession.id))
+        if (nextSpeechCaptureSession)
+          void Promise.resolve(input.stopSpeechCaptureSession?.(nextSpeechCaptureSession.id))
       }
 
       const nextStream = await navigator.mediaDevices.getUserMedia({

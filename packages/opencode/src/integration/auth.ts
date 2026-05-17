@@ -81,7 +81,7 @@ function setup(provider: Provider) {
     return [
       "Connect Composio for this user from the integrations UI or API.",
       "Required app setup: COMPOSIO_CLIENT_ID and COMPOSIO_CLIENT_SECRET.",
-      "After OAuth completes, Virtual Assistant tools can execute connected-account actions with permission prompts.",
+      "After OAuth completes, assistant tools can execute connected-account actions with permission prompts.",
     ].join("\n")
   }
   if (provider === "google") return "Connect Google OAuth for this user or set GOOGLE_API_KEY for provider-level media tools."

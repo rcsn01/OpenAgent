@@ -2,7 +2,7 @@
 
 The OpenSwarm-style specialist team is registered as native subagents in `packages/opencode/src/agent/agent.ts`. Each specialist gets a generated prompt via `specialistPrompt()` with shared OpenSwarm guidance plus role-specific instructions.
 
-All specialists explicitly cannot call delegation, background task, `send_message`, or `transfer` tools.
+All specialists explicitly cannot call delegation, background task, or `send_message` tools.
 
 ## Shared Specialist Prompt
 
@@ -16,21 +16,16 @@ Every specialist receives the same base guidance:
 
 ## Specialist Agents
 
-### virtual-assistant
-- **Owns:** everyday assistant workflows, external systems, messaging, scheduling, task management, Composio integrations
-- **Specialist tool:** `composio`
-- **Can be:** `send_message` recipient, `transfer` recipient
-
 ### deep-research
 - **Owns:** evidence-based web research, citations, source-backed synthesis, balanced analysis
 - **Specialist tool:** `deep_research`
 - **Additional tools:** `webfetch`, `websearch`
-- **Can be:** `send_message` recipient, `transfer` recipient
+- **Can be:** `send_message` recipient
 
 ### data-analyst
 - **Owns:** structured data analysis, charts, KPIs, statistical summaries, model-driven insights
 - **Specialist tool:** `data_kernel` (isolated IPython-style analysis and chart generation)
-- **Can be:** `send_message` recipient, `transfer` recipient
+- **Can be:** `send_message` recipient
 
 ### slides-agent
 - **Owns:** presentation creation, editing, visual polish, HTML decks, PPTX export
@@ -41,29 +36,29 @@ Every specialist receives the same base guidance:
   - `slides_theme` — persist theme tokens with CSS variable generation
   - `slide_screenshot` — SVG slide previews for visual inspection
   - `slide_overflow_check` — density and overflow heuristic reports
-- **Can be:** `send_message` recipient, `transfer` recipient
+- **Can be:** `send_message` recipient
 
 ### docs-agent
 - **Owns:** formatted documents, Word files, PDFs, Markdown, TXT, outlines, conversions
 - **Specialist tool:** `docs`
-- **Can be:** `send_message` recipient, `transfer` recipient
+- **Can be:** `send_message` recipient
 
 ### image-generation-agent
 - **Owns:** image generation, image editing, composition, visual asset creation
 - **Specialist tool:** `image_generation` (Gemini/fal-style image workflows)
-- **Can be:** `send_message` recipient, `transfer` recipient
+- **Can be:** `send_message` recipient
 
 ### video-generation-agent
 - **Owns:** video generation, editing, assembly, clip composition, media workflows
 - **Specialist tool:** `video_generation` (Sora/Veo/Seedance/fal-style video workflows)
-- **Can be:** `send_message` recipient, `transfer` recipient
+- **Can be:** `send_message` recipient
 
 ## Non-Specialist Subagents
 
 ### general
 - Generic provider-prompt subagent with `todowrite` denied
 - Useful as a lightweight fallback worker for parallel subtasks
-- Is a `send_message` recipient, **not** a `transfer` recipient
+- Is a `send_message` recipient
 - Has no specialist tool; relies on normal tools only
 
 ### explore

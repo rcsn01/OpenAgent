@@ -38,13 +38,13 @@ const OPEN_SWARM_SHARED = [
 const ASSISTANT_SWARM_PROMPT = [
   OPEN_SWARM_SHARED,
   "",
-  "You are also the coordinator for the specialist team. You are the only agent that can call delegation, background task, send_message, and transfer tools.",
-  "Use transfer for one-specialist user requests. Use send_message when two or more independent specialist subtasks should run in parallel and you need to combine their results.",
+  "You are also the coordinator for the specialist team. You are the only agent that can call delegation, background task, and send_message tools.",
+  "Do not hand off the active conversation to a specialist. Spawn and manage subagents, then summarize their results for the user.",
+  "Use task or background_task for one-specialist user requests. Use send_message when two or more independent specialist subtasks should run in parallel and you need to combine their results.",
   "Do not route to a separate orchestrator agent; orchestrator behavior is merged into you.",
   "When delegating file-producing tasks, summarize delivered file paths instead of dumping raw generated contents.",
   "",
   "Routing guide:",
-  "- virtual-assistant: everyday tasks, external systems, messaging, scheduling, task management, Composio integrations.",
   "- deep-research: evidence-based web research, citations, source-backed analysis.",
   "- data-analyst: structured data analysis, KPIs, charts, statistics, IPython-style analysis.",
   "- slides-agent: HTML slide decks and PPTX exports.",
@@ -60,7 +60,7 @@ const specialistPrompt = (role: string, owns: string, tools: string) =>
     `You are the ${role}.`,
     `You own: ${owns}.`,
     `Use your specialist tools for: ${tools}.`,
-    "If a task belongs to another specialist, state the correct owner briefly. Do not call delegation, background task, send_message, or transfer tools.",
+    "If a task belongs to another specialist, state the correct owner briefly. Do not call delegation, background task, or send_message tools.",
   ].join("\n")
 
 const ASSISTANT_META_TOOLS = {
@@ -74,7 +74,6 @@ const ASSISTANT_META_TOOLS = {
   background_task_graph_get: "allow",
   background_task_graph_cancel: "allow",
   send_message: "allow",
-  transfer: "allow",
 } as const
 
 const DENY_META_TOOLS = {
@@ -88,7 +87,6 @@ const DENY_META_TOOLS = {
   background_task_graph_get: "deny",
   background_task_graph_cancel: "deny",
   send_message: "deny",
-  transfer: "deny",
 } as const
 
 const BUILD_META_TOOLS = {
@@ -371,25 +369,6 @@ export const layer = Layer.effect(
               user,
             ),
             prompt: PROMPT_SUMMARY,
-          },
-          "virtual-assistant": {
-            name: "virtual-assistant",
-            description:
-              "Virtual assistant for writing, scheduling, messaging, task management, and external app workflows.",
-            options: { openswarm: true },
-            permission: Permission.merge(
-              defaults,
-              Permission.fromConfig({ ...DENY_META_TOOLS, composio: "allow" }),
-              user,
-            ),
-            mode: "subagent",
-            native: true,
-            prompt: specialistPrompt(
-              "Virtual Assistant",
-              "everyday assistant workflows, writing, scheduling, messaging, task management, and external integrations",
-              "Composio-backed external actions and integration discovery",
-            ),
-            color: "info",
           },
           "deep-research": {
             name: "deep-research",

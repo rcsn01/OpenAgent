@@ -81,7 +81,7 @@
   }
 
   [data-component="voice-slider"]:focus-visible::-webkit-slider-thumb {
-    outline: 2px solid var(--primary-base);
+    outline: 2px solid var(--border-info-selected);
     outline-offset: 2px;
   }
 
@@ -105,6 +105,23 @@
     border: 1px solid var(--border-weak-base);
     background: var(--surface-raised-base);
     box-shadow: 0 1px 4px rgb(0 0 0 / 25%);
+  }
+
+  [data-component="voice-level-meter"] {
+    height: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    border: 1px solid var(--border-weak-base);
+    background: var(--surface-inset-base);
+  }
+
+  [data-component="voice-level-meter"] [data-slot="bar"] {
+    width: var(--voice-level);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--surface-info-strong);
+    box-shadow: 0 0 10px var(--icon-info-active);
+    transition: width 80ms linear;
   }
 
   @keyframes session-progress-whip {
@@ -212,7 +229,24 @@
   [data-component="sidebar-session-row"][data-session-glow="working"]::after {
     width: 42%;
     opacity: 1;
-    background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.03) 8%, rgb(255 255 255 / 0.07) 16%, rgb(255 255 255 / 0.13) 24%, rgb(255 255 255 / 0.22) 32%, rgb(255 255 255 / 0.34) 40%, rgb(255 255 255 / 0.54) 47%, rgb(255 255 255 / 0.72) 50%, rgb(255 255 255 / 0.54) 53%, rgb(255 255 255 / 0.34) 60%, rgb(255 255 255 / 0.22) 68%, rgb(255 255 255 / 0.13) 76%, rgb(255 255 255 / 0.07) 84%, rgb(255 255 255 / 0.03) 92%, transparent 100%);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgb(255 255 255 / 0.03) 8%,
+      rgb(255 255 255 / 0.07) 16%,
+      rgb(255 255 255 / 0.13) 24%,
+      rgb(255 255 255 / 0.22) 32%,
+      rgb(255 255 255 / 0.34) 40%,
+      rgb(255 255 255 / 0.54) 47%,
+      rgb(255 255 255 / 0.72) 50%,
+      rgb(255 255 255 / 0.54) 53%,
+      rgb(255 255 255 / 0.34) 60%,
+      rgb(255 255 255 / 0.22) 68%,
+      rgb(255 255 255 / 0.13) 76%,
+      rgb(255 255 255 / 0.07) 84%,
+      rgb(255 255 255 / 0.03) 92%,
+      transparent 100%
+    );
     filter: blur(6px);
     animation: sidebar-session-working-glow 1.55s linear infinite;
     box-shadow: 0 0 24px rgb(255 255 255 / 0.24);

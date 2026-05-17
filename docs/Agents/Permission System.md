@@ -69,14 +69,14 @@ When a tool call needs `ask`, the runtime:
 
 ## Agent Capability Matrix
 
-OpenAgent ships 15 native agents. Below is every agent, its mode, and which tools it can use.
+OpenAgent ships 14 native agents. Below is every agent, its mode, and which tools it can use.
 
 ### Primary Agents (User-Facing)
 
 | Agent | Mode | Prompt | Key Permissions & Tools |
 |-------|------|--------|------------------------|
 | `build` | `primary` | Provider prompt only | Coding agent — all tools allowed; `question`, `plan_enter` allowed; **`task` allowed only for non-OpenAgent/default/custom subagents**; background/swarm orchestration **denied** |
-| `assistant` | `primary` | Provider prompt + `assistant.txt` + OpenSwarm routing guidance | General-purpose non-coding agent — all tools allowed; `question`, `plan_enter` allowed; **`task` allowed**; **background task/graph, `send_message`, and `transfer` all allowed** |
+| `assistant` | `primary` | Provider prompt + `assistant.txt` + OpenSwarm routing guidance | General-purpose non-coding agent — all tools allowed; `question`, `plan_enter` allowed; **`task` allowed**; **background task/graph, `send_message`, and `composio` allowed** |
 | `plan` | `primary` | Provider prompt only (plan reminders injected by `session/prompt.ts`) | `edit: deny` except `.opencode/plans/*.md`; `question`, `plan_exit` allowed; **`task` denied**; background/swarm orchestration **denied** |
 
 ### Internal System Agents (Hidden)
@@ -98,13 +98,12 @@ OpenAgent ships 15 native agents. Below is every agent, its mode, and which tool
 
 | Agent | Mode | Prompt | Key Permissions & Tools |
 |-------|------|--------|------------------------|
-| `virtual-assistant` | `subagent` | Generated (`agent.ts`) | `composio: allow`; **`task` denied**; can be a `send_message` and `transfer` recipient |
-| `deep-research` | `subagent` | Generated (`agent.ts`) | `webfetch`, `websearch`, `deep_research: allow`; **`task` denied**; can be a `send_message` and `transfer` recipient |
-| `data-analyst` | `subagent` | Generated (`agent.ts`) | `data_kernel: allow`; **`task` denied**; can be a `send_message` and `transfer` recipient |
-| `slides-agent` | `subagent` | Generated (`agent.ts`) | `slides_plan`, `slides_modify`, `slides`, `slides_theme`, `slide_screenshot`, `slide_overflow_check: allow` (owner-gated); **`task` denied**; can be a `send_message` and `transfer` recipient |
-| `docs-agent` | `subagent` | Generated (`agent.ts`) | `docs: allow`; **`task` denied**; can be a `send_message` and `transfer` recipient |
-| `image-generation-agent` | `subagent` | Generated (`agent.ts`) | `image_generation: allow`; **`task` denied**; can be a `send_message` and `transfer` recipient |
-| `video-generation-agent` | `subagent` | Generated (`agent.ts`) | `video_generation: allow`; **`task` denied**; can be a `send_message` and `transfer` recipient |
+| `deep-research` | `subagent` | Generated (`agent.ts`) | `webfetch`, `websearch`, `deep_research: allow`; **`task` denied**; can be a `send_message` recipient |
+| `data-analyst` | `subagent` | Generated (`agent.ts`) | `data_kernel: allow`; **`task` denied**; can be a `send_message` recipient |
+| `slides-agent` | `subagent` | Generated (`agent.ts`) | `slides_plan`, `slides_modify`, `slides`, `slides_theme`, `slide_screenshot`, `slide_overflow_check: allow` (owner-gated); **`task` denied**; can be a `send_message` recipient |
+| `docs-agent` | `subagent` | Generated (`agent.ts`) | `docs: allow`; **`task` denied**; can be a `send_message` recipient |
+| `image-generation-agent` | `subagent` | Generated (`agent.ts`) | `image_generation: allow`; **`task` denied**; can be a `send_message` recipient |
+| `video-generation-agent` | `subagent` | Generated (`agent.ts`) | `video_generation: allow`; **`task` denied**; can be a `send_message` recipient |
 
 ## Tool Access Gates
 
@@ -119,7 +118,7 @@ Caller-aware spawn filtering in `packages/opencode/src/agent/spawnable.ts` keeps
 - `assistant` can see and spawn OpenAgent specialists such as `slides-agent`, `docs-agent`, and `deep-research`.
 - `build` can see and spawn only non-OpenAgent/default/custom subagents such as `general`, `explore`, or project-defined coding/review agents.
 
-**Denied for:** `plan`, `explore`, `general`, and all 7 OpenSwarm specialists.
+**Denied for:** `plan`, `explore`, `general`, and all 6 OpenSwarm specialists.
 
 ### 2. Assistant-only orchestration — `assistant` only
 
@@ -128,9 +127,8 @@ The following tools only appear when `agent.name === "assistant"`:
 - `background_task` / `background_task_list` / `background_task_get` / `background_task_cancel`
 - `background_task_graph` / `background_task_graph_list` / `background_task_graph_get` / `background_task_graph_cancel`
 - `send_message`
-- `transfer`
 
-**Denied for:** `build`, `plan`, `explore`, `general`, all 7 OpenSwarm specialists, and blocked coordinator names (`orchestrator`).
+**Denied for:** `build`, `plan`, `explore`, `general`, all 6 OpenSwarm specialists, and blocked coordinator names (`orchestrator`).
 
 ### 3. Specialist owner-gated tools
 
@@ -138,7 +136,7 @@ These tools only appear for the agents listed in `openswarmToolOwners`:
 
 | Tool ID | Owner Agent(s) |
 |---------|----------------|
-| `composio` | `virtual-assistant` |
+| `composio` | `assistant` |
 | `deep_research` | `deep-research` |
 | `data_kernel` | `data-analyst` |
 | `slides_plan` | `slides-agent` |
@@ -155,11 +153,9 @@ No other agent receives these tools, regardless of permission config.
 
 ### 4. Communication recipient filtering
 
-`send_message` and `transfer` are additionally gated by configured communication flows (`packages/opencode/src/agent/communication.ts`). A tool only appears if at least one configured recipient exists for that agent+mode combination.
+`send_message` is additionally gated by configured communication flows (`packages/opencode/src/agent/communication.ts`). The tool only appears if at least one configured recipient exists for that agent+mode combination.
 
-Default `send_message` recipients: `general`, `virtual-assistant`, `deep-research`, `data-analyst`, `slides-agent`, `docs-agent`, `image-generation-agent`, `video-generation-agent`.
-
-Default `transfer` recipients: the 7 OpenSwarm specialists only (excludes `general`).
+Default `send_message` recipients: `general`, `deep-research`, `data-analyst`, `slides-agent`, `docs-agent`, `image-generation-agent`, `video-generation-agent`.
 
 ## Blocked Spawn Names
 

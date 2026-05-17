@@ -25,9 +25,9 @@ See [[Project Scope]] for more.
 
 Agent definitions, capabilities, tool access rules, and permissions.
 
-- [[Agents/Index|Agents]] — overview of all 15 native agents
+- [[Agents/Index|Agents]] — overview of all 14 native agents
 - [[Agents/Primary Agents]] — `build`, `assistant`, and `plan`
-- [[Agents/OpenSwarm Specialists]] — the 7 specialist subagents plus `general` and `explore`
+- [[Agents/OpenSwarm Specialists]] — the 6 specialist subagents plus `general` and `explore`
 - [[Agents/Permission System]] — hard enforcement of tool access per agent
 
 ### Prompt System

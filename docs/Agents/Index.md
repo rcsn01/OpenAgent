@@ -1,14 +1,14 @@
 # Agents
 
-OpenAgent ships 15 native agents across 4 categories.
+OpenAgent ships 14 native agents across 4 categories.
 
 ## Primary Agents (User-Facing)
 
-| Agent | Mode | Role | `task` | Background/Graph | `send_message` | `transfer` |
-|-------|------|------|--------|-----------------|----------------|------------|
-| `build` | `primary` | Coding agent — code generation, editing, refactoring, debugging | allow | deny | deny | deny |
-| `assistant` | `primary` | General-purpose non-coding agent — research, delegation, specialist routing, all new capabilities | allow | allow | allow | allow |
-| `plan` | `primary` | Planning mode; edits denied except `.opencode/plans/*.md` | deny | deny | deny | deny |
+| Agent | Mode | Role | `task` | Background/Graph | `send_message` |
+|-------|------|------|--------|-----------------|----------------|
+| `build` | `primary` | Coding agent — code generation, editing, refactoring, debugging | allow | deny | deny |
+| `assistant` | `primary` | General-purpose non-coding agent — research, delegation, specialist routing, all new capabilities | allow | allow | allow |
+| `plan` | `primary` | Planning mode; edits denied except `.opencode/plans/*.md` | deny | deny | deny |
 
 ## System Agents (Hidden)
 
@@ -29,20 +29,19 @@ OpenAgent ships 15 native agents across 4 categories.
 
 | Agent | Mode | Specialist Tool(s) | Communication |
 |-------|------|--------------------|---------------|
-| `virtual-assistant` | `subagent` | `composio` | `send_message`, `transfer` |
-| `deep-research` | `subagent` | `deep_research` | `send_message`, `transfer` |
-| `data-analyst` | `subagent` | `data_kernel` | `send_message`, `transfer` |
-| `slides-agent` | `subagent` | `slides_plan`, `slides_modify`, `slides`, `slides_theme`, `slide_screenshot`, `slide_overflow_check` | `send_message`, `transfer` |
-| `docs-agent` | `subagent` | `docs` | `send_message`, `transfer` |
-| `image-generation-agent` | `subagent` | `image_generation` | `send_message`, `transfer` |
-| `video-generation-agent` | `subagent` | `video_generation` | `send_message`, `transfer` |
+| `deep-research` | `subagent` | `deep_research` | `send_message` |
+| `data-analyst` | `subagent` | `data_kernel` | `send_message` |
+| `slides-agent` | `subagent` | `slides_plan`, `slides_modify`, `slides`, `slides_theme`, `slide_screenshot`, `slide_overflow_check` | `send_message` |
+| `docs-agent` | `subagent` | `docs` | `send_message` |
+| `image-generation-agent` | `subagent` | `image_generation` | `send_message` |
+| `video-generation-agent` | `subagent` | `video_generation` | `send_message` |
 
 ## Tool Access Rules
 
 Three registry gating layers control who gets which tool:
 
 1. **Blocking `task`** — only `build` and `assistant`. Denied for all others.
-2. **Assistant-only orchestration** — `background_task`, `background_task_graph`, all their management tools, `send_message`, `transfer`. Only `assistant`.
+2. **Assistant-only orchestration** — `background_task`, `background_task_graph`, all their management tools, `send_message`, and `composio`. Only `assistant`.
 3. **Specialist owner-gated** — each specialist tool goes exclusively to its owner agent.
 
 ## Blocked Spawn Names

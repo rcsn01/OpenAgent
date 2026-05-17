@@ -26,7 +26,6 @@ import { GrepTool } from "./grep"
 import { ReadTool } from "./read"
 import { TaskTool } from "./task"
 import { SendMessageTool } from "./send_message"
-import { TransferTool } from "./transfer"
 import { TaskStatusTool } from "./task_status"
 import { TodoWriteTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
@@ -92,12 +91,11 @@ const assistantOnlyToolIDs = new Set([
   "background_task_graph_get",
   "background_task_graph_cancel",
   "send_message",
-  "transfer",
 ])
 const taskToolAgents = new Set(["assistant", "build"])
 
 const openswarmToolOwners: Record<string, string[]> = {
-  composio: ["virtual-assistant"],
+  composio: ["assistant"],
   deep_research: ["deep-research"],
   data_kernel: ["data-analyst"],
   slides: ["slides-agent"],
@@ -178,7 +176,6 @@ export const layer: Layer.Layer<
     const task = yield* TaskTool
     const taskStatus = yield* TaskStatusTool
     const sendMessage = yield* SendMessageTool
-    const transfer = yield* TransferTool
     const backgroundTask = yield* BackgroundTaskTool
     const backgroundTaskGraph = yield* BackgroundTaskGraphTool
     const backgroundTaskList = yield* BackgroundTaskListTool
@@ -310,7 +307,6 @@ export const layer: Layer.Layer<
           task: Tool.init(task),
           task_status: Tool.init(taskStatus),
           sendMessage: Tool.init(sendMessage),
-          transfer: Tool.init(transfer),
           backgroundTask: Tool.init(backgroundTask),
           backgroundTaskGraph: Tool.init(backgroundTaskGraph),
           backgroundTaskList: Tool.init(backgroundTaskList),
@@ -357,7 +353,6 @@ export const layer: Layer.Layer<
             tool.task,
             ...(flags.experimentalBackgroundSubagents ? [tool.task_status] : []),
             tool.sendMessage,
-            tool.transfer,
             tool.backgroundTask,
             tool.backgroundTaskGraph,
             tool.backgroundTaskList,
@@ -438,7 +433,7 @@ export const layer: Layer.Layer<
 
     const describeCommunication = Effect.fn("ToolRegistry.describeCommunication")(function* (
       agent: Agent.Info,
-      mode: "send_message" | "transfer",
+      mode: "send_message",
     ) {
       const cfg = yield* config.get()
       const recipients = allowedRecipients(cfg, agent.name, mode)
@@ -461,9 +456,6 @@ export const layer: Layer.Layer<
 
         if (tool.id === SendMessageTool.id) {
           return allowedRecipients(cfg, input.agent.name, "send_message").length > 0
-        }
-        if (tool.id === TransferTool.id) {
-          return allowedRecipients(cfg, input.agent.name, "transfer").length > 0
         }
         const owners = openswarmToolOwners[tool.id]
         if (owners && !owners.includes(input.agent.name)) return false
@@ -502,7 +494,6 @@ export const layer: Layer.Layer<
                 ? yield* describeTask(input.agent)
                 : undefined,
               tool.id === SendMessageTool.id ? yield* describeCommunication(input.agent, "send_message") : undefined,
-              tool.id === TransferTool.id ? yield* describeCommunication(input.agent, "transfer") : undefined,
               tool.id === SkillTool.id ? yield* describeSkill(input.agent) : undefined,
             ]
               .filter(Boolean)

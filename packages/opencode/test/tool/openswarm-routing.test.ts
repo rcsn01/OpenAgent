@@ -10,7 +10,6 @@ import { TaskExecution, type TaskPromptOps } from "@/session/task-execution"
 import { ModelID, ProviderID } from "@/provider/schema"
 import { allowedRecipients } from "@/agent/communication"
 import { SendMessageTool } from "@/tool/send_message"
-import { TransferTool } from "@/tool/transfer"
 import {
   ComposioTool,
   DocsTool,
@@ -132,36 +131,29 @@ describe("openswarm native routing", () => {
         const registry = yield* ToolRegistry.Service
         const names = (yield* agents.list()).map((agent) => agent.name)
 
-        expect(names).toEqual(expect.arrayContaining(["virtual-assistant", "deep-research", "data-analyst"]))
+        expect(names).toEqual(expect.arrayContaining(["deep-research", "data-analyst"]))
+        expect(names).not.toContain("virtual-assistant")
         expect(names).not.toContain("orchestrator")
 
         const assistant = yield* agents.get("assistant")
-        const virtualAssistant = yield* agents.get("virtual-assistant")
         const build = yield* agents.get("build")
         const plan = yield* agents.get("plan")
         const docs = yield* agents.get("docs-agent")
         const assistantTools = new Set((yield* registry.tools({ ...ref, agent: assistant })).map((tool) => tool.id))
-        const virtualAssistantTools = new Set((yield* registry.tools({ ...ref, agent: virtualAssistant })).map((tool) => tool.id))
         const buildTools = new Set((yield* registry.tools({ ...ref, agent: build })).map((tool) => tool.id))
         const planTools = new Set((yield* registry.tools({ ...ref, agent: plan })).map((tool) => tool.id))
         const docsTools = new Set((yield* registry.tools({ ...ref, agent: docs })).map((tool) => tool.id))
         const cfg = yield* Config.Service
 
         expect(assistantTools.has("send_message")).toBe(true)
-        expect(assistantTools.has("transfer")).toBe(true)
+        expect(assistantTools.has("transfer")).toBe(false)
+        expect(assistantTools.has("composio")).toBe(true)
         expect(allowedRecipients(yield* cfg.get(), "assistant", "send_message")).toEqual(
-          expect.arrayContaining(["general", "virtual-assistant", "deep-research", "data-analyst", "docs-agent"]),
+          expect.arrayContaining(["general", "deep-research", "data-analyst", "docs-agent"]),
         )
+        expect(allowedRecipients(yield* cfg.get(), "assistant", "send_message")).not.toContain("virtual-assistant")
         expect(allowedRecipients(yield* cfg.get(), "assistant", "send_message")).not.toContain("orchestrator")
-        expect(allowedRecipients(yield* cfg.get(), "assistant", "transfer")).not.toContain("orchestrator")
-        expect(allowedRecipients(yield* cfg.get(), "assistant", "transfer")).not.toContain("general")
-        expect(virtualAssistantTools.has("send_message")).toBe(false)
-        expect(virtualAssistantTools.has("transfer")).toBe(false)
-        expect(virtualAssistantTools.has("composio")).toBe(true)
-        expect(buildTools.has("transfer")).toBe(false)
         expect(buildTools.has("send_message")).toBe(false)
-        expect(planTools.has("transfer")).toBe(false)
-        expect(docsTools.has("transfer")).toBe(false)
         expect(docsTools.has("docs")).toBe(true)
         const slidesAgent = yield* agents.get("slides-agent")
         const slidesTools = new Set((yield* registry.tools({ ...ref, agent: slidesAgent })).map((tool) => tool.id))
@@ -289,15 +281,13 @@ describe("openswarm native routing", () => {
     ),
   )
 
-  it.live("communication flows can deny send_message while preserving transfer", () =>
+  it.live("communication flows can deny send_message", () =>
     provideTmpdirInstance(
       () =>
         Effect.gen(function* () {
           const { chat, assistant } = yield* seed()
           const send = yield* SendMessageTool
-          const transfer = yield* TransferTool
           const sendDef = yield* send.init()
-          const transferDef = yield* transfer.init()
 
           const sendExit = yield* sendDef
             .execute(
@@ -324,79 +314,15 @@ describe("openswarm native routing", () => {
             )
             .pipe(Effect.exit)
 
-          const transferResult = yield* transferDef.execute(
-            {
-              recipient_agent: "deep-research",
-              reason: "research owner",
-            },
-            {
-              sessionID: chat.id,
-              messageID: assistant.id,
-              agent: "assistant",
-              abort: new AbortController().signal,
-              messages: [],
-              metadata: () => Effect.void,
-              ask: () => Effect.void,
-            },
-          )
-
           expect(sendExit._tag).toBe("Failure")
-          expect(transferResult.metadata).toMatchObject({ recipientAgent: "deep-research", mode: "transfer" })
         }),
       {
         config: {
           agent_communication: {
-            flows: [{ from: "assistant", to: "deep-research", modes: ["transfer"] }],
+            flows: [{ from: "assistant", to: "general", modes: ["send_message"] }],
           },
         },
       },
-    ),
-  )
-
-  it.live("transfer creates a no-reply continuation for the recipient agent", () =>
-    provideTmpdirInstance(() =>
-      Effect.gen(function* () {
-        const { chat, assistant } = yield* seed()
-        const transfer = yield* TransferTool
-        const def = yield* transfer.init()
-        let continuation: SessionPrompt.PromptInput | undefined
-
-        const result = yield* def.execute(
-          {
-            recipient_agent: "docs-agent",
-            reason: "document generation request",
-          },
-          {
-            sessionID: chat.id,
-            messageID: assistant.id,
-            agent: "assistant",
-            abort: new AbortController().signal,
-            extra: {
-              promptOps: {
-                cancel() {},
-                resolvePromptParts: (template: string) => Effect.succeed([{ type: "text" as const, text: template }]),
-                prompt: (input: SessionPrompt.PromptInput) =>
-                  Effect.sync(() => {
-                    continuation = input
-                    return reply(input, "not used")
-                  }),
-              },
-            },
-            messages: [],
-            metadata: () => Effect.void,
-            ask: () => Effect.void,
-          },
-        )
-
-        expect(result.metadata).toMatchObject({
-          recipientAgent: "docs-agent",
-          mode: "transfer",
-          continuationCreated: true,
-        })
-        expect(continuation?.agent).toBe("docs-agent")
-        expect(continuation?.noReply).toBe(true)
-        expect(continuation?.parts[0]?.type).toBe("text")
-      }),
     ),
   )
 
@@ -611,7 +537,7 @@ describe("openswarm native routing", () => {
           {
             sessionID: "ses_test" as any,
             messageID: "msg_test" as any,
-            agent: "virtual-assistant",
+            agent: "assistant",
             abort: new AbortController().signal,
             messages: [],
             metadata: () => Effect.void,
