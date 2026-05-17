@@ -1,4 +1,4 @@
-import { For, createEffect, createMemo, on, onCleanup, Show, Index, type JSX } from "solid-js"
+import { For, createEffect, createMemo, on, onCleanup, Show, Index } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Button } from "@opencode-ai/ui/button"
 import { FileIcon } from "@opencode-ai/ui/file-icon"
@@ -179,8 +179,6 @@ function createTimelineStaging(input: TimelineStageInput) {
 }
 
 export function MessageTimeline(props: {
-  mobileChanges: boolean
-  mobileFallback: JSX.Element
   actions?: UserActions
   scroll: { overflow: boolean; bottom: boolean; jump: boolean }
   onResumeScroll: () => void
@@ -254,210 +252,202 @@ export function MessageTimeline(props: {
   })
 
   return (
-    <Show
-      when={!props.mobileChanges}
-      fallback={<div class="relative h-full overflow-hidden">{props.mobileFallback}</div>}
-    >
-      <div class="relative w-full h-full min-w-0">
-        <div
-          class="absolute left-1/2 -translate-x-1/2 bottom-6 z-[60] pointer-events-none transition-all duration-200 ease-out"
-          classList={{
-            "opacity-100 translate-y-0 scale-100": props.scroll.overflow && props.scroll.jump && !staging.isStaging(),
-            "opacity-0 translate-y-2 scale-95 pointer-events-none":
-              !props.scroll.overflow || !props.scroll.jump || staging.isStaging(),
-          }}
+    <div class="relative w-full h-full min-w-0">
+      <div
+        class="absolute left-1/2 -translate-x-1/2 bottom-6 z-[60] pointer-events-none transition-all duration-200 ease-out"
+        classList={{
+          "opacity-100 translate-y-0 scale-100": props.scroll.overflow && props.scroll.jump && !staging.isStaging(),
+          "opacity-0 translate-y-2 scale-95 pointer-events-none":
+            !props.scroll.overflow || !props.scroll.jump || staging.isStaging(),
+        }}
+      >
+        <button
+          class="pointer-events-auto flex items-center justify-center w-10 h-8 bg-transparent border-none cursor-pointer p-0 group"
+          onClick={props.onResumeScroll}
         >
-          <button
-            class="pointer-events-auto flex items-center justify-center w-10 h-8 bg-transparent border-none cursor-pointer p-0 group"
-            onClick={props.onResumeScroll}
+          <div
+            class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)]"
+            style={{
+              "box-shadow":
+                "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
+            }}
           >
-            <div
-              class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)]"
-              style={{
-                "box-shadow":
-                  "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
-              }}
-            >
-              <Icon name="arrow-down-to-line" size="small" />
-            </div>
-          </button>
-        </div>
-        <ScrollView
-          viewportRef={props.setScrollRef}
-          onWheel={(e) => {
-            const root = e.currentTarget
-            const delta = normalizeWheelDelta({
-              deltaY: e.deltaY,
-              deltaMode: e.deltaMode,
-              rootHeight: root.clientHeight,
-            })
-            if (!delta) return
-            markBoundaryGesture({ root, target: e.target, delta, onMarkScrollGesture: props.onMarkScrollGesture })
-          }}
-          onTouchStart={(e) => {
-            touchGesture = e.touches[0]?.clientY
-          }}
-          onTouchMove={(e) => {
-            const next = e.touches[0]?.clientY
-            const prev = touchGesture
-            touchGesture = next
-            if (next === undefined || prev === undefined) return
+            <Icon name="arrow-down-to-line" size="small" />
+          </div>
+        </button>
+      </div>
+      <ScrollView
+        viewportRef={props.setScrollRef}
+        onWheel={(e) => {
+          const root = e.currentTarget
+          const delta = normalizeWheelDelta({
+            deltaY: e.deltaY,
+            deltaMode: e.deltaMode,
+            rootHeight: root.clientHeight,
+          })
+          if (!delta) return
+          markBoundaryGesture({ root, target: e.target, delta, onMarkScrollGesture: props.onMarkScrollGesture })
+        }}
+        onTouchStart={(e) => {
+          touchGesture = e.touches[0]?.clientY
+        }}
+        onTouchMove={(e) => {
+          const next = e.touches[0]?.clientY
+          const prev = touchGesture
+          touchGesture = next
+          if (next === undefined || prev === undefined) return
 
-            const delta = prev - next
-            if (!delta) return
+          const delta = prev - next
+          if (!delta) return
 
-            const root = e.currentTarget
-            markBoundaryGesture({ root, target: e.target, delta, onMarkScrollGesture: props.onMarkScrollGesture })
-          }}
-          onTouchEnd={() => {
-            touchGesture = undefined
-          }}
-          onTouchCancel={() => {
-            touchGesture = undefined
-          }}
-          onPointerDown={(e) => {
-            if (e.target !== e.currentTarget) return
-            props.onMarkScrollGesture(e.currentTarget)
-          }}
-          onScroll={(e) => {
-            props.onScheduleScrollState(e.currentTarget)
-            props.onTurnBackfillScroll()
-            if (!props.hasScrollGesture()) return
-            props.onUserScroll()
-            props.onAutoScrollHandleScroll()
-            props.onMarkScrollGesture(e.currentTarget)
-          }}
-          onClick={props.onAutoScrollInteraction}
-          class="relative min-w-0 w-full h-full"
-        >
-          <div ref={props.setContentRef} class="min-w-0 w-full">
-            <div
-              role="log"
-              data-slot="session-turn-list"
-              class="flex flex-col items-start justify-start pb-16 transition-[margin]"
-              classList={{
-                "w-full": true,
-                "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": props.centered,
-                "mt-0.5": props.centered,
-                "mt-0": !props.centered,
-              }}
-            >
-              <Show when={props.turnStart > 0 || props.historyMore}>
-                <div class="w-full flex justify-center">
-                  <Button
-                    variant="ghost"
-                    size="large"
-                    class="text-12-medium opacity-50"
-                    disabled={props.historyLoading}
-                    onClick={props.onLoadEarlier}
+          const root = e.currentTarget
+          markBoundaryGesture({ root, target: e.target, delta, onMarkScrollGesture: props.onMarkScrollGesture })
+        }}
+        onTouchEnd={() => {
+          touchGesture = undefined
+        }}
+        onTouchCancel={() => {
+          touchGesture = undefined
+        }}
+        onPointerDown={(e) => {
+          if (e.target !== e.currentTarget) return
+          props.onMarkScrollGesture(e.currentTarget)
+        }}
+        onScroll={(e) => {
+          props.onScheduleScrollState(e.currentTarget)
+          props.onTurnBackfillScroll()
+          if (!props.hasScrollGesture()) return
+          props.onUserScroll()
+          props.onAutoScrollHandleScroll()
+          props.onMarkScrollGesture(e.currentTarget)
+        }}
+        onClick={props.onAutoScrollInteraction}
+        class="relative min-w-0 w-full h-full"
+      >
+        <div ref={props.setContentRef} class="min-w-0 w-full">
+          <div
+            role="log"
+            data-slot="session-turn-list"
+            class="flex flex-col items-start justify-start pb-16 transition-[margin]"
+            classList={{
+              "w-full": true,
+              "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": props.centered,
+              "mt-0.5": props.centered,
+              "mt-0": !props.centered,
+            }}
+          >
+            <Show when={props.turnStart > 0 || props.historyMore}>
+              <div class="w-full flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="large"
+                  class="text-12-medium opacity-50"
+                  disabled={props.historyLoading}
+                  onClick={props.onLoadEarlier}
+                >
+                  {props.historyLoading
+                    ? language.t("session.messages.loadingEarlier")
+                    : language.t("session.messages.loadEarlier")}
+                </Button>
+              </div>
+            </Show>
+            <For each={rendered()}>
+              {(messageID) => {
+                const active = createMemo(() => activeMessageID() === messageID)
+                const message = createMemo(() => sessionMessages().find((item) => item.id === messageID))
+                const comments = createMemo(() => messageComments(sync.data.part[messageID] ?? []), [], {
+                  equals: (a, b) =>
+                    a.length === b.length &&
+                    a.every(
+                      (c, i) =>
+                        c.path === b[i].path &&
+                        c.comment === b[i].comment &&
+                        c.selection?.startLine === b[i].selection?.startLine &&
+                        c.selection?.endLine === b[i].selection?.endLine,
+                    ),
+                })
+                const commentCount = createMemo(() => comments().length)
+                return (
+                  <div
+                    id={props.anchor(messageID)}
+                    data-message-id={messageID}
+                    classList={{
+                      "min-w-0 w-full max-w-full": true,
+                      "md:max-w-200 2xl:max-w-[1000px]": props.centered,
+                    }}
+                    style={{
+                      "content-visibility": active() ? undefined : "auto",
+                      "contain-intrinsic-size": active() ? undefined : "auto 500px",
+                    }}
                   >
-                    {props.historyLoading
-                      ? language.t("session.messages.loadingEarlier")
-                      : language.t("session.messages.loadEarlier")}
-                  </Button>
-                </div>
-              </Show>
-              <For each={rendered()}>
-                {(messageID) => {
-                  const active = createMemo(() => activeMessageID() === messageID)
-                  const message = createMemo(() => sessionMessages().find((item) => item.id === messageID))
-                  const comments = createMemo(() => messageComments(sync.data.part[messageID] ?? []), [], {
-                    equals: (a, b) =>
-                      a.length === b.length &&
-                      a.every(
-                        (c, i) =>
-                          c.path === b[i].path &&
-                          c.comment === b[i].comment &&
-                          c.selection?.startLine === b[i].selection?.startLine &&
-                          c.selection?.endLine === b[i].selection?.endLine,
-                      ),
-                  })
-                  const commentCount = createMemo(() => comments().length)
-                  return (
-                    <div
-                      id={props.anchor(messageID)}
-                      data-message-id={messageID}
-                      classList={{
-                        "min-w-0 w-full max-w-full": true,
-                        "md:max-w-200 2xl:max-w-[1000px]": props.centered,
-                      }}
-                      style={{
-                        "content-visibility": active() ? undefined : "auto",
-                        "contain-intrinsic-size": active() ? undefined : "auto 500px",
-                      }}
-                    >
-                      <Show when={commentCount() > 0}>
-                        <div class="w-full px-4 md:px-5 pb-2">
-                          <div class="ml-auto max-w-[82%] overflow-x-auto no-scrollbar">
-                            <div class="flex w-max min-w-full justify-end gap-2">
-                              <Index each={comments()}>
-                                {(commentAccessor: () => MessageComment) => {
-                                  const comment = createMemo(() => commentAccessor())
-                                  return (
-                                    <Show when={comment()}>
-                                      {(c) => (
-                                        <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border-weak-base bg-background-stronger px-2.5 py-2">
-                                          <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-text-strong">
-                                            <FileIcon
-                                              node={{ path: c().path, type: "file" }}
-                                              class="size-3.5 shrink-0"
-                                            />
-                                            <span class="truncate">{getFilename(c().path)}</span>
-                                            <Show when={c().selection}>
-                                              {(selection) => (
-                                                <span class="shrink-0 text-text-weak">
-                                                  {selection().startLine === selection().endLine
-                                                    ? `:${selection().startLine}`
-                                                    : `:${selection().startLine}-${selection().endLine}`}
-                                                </span>
-                                              )}
-                                            </Show>
-                                          </div>
-                                          <div class="pt-1 text-12-regular text-text-strong whitespace-pre-wrap break-words">
-                                            {c().comment}
-                                          </div>
+                    <Show when={commentCount() > 0}>
+                      <div class="w-full px-4 md:px-5 pb-2">
+                        <div class="ml-auto max-w-[82%] overflow-x-auto no-scrollbar">
+                          <div class="flex w-max min-w-full justify-end gap-2">
+                            <Index each={comments()}>
+                              {(commentAccessor: () => MessageComment) => {
+                                const comment = createMemo(() => commentAccessor())
+                                return (
+                                  <Show when={comment()}>
+                                    {(c) => (
+                                      <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border-weak-base bg-background-stronger px-2.5 py-2">
+                                        <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-text-strong">
+                                          <FileIcon node={{ path: c().path, type: "file" }} class="size-3.5 shrink-0" />
+                                          <span class="truncate">{getFilename(c().path)}</span>
+                                          <Show when={c().selection}>
+                                            {(selection) => (
+                                              <span class="shrink-0 text-text-weak">
+                                                {selection().startLine === selection().endLine
+                                                  ? `:${selection().startLine}`
+                                                  : `:${selection().startLine}-${selection().endLine}`}
+                                              </span>
+                                            )}
+                                          </Show>
                                         </div>
-                                      )}
-                                    </Show>
-                                  )
-                                }}
-                              </Index>
-                            </div>
+                                        <div class="pt-1 text-12-regular text-text-strong whitespace-pre-wrap break-words">
+                                          {c().comment}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </Show>
+                                )
+                              }}
+                            </Index>
                           </div>
                         </div>
-                      </Show>
-                      <SessionTurn
-                        sessionID={sessionID() ?? ""}
-                        messageID={messageID}
-                        messages={sessionMessages()}
-                        actions={props.actions}
-                        active={active()}
-                        status={active() ? sessionStatus() : undefined}
-                        messageTimestamp={
-                          settings.general.showMessageTimestamps() && message()
-                            ? new Date(message()!.time.created).toLocaleString(undefined, {
-                                dateStyle: "medium",
-                                timeStyle: "short",
-                              })
-                            : undefined
-                        }
-                        showReasoningSummaries={settings.general.showReasoningSummaries()}
-                        shellToolDefaultOpen={settings.general.shellToolPartsExpanded()}
-                        editToolDefaultOpen={settings.general.editToolPartsExpanded()}
-                        classes={{
-                          root: "min-w-0 w-full relative",
-                          content: "flex flex-col justify-between !overflow-visible",
-                          container: "w-full px-4 md:px-5",
-                        }}
-                      />
-                    </div>
-                  )
-                }}
-              </For>
-            </div>
+                      </div>
+                    </Show>
+                    <SessionTurn
+                      sessionID={sessionID() ?? ""}
+                      messageID={messageID}
+                      messages={sessionMessages()}
+                      actions={props.actions}
+                      active={active()}
+                      status={active() ? sessionStatus() : undefined}
+                      messageTimestamp={
+                        settings.general.showMessageTimestamps() && message()
+                          ? new Date(message()!.time.created).toLocaleString(undefined, {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            })
+                          : undefined
+                      }
+                      showReasoningSummaries={settings.general.showReasoningSummaries()}
+                      shellToolDefaultOpen={settings.general.shellToolPartsExpanded()}
+                      editToolDefaultOpen={settings.general.editToolPartsExpanded()}
+                      classes={{
+                        root: "min-w-0 w-full relative",
+                        content: "flex flex-col justify-between !overflow-visible",
+                        container: "w-full px-4 md:px-5",
+                      }}
+                    />
+                  </div>
+                )
+              }}
+            </For>
           </div>
-        </ScrollView>
-      </div>
-    </Show>
+        </div>
+      </ScrollView>
+    </div>
   )
 }

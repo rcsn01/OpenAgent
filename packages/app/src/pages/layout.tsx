@@ -202,10 +202,6 @@ export default function Layout(props: ParentProps) {
     makeEventListener(window, "pointerup", stop)
     makeEventListener(window, "pointercancel", stop)
     makeEventListener(window, "blur", stop)
-
-    const desktopMedia = window.matchMedia("(min-width: 1280px)")
-    setDesktopPanels(desktopMedia.matches)
-    makeEventListener(desktopMedia, "change", (event) => setDesktopPanels(event.matches))
   })
 
   const sidebarHovering = createMemo(() => false)
@@ -222,26 +218,23 @@ export default function Layout(props: ParentProps) {
     setMainCenter: (slot: JSX.Element | undefined) => setMainHeaderCenter(() => slot),
     setMainTrailing: (slot: JSX.Element | undefined) => setMainHeaderTrailing(() => slot),
   }
-  const [desktopPanels, setDesktopPanels] = createSignal(
-    typeof window === "undefined" ? true : window.matchMedia("(min-width: 1280px)").matches,
-  )
   const [sidebarClosing, setSidebarClosing] = createSignal(false)
 
   createEffect(
     on(
-      () => [layout.sidebar.opened(), desktopPanels()] as const,
-      ([opened, desktop], previous) => {
+      () => layout.sidebar.opened(),
+      (opened, previous) => {
         if (sidebarCloseTimer !== undefined) {
           clearTimeout(sidebarCloseTimer)
           sidebarCloseTimer = undefined
         }
 
-        if (opened || !desktop) {
+        if (opened) {
           setSidebarClosing(false)
           return
         }
 
-        if (!previous?.[0]) {
+        if (!previous) {
           setSidebarClosing(false)
           return
         }
@@ -275,7 +268,6 @@ export default function Layout(props: ParentProps) {
   const navigateWithSidebarReset = (href: string, options?: { replace?: boolean }) => {
     clearSidebarHoverState()
     navigate(href, { replace: options?.replace })
-    layout.mobileSidebar.hide()
   }
 
   function cycleTheme(direction = 1) {
@@ -1612,7 +1604,6 @@ export default function Layout(props: ParentProps) {
           onClick: () => {
             const href = `/${base64Encode(directory)}/session`
             navigate(href)
-            layout.mobileSidebar.hide()
           },
         },
         {
@@ -1849,8 +1840,9 @@ export default function Layout(props: ParentProps) {
       .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
   }
 
-  const projectSessionDirectories = (project: LocalProject) =>
-    [...new Map(workspaceIds(project).map((directory) => [pathKey(directory), directory])).values()]
+  const projectSessionDirectories = (project: LocalProject) => [
+    ...new Map(workspaceIds(project).map((directory) => [pathKey(directory), directory])).values(),
+  ]
 
   function projectHasMoreSessions(project: LocalProject) {
     return projectSessionDirectories(project).some((directory) => {
@@ -1897,7 +1889,8 @@ export default function Layout(props: ParentProps) {
     )
 
     const grouped = sessions.reduce(
-      (result, session) => result.set(session.directory, (result.get(session.directory) ?? new Set<string>()).add(session.id)),
+      (result, session) =>
+        result.set(session.directory, (result.get(session.directory) ?? new Set<string>()).add(session.id)),
       new Map<string, Set<string>>(),
     )
 
@@ -2003,7 +1996,7 @@ export default function Layout(props: ParentProps) {
   }
 
   createEffect(() => {
-    if (!layout.sidebar.opened() && !layout.mobileSidebar.opened()) return
+    if (!layout.sidebar.opened()) return
     for (const project of layout.projects.list()) {
       for (const directory of workspaceIds(project)) {
         void globalSync.project.loadSessions(directory)
@@ -2028,7 +2021,6 @@ export default function Layout(props: ParentProps) {
       return
     }
     navigate(`/${base64Encode(directory)}/automations`)
-    layout.mobileSidebar.hide()
   }
 
   const sidebarProject = createMemo(() => {
@@ -2132,19 +2124,15 @@ export default function Layout(props: ParentProps) {
       dialog.show(() => <DialogResetWorkspace root={root} directory={directory} />),
     showDeleteWorkspaceDialog: (root, directory) =>
       dialog.show(() => <DialogDeleteWorkspace root={root} directory={directory} />),
-    setScrollContainerRef: (el, mobile) => {
-      if (!mobile) scrollContainerRef = el
+    setScrollContainerRef: (el) => {
+      scrollContainerRef = el
     },
   }
 
-  const SidebarPanel = (panelProps: {
-    project: Accessor<LocalProject | undefined>
-    mobile?: boolean
-    merged?: boolean
-  }) => {
+  const SidebarPanel = (panelProps: { project: Accessor<LocalProject | undefined>; merged?: boolean }) => {
     const project = panelProps.project
-    const merged = createMemo(() => panelProps.mobile || (panelProps.merged ?? layout.sidebar.opened()))
-    const hover = createMemo(() => !panelProps.mobile && panelProps.merged === false && !layout.sidebar.opened())
+    const merged = createMemo(() => panelProps.merged ?? layout.sidebar.opened())
+    const hover = createMemo(() => panelProps.merged === false && !layout.sidebar.opened())
     const empty = createMemo(() => appRoute.kind() === "none" && layout.projects.list().length === 0)
     const projectName = createMemo(() => {
       const item = project()
@@ -2186,11 +2174,9 @@ export default function Layout(props: ParentProps) {
           "border-l border-t border-border-weaker-base": merged(),
           "bg-background-base": merged() || hover(),
           "bg-background-stronger": !merged() && !hover(),
-          "flex-1 min-w-0": panelProps.mobile,
-          "max-w-full overflow-hidden": panelProps.mobile,
         }}
         style={{
-          width: panelProps.mobile ? undefined : `${panel()}px`,
+          width: `${panel()}px`,
         }}
       >
         <Show
@@ -2219,11 +2205,11 @@ export default function Layout(props: ParentProps) {
               <div class="shrink-0 pl-1 py-1">
                 <div class="group/project flex items-start justify-between gap-2 py-2 pl-2 pr-0">
                   <div class="flex flex-col min-w-0">
-	                    <InlineEditor
-	                      id={projectEditorId(project)}
-	                      value={projectName}
-	                      onSave={(next) => {
-	                        void renameProject(project, next)
+                    <InlineEditor
+                      id={projectEditorId(project)}
+                      value={projectName}
+                      onSave={(next) => {
+                        void renameProject(project, next)
                       }}
                       class="text-14-medium text-text-strong truncate"
                       displayClass="text-14-medium text-text-strong truncate"
@@ -2246,9 +2232,9 @@ export default function Layout(props: ParentProps) {
                     </Tooltip>
                   </div>
 
-	                  <ProjectActionsMenu
-	                    project={() => project}
-                    hoverOnly={!panelProps.mobile && !merged()}
+                  <ProjectActionsMenu
+                    project={() => project}
+                    hoverOnly={!merged()}
                     sidebarHovering={sidebarHovering}
                     triggerClass="size-6"
                     triggerDataAction="project-menu"
@@ -2289,12 +2275,7 @@ export default function Layout(props: ParentProps) {
                         </Button>
                       </div>
                       <div class="flex-1 min-h-0">
-                        <LocalWorkspace
-                          ctx={workspaceSidebarCtx}
-                          project={project}
-                          sortNow={sortNow}
-                          mobile={panelProps.mobile}
-                        />
+                        <LocalWorkspace ctx={workspaceSidebarCtx} project={project} sortNow={sortNow} />
                       </div>
                     </>
                   }
@@ -2323,7 +2304,7 @@ export default function Layout(props: ParentProps) {
                         <ConstrainDragXAxis />
                         <div
                           ref={(el) => {
-                            if (!panelProps.mobile) scrollContainerRef = el
+                            scrollContainerRef = el
                           }}
                           class="size-full flex flex-col py-2 gap-4 overflow-y-auto no-scrollbar [overflow-anchor:none]"
                         >
@@ -2335,7 +2316,6 @@ export default function Layout(props: ParentProps) {
                                   directory={directory}
                                   project={project}
                                   sortNow={sortNow}
-                                  mobile={panelProps.mobile}
                                 />
                               )}
                             </For>
@@ -2390,8 +2370,8 @@ export default function Layout(props: ParentProps) {
   }
 
   const projects = () => layout.projects.list()
-  const sidebarContent = (mobile?: boolean) => {
-    if (mobile || layout.sidebar.opened()) {
+  const sidebarContent = () => {
+    if (layout.sidebar.opened()) {
       return (
         <SidebarHub
           projects={projects}
@@ -2439,11 +2419,9 @@ export default function Layout(props: ParentProps) {
   const workspaceRightPanelVisibleWidth = createMemo(() =>
     workspaceRightPanelOpen() ? workspaceRightPanelTargetWidth() : 0,
   )
-  const workspaceRightDividerWidth = createMemo(() =>
-    workspaceRightPanel() ? WORKSPACE_PANEL_DIVIDER_WIDTH : 0,
-  )
-  const leftPanelOpen = createMemo(() => desktopPanels() && layout.sidebar.opened())
-  const leftPanelChromeVisible = createMemo(() => desktopPanels() && (layout.sidebar.opened() || sidebarClosing()))
+  const workspaceRightDividerWidth = createMemo(() => (workspaceRightPanel() ? WORKSPACE_PANEL_DIVIDER_WIDTH : 0))
+  const leftPanelOpen = createMemo(() => layout.sidebar.opened())
+  const leftPanelChromeVisible = createMemo(() => layout.sidebar.opened() || sidebarClosing())
   const mainHeaderControlsVisible = createMemo(() => !leftPanelOpen())
   const workspaceSidebarVisibleWidth = createMemo(() => (leftPanelOpen() ? side() : 0))
 
@@ -2454,7 +2432,7 @@ export default function Layout(props: ParentProps) {
           <TitlebarThemeSync />
           {autoselecting() ?? ""}
           <div
-            class="hidden xl:block h-full min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base"
+            class="block h-full min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base"
             classList={{
               "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
                 !state.sizing,
@@ -2470,8 +2448,7 @@ export default function Layout(props: ParentProps) {
                 left={
                   <div
                     classList={{
-                      "transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
-                        true,
+                      "transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none": true,
                       "opacity-100": layout.sidebar.opened(),
                       "opacity-0": !layout.sidebar.opened(),
                     }}
@@ -2480,7 +2457,6 @@ export default function Layout(props: ParentProps) {
                       showSidebarToggle={true}
                       showNewSession={false}
                       showNavigation={true}
-                      showMobileToggle={false}
                       showChannelBadge={false}
                     />
                   </div>
@@ -2499,7 +2475,7 @@ export default function Layout(props: ParentProps) {
                   inert={!layout.sidebar.opened()}
                 >
                   <div class="@container box-border w-full h-full contain-strict flex flex-col bg-background-base">
-                    {sidebarContent(true)}
+                    {sidebarContent()}
                   </div>
                 </nav>
                 <Show when={layout.sidebar.opened()}>
@@ -2524,7 +2500,7 @@ export default function Layout(props: ParentProps) {
               </div>
             </div>
           </div>
-          <div class="hidden xl:block h-full min-h-0 app-panel-divider-x" />
+          <div class="block h-full min-h-0 app-panel-divider-x" />
           <div class="flex-1 min-h-0 min-w-0 flex flex-col relative">
             <PanelHeader
               class="bg-background-base"
@@ -2543,31 +2519,6 @@ export default function Layout(props: ParentProps) {
               right={mainHeaderTrailing()}
             />
             <div class="flex-1 min-h-0 relative overflow-x-hidden">
-              <div class="xl:hidden">
-                <div
-                  classList={{
-                    "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
-                    "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
-                    "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
-                  }}
-                  onClick={(e) => {
-                    if (e.target === e.currentTarget) layout.mobileSidebar.hide()
-                  }}
-                />
-                <nav
-                  aria-label={language.t("sidebar.nav.projectsAndSessions")}
-                  data-component="sidebar-nav-mobile"
-                  classList={{
-                    "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden app-panel-border-r bg-background-base transition-transform duration-200 ease-out": true,
-                    "translate-x-0": layout.mobileSidebar.opened(),
-                    "-translate-x-full": !layout.mobileSidebar.opened(),
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {sidebarContent(true)}
-                </nav>
-              </div>
-
               <main
                 classList={{
                   "size-full overflow-x-hidden flex flex-col items-start contain-strict bg-background-base": true,
@@ -2604,7 +2555,7 @@ export default function Layout(props: ParentProps) {
             {import.meta.env.DEV && <DebugBar />}
           </div>
           <div
-            class="hidden xl:block h-full min-h-0 app-panel-divider-x transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            class="block h-full min-h-0 app-panel-divider-x transition-[width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             classList={{
               "opacity-100": workspaceRightDividerWidth() > 0,
               "opacity-0": workspaceRightDividerWidth() === 0,
@@ -2616,7 +2567,7 @@ export default function Layout(props: ParentProps) {
             aria-label={workspaceRightPanel()?.label}
             aria-hidden={!workspaceRightPanelOpen()}
             inert={!workspaceRightPanelOpen()}
-            class="hidden xl:flex flex-col relative min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base"
+            class="flex flex-col relative min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base"
             classList={{
               "pointer-events-none": !workspaceRightPanelOpen(),
               "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":

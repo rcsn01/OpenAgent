@@ -85,7 +85,6 @@ export type SessionItemProps = {
   list: Session[]
   navList?: Accessor<Session[]>
   slug: string
-  mobile?: boolean
   dense?: boolean
   showTooltip?: boolean
   showChild?: boolean
@@ -99,7 +98,6 @@ export type SessionItemProps = {
 const SessionRow = (props: {
   session: Session
   slug: string
-  mobile?: boolean
   dense?: boolean
   tint: Accessor<string | undefined>
   isWorking: Accessor<boolean>
@@ -180,7 +178,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   })
 
   const tint = createMemo(() => messageAgentColor(sessionStore.message[props.session.id], sessionStore.agent))
-  const tooltip = createMemo(() => props.showTooltip ?? (props.mobile || !props.sidebarExpanded()))
+  const tooltip = createMemo(() => props.showTooltip ?? !props.sidebarExpanded())
   const currentChild = createMemo(() => {
     if (!props.showChild) return
     return childSessionOnPath(sessionStore.session, props.session.id, params.id)
@@ -210,7 +208,6 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
     <SessionRow
       session={props.session}
       slug={props.slug}
-      mobile={props.mobile}
       dense={props.dense}
       tint={tint}
       isWorking={isWorking}
@@ -236,12 +233,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             <Show
               when={!tooltip()}
               fallback={
-                <Tooltip
-                  placement={props.mobile ? "bottom" : "right"}
-                  value={sessionTitle(props.session.title)}
-                  gutter={10}
-                  class="min-w-0 w-full"
-                >
+                <Tooltip placement="right" value={sessionTitle(props.session.title)} gutter={10} class="min-w-0 w-full">
                   {item}
                 </Tooltip>
               }
@@ -254,8 +246,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
             <div
               class="shrink-0 overflow-hidden transition-[width,opacity]"
               classList={{
-                "w-6 opacity-100 pointer-events-auto": !!props.mobile,
-                "w-0 opacity-0 pointer-events-none": !props.mobile,
+                "w-0 opacity-0 pointer-events-none": true,
                 "group-hover/session:w-6 group-hover/session:opacity-100 group-hover/session:pointer-events-auto": true,
                 "group-focus-within/session:w-6 group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto": true,
               }}
@@ -290,7 +281,6 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
 
 export const NewSessionItem = (props: {
   slug: string
-  mobile?: boolean
   dense?: boolean
   sidebarExpanded: Accessor<boolean>
   clearHoverProjectSoon: () => void
@@ -298,7 +288,7 @@ export const NewSessionItem = (props: {
   const layout = useLayout()
   const language = useLanguage()
   const label = language.t("command.session.new")
-  const tooltip = () => props.mobile || !props.sidebarExpanded()
+  const tooltip = () => !props.sidebarExpanded()
   const item = (
     <A
       href={`/${props.slug}/session`}
@@ -321,7 +311,7 @@ export const NewSessionItem = (props: {
       <Show
         when={!tooltip()}
         fallback={
-          <Tooltip placement={props.mobile ? "bottom" : "right"} value={label} gutter={10} class="min-w-0 w-full">
+          <Tooltip placement="right" value={label} gutter={10} class="min-w-0 w-full">
             {item}
           </Tooltip>
         }

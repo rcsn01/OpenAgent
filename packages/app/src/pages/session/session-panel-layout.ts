@@ -1,4 +1,3 @@
-import { createMediaQuery } from "@solid-primitives/media"
 import { createMemo } from "solid-js"
 import { MIN_WORKSPACE_RIGHT_PANEL_WIDTH } from "@/context/workspace-panels"
 
@@ -19,12 +18,9 @@ export function useSessionPanelLayout(input: {
   sidebarWidth: () => number
   sessionWidth: () => number
 }) {
-  const isDesktop = createMediaQuery("(min-width: 768px)")
-  const desktopReviewOpen = createMemo(() => isDesktop() && input.reviewPanelOpened())
+  const desktopReviewOpen = createMemo(() => input.reviewPanelOpened())
   const desktopRightPanelOpen = createMemo(
-    () =>
-      isDesktop() &&
-      (input.reviewPanelOpened() || input.subagentsOpened() || input.extensionsOpened() || input.contextOpened()),
+    () => input.reviewPanelOpened() || input.subagentsOpened() || input.extensionsOpened() || input.contextOpened(),
   )
   const fileTreeShown = createMemo(
     () => input.platform() !== "desktop" || input.channel() !== "beta" || input.showFileTreeSetting(),
@@ -42,10 +38,9 @@ export function useSessionPanelLayout(input: {
     if (!desktopRightPanelOpen()) return width
     return Math.min(width, reviewResizeMax())
   })
-  const centered = createMemo(() => isDesktop() && !desktopRightPanelOpen())
+  const centered = createMemo(() => !desktopRightPanelOpen())
 
   return {
-    isDesktop,
     desktopReviewOpen,
     desktopRightPanelOpen,
     desktopFileTreeOpen,

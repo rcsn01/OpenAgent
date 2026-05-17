@@ -1,7 +1,6 @@
 import { createEffect, createMemo, Show, untrack, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
-import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Button } from "@opencode-ai/ui/button"
 import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
@@ -182,7 +181,7 @@ export function TitlebarSidebarToggle(props: { class?: string }) {
 
   return (
     <TooltipKeybind
-      class={`hidden xl:flex shrink-0 ${props.class ?? ""}`}
+      class={`flex shrink-0 ${props.class ?? ""}`}
       placement="bottom"
       title={language.t("command.sidebar.toggle")}
       keybind={command.keybind("sidebar.toggle")}
@@ -204,7 +203,6 @@ export function TitlebarLeadingControls(props: {
   showSidebarToggle?: boolean
   showNewSession?: boolean
   showNavigation?: boolean
-  showMobileToggle?: boolean
   showChannelBadge?: boolean
 }) {
   const layout = useLayout()
@@ -216,12 +214,10 @@ export function TitlebarLeadingControls(props: {
   const location = useLocation()
   const params = useParams()
 
-  const mac = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   const web = createMemo(() => platform.platform === "web")
   const showSidebarToggle = () => props.showSidebarToggle ?? true
   const showNewSession = () => props.showNewSession ?? true
   const showNavigation = () => props.showNavigation ?? true
-  const showMobileToggle = () => props.showMobileToggle ?? true
   const showChannelBadge = () => props.showChannelBadge ?? true
   const [history, setHistory] = createStore({
     stack: [] as string[],
@@ -285,35 +281,11 @@ export function TitlebarLeadingControls(props: {
 
   return (
     <div class="flex h-full items-center min-w-0">
-      <Show when={showMobileToggle() && mac()}>
-        <div class="xl:hidden w-10 shrink-0 flex items-center justify-center">
-          <IconButton
-            icon="menu"
-            variant="ghost"
-            class="titlebar-icon rounded-md"
-            onClick={layout.mobileSidebar.toggle}
-            aria-label={language.t("sidebar.menu.toggle")}
-            aria-expanded={layout.mobileSidebar.opened()}
-          />
-        </div>
-      </Show>
-      <Show when={showMobileToggle() && !mac()}>
-        <div class="xl:hidden w-[48px] shrink-0 flex items-center justify-center">
-          <IconButton
-            icon="menu"
-            variant="ghost"
-            class="titlebar-icon rounded-md"
-            onClick={layout.mobileSidebar.toggle}
-            aria-label={language.t("sidebar.menu.toggle")}
-            aria-expanded={layout.mobileSidebar.opened()}
-          />
-        </div>
-      </Show>
       <div class="flex items-center gap-1 shrink-0">
         <Show when={showSidebarToggle()}>
           <TitlebarSidebarToggle class={web() ? "ml-14" : "ml-2"} />
         </Show>
-        <div class="hidden xl:flex items-center shrink-0">
+        <div class="flex items-center shrink-0">
           <Show when={showNewSession() && params.dir}>
             <div class="flex items-center shrink-0 w-8 mr-1">
               <TooltipKeybind

@@ -21,7 +21,6 @@ import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange
 import { createStore } from "solid-js/store"
 import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { Select } from "@opencode-ai/ui/select"
-import { Tabs } from "@opencode-ai/ui/tabs"
 import { createAutoScroll } from "@opencode-ai/ui/hooks"
 import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
 import { Button } from "@opencode-ai/ui/button"
@@ -166,7 +165,6 @@ export default function Page() {
     sidebarWidth: layout.sidebar.width,
     sessionWidth: layout.session.width,
   })
-  const isDesktop = sessionPanel.isDesktop
   const desktopReviewOpen = sessionPanel.desktopReviewOpen
   const desktopRightPanelOpen = sessionPanel.desktopRightPanelOpen
   const desktopFileTreeOpen = sessionPanel.desktopFileTreeOpen
@@ -191,7 +189,7 @@ export default function Page() {
   const mainSessionID = createMemo(() => rootSessionID(sync.data.session, params.id))
   const diffs = createMemo(() => (params.id ? list(sync.data.session_diff[params.id]) : []))
   const canReview = createMemo(() => !!sync.project)
-  const reviewTab = createMemo(() => isDesktop())
+  const reviewTab = () => true
   const tabState = createSessionTabs({
     tabs,
     pathFromTab: file.pathFromTab,
@@ -269,7 +267,6 @@ export default function Page() {
 
   const [store, setStore] = createStore({
     messageId: undefined as string | undefined,
-    mobileTab: "session" as "session" | "changes",
     changes: "git" as ChangeMode,
     newSessionWorktree: "main",
     deferRender: false,
@@ -322,12 +319,7 @@ export default function Page() {
     list.push("turn")
     return list
   })
-  const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
-  const wantsReview = createMemo(() =>
-    isDesktop()
-      ? desktopFileTreeOpen() || (desktopReviewOpen() && activeTab() === "review")
-      : store.mobileTab === "changes",
-  )
+  const wantsReview = createMemo(() => desktopFileTreeOpen() || (desktopReviewOpen() && activeTab() === "review"))
   const vcsMode = createMemo<VcsMode | undefined>(() => {
     if (store.changes === "git" || store.changes === "branch") return store.changes
   })
@@ -1060,7 +1052,6 @@ export default function Page() {
   let treeDir: string | undefined
   createEffect(() => {
     const dir = sdk.directory
-    if (!isDesktop()) return
     if (!desktopFileTreeOpen()) return
     if (sync.status === "loading") return
 
@@ -1465,36 +1456,11 @@ export default function Page() {
   return (
     <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
       <SessionHeader />
-      <div class="flex-1 min-h-0 flex flex-col md:flex-row">
-        <Show when={!isDesktop() && !!params.id}>
-          <Tabs value={store.mobileTab} class="h-auto">
-            <Tabs.List>
-              <Tabs.Trigger
-                value="session"
-                class="!w-1/2 !max-w-none"
-                classes={{ button: "w-full" }}
-                onClick={() => setStore("mobileTab", "session")}
-              >
-                {language.t("session.tab.session")}
-              </Tabs.Trigger>
-              <Tabs.Trigger
-                value="changes"
-                class="!w-1/2 !max-w-none !border-r-0"
-                classes={{ button: "w-full" }}
-                onClick={() => setStore("mobileTab", "changes")}
-              >
-                {hasReview()
-                  ? language.t("session.review.filesChanged", { count: reviewCount() })
-                  : language.t("session.review.change.other")}
-              </Tabs.Trigger>
-            </Tabs.List>
-          </Tabs>
-        </Show>
-
+      <div class="flex-1 min-h-0 flex flex-row">
         {/* Session panel */}
         <div
           classList={{
-            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-base flex-1 md:flex-none": true,
+            "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-base flex-none": true,
           }}
           style={{
             width: "100%",
@@ -1504,17 +1470,6 @@ export default function Page() {
             <Switch>
               <Match when={params.id}>
                 <MessageTimeline
-                  mobileChanges={mobileChanges()}
-                  mobileFallback={reviewContent({
-                    diffStyle: "unified",
-                    classes: {
-                      root: "pb-8",
-                      header: "px-4",
-                      container: "px-4",
-                    },
-                    loadingClass: "px-4 py-4 text-text-weak",
-                    emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
-                  })}
                   actions={actions}
                   scroll={ui.scroll}
                   onResumeScroll={resumeScroll}

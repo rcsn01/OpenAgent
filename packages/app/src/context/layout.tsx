@@ -233,16 +233,22 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         migratedReview === review &&
         isRecord(sidePanel) &&
         migratedFileTree === fileTree &&
-        migratedSessionTabs === sessionTabs
+        migratedSessionTabs === sessionTabs &&
+        !("mobileSidebar" in value)
       ) {
         return value
       }
 
+      const rest = { ...value }
+      delete rest.mobileSidebar
+
       return {
-        ...value,
+        ...rest,
         sidebar: normalizedSidebar,
         review: migratedReview,
-        sidePanel: isRecord(sidePanel) ? { ...sidePanel, active: normalizeSessionSidePanelMode(sidePanel.active) } : { active: "review" },
+        sidePanel: isRecord(sidePanel)
+          ? { ...sidePanel, active: normalizeSessionSidePanelMode(sidePanel.active) }
+          : { active: "review" },
         fileTree: migratedFileTree,
         sessionTabs: migratedSessionTabs,
       }
@@ -276,9 +282,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         session: {
           width: DEFAULT_SESSION_WIDTH,
-        },
-        mobileSidebar: {
-          opened: false,
         },
         sessionTabs: {} as Record<string, SessionTabs>,
         sessionView: {} as Record<string, SessionView>,
@@ -699,18 +702,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             return
           }
           setStore("session", "width", next)
-        },
-      },
-      mobileSidebar: {
-        opened: createMemo(() => store.mobileSidebar?.opened ?? false),
-        show() {
-          setStore("mobileSidebar", "opened", true)
-        },
-        hide() {
-          setStore("mobileSidebar", "opened", false)
-        },
-        toggle() {
-          setStore("mobileSidebar", "opened", (x) => !x)
         },
       },
       pendingMessage: {

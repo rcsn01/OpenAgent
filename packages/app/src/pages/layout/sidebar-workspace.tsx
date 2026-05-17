@@ -2,7 +2,6 @@ import { useNavigate, useParams } from "@solidjs/router"
 import { createEffect, createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createSortable } from "@thisbeyond/solid-dnd"
-import { createMediaQuery } from "@solid-primitives/media"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { Button } from "@opencode-ai/ui/button"
@@ -52,7 +51,7 @@ export type WorkspaceSidebarContext = {
   setWorkspaceExpanded: (directory: string, value: boolean) => void
   showResetWorkspaceDialog: (root: string, directory: string) => void
   showDeleteWorkspaceDialog: (root: string, directory: string) => void
-  setScrollContainerRef: (el: HTMLDivElement | undefined, mobile?: boolean) => void
+  setScrollContainerRef: (el: HTMLDivElement | undefined) => void
 }
 
 export const WorkspaceDragOverlay = (props: {
@@ -144,7 +143,6 @@ const WorkspaceActions = (props: {
   setMenuOpen: (open: boolean) => void
   setPendingRename: (value: boolean) => void
   sidebarHovering: Accessor<boolean>
-  touch: Accessor<boolean>
   language: ReturnType<typeof useLanguage>
   workspaceValue: Accessor<string>
   openEditor: WorkspaceSidebarContext["openEditor"]
@@ -212,30 +210,27 @@ const WorkspaceActions = (props: {
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu>
-    <Show when={!props.touch()}>
-      <Tooltip value={props.language.t("command.session.new")} placement="top">
-        <IconButton
-          icon="new-session"
-          variant="ghost"
-          class="size-6 rounded-md opacity-0 pointer-events-none group-hover/workspace:opacity-100 group-hover/workspace:pointer-events-auto group-focus-within/workspace:opacity-100 group-focus-within/workspace:pointer-events-auto"
-          data-action="workspace-new-session"
-          data-workspace={base64Encode(props.directory)}
-          aria-label={props.language.t("command.session.new")}
-          onClick={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            props.clearHoverProjectSoon()
-            props.navigateToNewSession()
-          }}
-        />
-      </Tooltip>
-    </Show>
+    <Tooltip value={props.language.t("command.session.new")} placement="top">
+      <IconButton
+        icon="new-session"
+        variant="ghost"
+        class="size-6 rounded-md opacity-0 pointer-events-none group-hover/workspace:opacity-100 group-hover/workspace:pointer-events-auto group-focus-within/workspace:opacity-100 group-focus-within/workspace:pointer-events-auto"
+        data-action="workspace-new-session"
+        data-workspace={base64Encode(props.directory)}
+        aria-label={props.language.t("command.session.new")}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          props.clearHoverProjectSoon()
+          props.navigateToNewSession()
+        }}
+      />
+    </Tooltip>
   </div>
 )
 
 const WorkspaceSessionList = (props: {
   slug: Accessor<string>
-  mobile?: boolean
   ctx: WorkspaceSidebarContext
   showNew: Accessor<boolean>
   loading: Accessor<boolean>
@@ -248,7 +243,6 @@ const WorkspaceSessionList = (props: {
     <Show when={props.showNew()}>
       <NewSessionItem
         slug={props.slug()}
-        mobile={props.mobile}
         sidebarExpanded={props.ctx.sidebarExpanded}
         clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
       />
@@ -263,7 +257,6 @@ const WorkspaceSessionList = (props: {
           list={props.sessions()}
           navList={props.ctx.navList}
           slug={props.slug()}
-          mobile={props.mobile}
           showChild
           sidebarExpanded={props.ctx.sidebarExpanded}
           clearHoverProjectSoon={props.ctx.clearHoverProjectSoon}
@@ -295,7 +288,6 @@ export const SortableWorkspace = (props: {
   directory: string
   project: LocalProject
   sortNow: Accessor<number>
-  mobile?: boolean
 }): JSX.Element => {
   const navigate = useNavigate()
   const params = useParams()
@@ -324,8 +316,7 @@ export const SortableWorkspace = (props: {
   const fetching = useIsFetching(() => queryOptions.sessions(pathKey(props.directory)))
   const busy = createMemo(() => props.ctx.isBusy(props.directory))
   const loading = () => fetching() > 0 && count() === 0
-  const touch = createMediaQuery("(hover: none)")
-  const showNew = createMemo(() => !loading() && (touch() || count() === 0 || (active() && !params.id)))
+  const showNew = createMemo(() => !loading() && (count() === 0 || (active() && !params.id)))
   const loadMore = async () => {
     setWorkspaceStore("limit", (limit) => (limit ?? 0) + 5)
     await globalSync.project.loadSessions(props.directory)
@@ -408,7 +399,6 @@ export const SortableWorkspace = (props: {
                 setMenuOpen={(open) => setMenu("open", open)}
                 setPendingRename={(value) => setMenu("pendingRename", value)}
                 sidebarHovering={props.ctx.sidebarHovering}
-                touch={touch}
                 language={language}
                 workspaceValue={workspaceValue}
                 openEditor={props.ctx.openEditor}
@@ -425,7 +415,6 @@ export const SortableWorkspace = (props: {
         <Collapsible.Content>
           <WorkspaceSessionList
             slug={slug}
-            mobile={props.mobile}
             ctx={props.ctx}
             showNew={showNew}
             loading={loading}
@@ -444,7 +433,6 @@ export const LocalWorkspace = (props: {
   ctx: WorkspaceSidebarContext
   project: LocalProject
   sortNow: Accessor<number>
-  mobile?: boolean
 }): JSX.Element => {
   const globalSync = useGlobalSync()
   const queryOptions = useQueryOptions()
@@ -466,12 +454,11 @@ export const LocalWorkspace = (props: {
 
   return (
     <div
-      ref={(el) => props.ctx.setScrollContainerRef(el, props.mobile)}
+      ref={(el) => props.ctx.setScrollContainerRef(el)}
       class="size-full flex flex-col py-2 overflow-y-auto no-scrollbar [overflow-anchor:none]"
     >
       <WorkspaceSessionList
         slug={slug}
-        mobile={props.mobile}
         ctx={props.ctx}
         showNew={() => false}
         loading={loading}

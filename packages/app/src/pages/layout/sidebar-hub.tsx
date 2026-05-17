@@ -1,4 +1,3 @@
-import { createMediaQuery } from "@solid-primitives/media"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { type Session } from "@opencode-ai/sdk/v2/client"
@@ -65,11 +64,7 @@ const sessionGlow = {
   error: "failed",
 } as const
 
-const ProjectSessionButton = (props: {
-  session: Session
-  active: Accessor<boolean>
-  onOpen: () => void
-}) => {
+const ProjectSessionButton = (props: { session: Session; active: Accessor<boolean>; onOpen: () => void }) => {
   const globalSync = useGlobalSync()
   const notification = useNotification()
   const permission = usePermission()
@@ -176,7 +171,6 @@ const ProjectSection = (props: {
   InlineEditor: InlineEditorComponent
 }) => {
   const language = useLanguage()
-  const touch = createMediaQuery("(hover: none)")
   const [visibleCount, setVisibleCount] = createStore({} as Record<string, number>)
   const projectVisibleCount = (project: LocalProject) => visibleCount[project.worktree] ?? 5
 
@@ -242,7 +236,7 @@ const ProjectSection = (props: {
                   <div class="flex shrink-0 items-center gap-0.5">
                     <ProjectActionsMenu
                       project={() => project}
-                      hoverOnly={!touch()}
+                      hoverOnly
                       triggerClass="size-7 text-text-weak hover:text-text-strong"
                       triggerDataAction="project-menu"
                       triggerDataProject={base64Encode(project.worktree)}
@@ -257,12 +251,7 @@ const ProjectSection = (props: {
                       <IconButton
                         icon="new-session"
                         variant="ghost"
-                        class="size-7 rounded-lg text-text-weak transition-opacity hover:text-text-strong"
-                        classList={{
-                          "opacity-100 pointer-events-auto": touch(),
-                          "opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto":
-                            !touch(),
-                        }}
+                        class="size-7 rounded-lg text-text-weak transition-opacity hover:text-text-strong opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto"
                         aria-label={language.t("command.session.new")}
                         onClick={(event) => {
                           event.preventDefault()
@@ -420,9 +409,7 @@ export const SidebarHub = (props: {
                 <div class="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover/project-header:opacity-100 group-hover/project-header:pointer-events-auto group-focus-within/project-header:opacity-100 group-focus-within/project-header:pointer-events-auto">
                   <Tooltip
                     value={
-                      view.showSessions
-                        ? language.t("sidebar.project.compact")
-                        : language.t("sidebar.project.expand")
+                      view.showSessions ? language.t("sidebar.project.compact") : language.t("sidebar.project.expand")
                     }
                     placement="top"
                   >
@@ -431,9 +418,7 @@ export const SidebarHub = (props: {
                       variant="ghost"
                       class="size-7 rounded-lg text-text-weak hover:text-text-strong"
                       aria-label={
-                        view.showSessions
-                          ? language.t("sidebar.project.compact")
-                          : language.t("sidebar.project.expand")
+                        view.showSessions ? language.t("sidebar.project.compact") : language.t("sidebar.project.expand")
                       }
                       aria-pressed={!view.showSessions}
                       onClick={() => setView("showSessions", (value) => !value)}
