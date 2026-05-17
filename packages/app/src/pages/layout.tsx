@@ -2430,6 +2430,7 @@ export default function Layout(props: ParentProps) {
 
   const workspaceRightPanel = createMemo(() => workspaceRightPanelSlot())
   const workspaceRightPanelOpen = createMemo(() => workspaceRightPanel()?.open() ?? false)
+  const workspaceRightPanelResizing = createMemo(() => workspaceRightPanel()?.resizing?.() ?? false)
   const workspaceRightPanelTargetWidth = createMemo(() => {
     const panel = workspaceRightPanel()
     if (!panel) return MIN_WORKSPACE_RIGHT_PANEL_WIDTH
@@ -2615,9 +2616,11 @@ export default function Layout(props: ParentProps) {
             aria-label={workspaceRightPanel()?.label}
             aria-hidden={!workspaceRightPanelOpen()}
             inert={!workspaceRightPanelOpen()}
-            class="hidden xl:flex flex-col relative min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            class="hidden xl:flex flex-col relative min-h-0 min-w-0 shrink-0 overflow-hidden bg-background-base"
             classList={{
               "pointer-events-none": !workspaceRightPanelOpen(),
+              "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none":
+                !workspaceRightPanelResizing(),
             }}
             style={{
               width: `${workspaceRightPanelVisibleWidth()}px`,

@@ -12,6 +12,7 @@ export type WorkspaceRightPanel = {
   header?: JSX.Element
   headerClass?: string
   open: Accessor<boolean>
+  resizing?: Accessor<boolean>
   targetWidth: Accessor<number>
   content: JSX.Element
 }

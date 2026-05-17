@@ -123,6 +123,7 @@ export function SessionSidePanel(props: {
       header: <RightPanelHeader item={panel} />,
       headerClass: rightPanelHeaderClass(panel.kind),
       open: panelOpen,
+      resizing: props.size.active,
       targetWidth: props.targetWidth,
       content: <Suspense fallback={<div class="size-full bg-background-base" />}>{panel.render()}</Suspense>,
     })
