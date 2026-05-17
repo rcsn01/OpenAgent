@@ -12,6 +12,8 @@ import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
 
 const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
+const DEV_SERVER_HOST = "127.0.0.1"
+const DEV_SERVER_PORT = "4096"
 
 const getLocale = () => {
   if (typeof navigator !== "object") return "en" as const
@@ -53,6 +55,12 @@ const setStorage = (key: string, value: string | null) => {
 
 const readDefaultServerUrl = () => getStorage(DEFAULT_SERVER_URL_KEY)
 const writeDefaultServerUrl = (url: string | null) => setStorage(DEFAULT_SERVER_URL_KEY, url)
+
+const normalizeDevServerUrl = (url: string | null) => {
+  if (!import.meta.env.DEV || !url) return url
+  if (url === `http://localhost:${DEV_SERVER_PORT}`) return `http://${DEV_SERVER_HOST}:${DEV_SERVER_PORT}`
+  return url
+}
 
 const notify: Platform["notify"] = async (title, description, href) => {
   if (!("Notification" in window)) return
@@ -100,14 +108,16 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 }
 
 const getCurrentUrl = () => {
+  if (import.meta.env.VITE_OPENCODE_SERVER_URL) return import.meta.env.VITE_OPENCODE_SERVER_URL.replace(/\/+$/, "")
   if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
   if (import.meta.env.DEV)
-    return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
+    return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? DEV_SERVER_HOST}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? DEV_SERVER_PORT}`
   return location.origin
 }
 
 const getDefaultUrl = () => {
-  const lsDefault = readDefaultServerUrl()
+  const lsDefault = normalizeDevServerUrl(readDefaultServerUrl())
+  if (lsDefault !== readDefaultServerUrl()) writeDefaultServerUrl(lsDefault)
   if (lsDefault) return lsDefault
   return getCurrentUrl()
 }
@@ -128,7 +138,8 @@ const platform: Platform = {
   restart,
   notify,
   getDefaultServer: async () => {
-    const stored = readDefaultServerUrl()
+    const stored = normalizeDevServerUrl(readDefaultServerUrl())
+    if (stored !== readDefaultServerUrl()) writeDefaultServerUrl(stored)
     return stored ? ServerConnection.Key.make(stored) : null
   },
   setDefaultServer: writeDefaultServerUrl,
@@ -154,7 +165,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 }
 
 if (root instanceof HTMLElement) {
-  const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
+  const auth = authFromToken(new URLSearchParams(location.search).get("auth_token") ?? import.meta.env.VITE_OPENCODE_AUTH_TOKEN)
   clearAuthToken()
   const server: ServerConnection.Http = {
     type: "http",

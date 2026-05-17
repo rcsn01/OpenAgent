@@ -26,6 +26,7 @@ import { Permission } from "@/permission"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { FormatError, FormatUnknownError } from "../error"
 import { INTERACTIVE_INPUT_ERROR, resolveInteractiveStdin } from "./run/runtime.stdin"
+import { SharedServer } from "@/server/shared-manager"
 
 const runtimeTask = import("./run/runtime")
 type ModelInput = Parameters<OpencodeClient["session"]["prompt"]>[0]["model"]
@@ -128,10 +129,13 @@ export const RunCommand = effectCmd({
   describe: "run opencode with a message",
   // --attach connects to a remote server (no local instance needed); the
   // default path runs an in-process server and needs the project instance.
-  instance: (args) => !args.attach,
+  instance: (args) => Boolean(args.local) || process.env.OPENAGENT_SERVER_MODE === "local",
   // For --dir without --attach, load instance for the resolved target dir.
   // The handler also chdirs (preserving the legacy order: chdir → file resolution).
-  directory: (args) => (args.dir && !args.attach ? path.resolve(process.cwd(), args.dir) : process.cwd()),
+  directory: (args) =>
+    args.dir && (args.local || process.env.OPENAGENT_SERVER_MODE === "local")
+      ? path.resolve(process.cwd(), args.dir)
+      : process.cwd(),
   builder: (yargs: Argv) =>
     yargs
       .positional("message", {
@@ -190,6 +194,11 @@ export const RunCommand = effectCmd({
       .option("attach", {
         type: "string",
         describe: "attach to a running opencode server (e.g., http://localhost:4096)",
+      })
+      .option("local", {
+        type: "boolean",
+        describe: "use embedded/in-process server mode",
+        default: false,
       })
       .option("password", {
         alias: ["p"],
@@ -279,10 +288,24 @@ export const RunCommand = effectCmd({
         }
       }
 
+      const forcedUrl = SharedServer.forcedUrl()
+      const localMode = args.local || process.env.OPENAGENT_SERVER_MODE === "local"
+      const remoteDirectoryMode = Boolean(args.attach || forcedUrl)
+      const shared =
+        !localMode || args.attach || forcedUrl
+          ? args.attach || forcedUrl
+            ? {
+                url: args.attach || forcedUrl!,
+                username: args.username ?? process.env.OPENCODE_SERVER_USERNAME ?? "opencode",
+                password: args.password ?? process.env.OPENCODE_SERVER_PASSWORD ?? "",
+              }
+            : await SharedServer.ensure()
+          : undefined
+      const serverUrl = shared?.url
       const root = Filesystem.resolve(process.env.PWD ?? process.cwd())
       const directory = (() => {
-        if (!args.dir) return args.attach ? undefined : root
-        if (args.attach) return args.dir
+        if (!args.dir) return remoteDirectoryMode ? undefined : root
+        if (remoteDirectoryMode) return args.dir
 
         try {
           process.chdir(path.isAbsolute(args.dir) ? args.dir : path.join(root, args.dir))
@@ -292,12 +315,15 @@ export const RunCommand = effectCmd({
           process.exit(1)
         }
       })()
-      const attachHeaders = args.attach
-        ? ServerAuth.headers({ password: args.password, username: args.username })
+      const attachHeaders = shared
+        ? ServerAuth.headers({
+            password: args.password ?? shared.password,
+            username: args.username ?? shared.username,
+          })
         : undefined
       const attachSDK = (dir?: string) => {
         return createOpencodeClient({
-          baseUrl: args.attach!,
+          baseUrl: serverUrl!,
           directory: dir,
           headers: attachHeaders,
         })
@@ -308,7 +334,7 @@ export const RunCommand = effectCmd({
         const list = Array.isArray(args.file) ? args.file : [args.file]
 
         for (const filePath of list) {
-          const resolvedPath = path.resolve(args.attach ? root : (directory ?? root), filePath)
+          const resolvedPath = path.resolve(remoteDirectoryMode ? root : (directory ?? root), filePath)
           if (!(await Filesystem.exists(resolvedPath))) {
             UI.error(`File not found: ${filePath}`)
             process.exit(1)
@@ -488,7 +514,7 @@ export const RunCommand = effectCmd({
       }
 
       async function current(sdk: OpencodeClient): Promise<string> {
-        if (!args.attach) {
+        if (!serverUrl) {
           return directory ?? root
         }
 
@@ -541,7 +567,7 @@ export const RunCommand = effectCmd({
           UI.println(
             UI.Style.TEXT_WARNING_BOLD + "!",
             UI.Style.TEXT_NORMAL,
-            `failed to list agents from ${args.attach}. Falling back to default agent`,
+            `failed to list agents from ${serverUrl}. Falling back to default agent`,
           )
           return undefined
         }
@@ -570,7 +596,7 @@ export const RunCommand = effectCmd({
 
       async function pickAgent(sdk: OpencodeClient) {
         if (!args.agent) return undefined
-        if (args.attach) {
+        if (serverUrl) {
           return attachAgent(sdk)
         }
 
@@ -578,6 +604,9 @@ export const RunCommand = effectCmd({
       }
 
       async function execute(sdk: OpencodeClient) {
+        if (serverUrl && directory) {
+          await sdk.project.open({ directory }).catch(() => undefined)
+        }
         const sess = await session(sdk)
         if (!sess?.id) {
           UI.error("Session not found")
@@ -727,8 +756,8 @@ export const RunCommand = effectCmd({
           }
           return error
         }
-        const cwd = args.attach ? (directory ?? sess.directory ?? (await current(sdk))) : (directory ?? root)
-        const client = args.attach ? attachSDK(cwd) : sdk
+        const cwd = serverUrl ? (directory ?? sess.directory ?? (await current(sdk))) : (directory ?? root)
+        const client = serverUrl ? attachSDK(cwd) : sdk
 
         // Validate agent if specified
         const agent = await pickAgent(client)
@@ -797,7 +826,7 @@ export const RunCommand = effectCmd({
         return
       }
 
-      if (args.interactive && !args.attach && !args.session && !args.continue) {
+      if (args.interactive && !serverUrl && !args.session && !args.continue) {
         const model = pick(args.model)
         const { runInteractiveLocalMode } = await runtimeTask
         const fetchFn = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -827,7 +856,7 @@ export const RunCommand = effectCmd({
         }
       }
 
-      if (args.attach) {
+      if (serverUrl) {
         const sdk = attachSDK(directory)
         return await execute(sdk)
       }

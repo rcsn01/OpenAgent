@@ -25,6 +25,7 @@ import {
   preferAppEnv,
   setDefaultServerUrl,
   setWslConfig,
+  findOrStartSharedServer,
   spawnLocalServer,
   type SidecarListener,
 } from "./server"
@@ -288,6 +289,40 @@ const main = Effect.gen(function* () {
       url: SHARED_SERVER_URL,
       username: "",
       password: "",
+    })
+    setInitStep({ phase: "done" })
+
+    mainWindow = createMainWindow()
+    if (mainWindow) {
+      createMenu({
+        trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
+        checkForUpdates: () => {
+          void checkForUpdates(true, killSidecar)
+        },
+        reload: () => mainWindow?.reload(),
+        relaunch: () => {
+          app.relaunch()
+          app.exit(0)
+        },
+      })
+    }
+    return
+  }
+
+  const sharedServer = yield* Effect.promise(() => findOrStartSharedServer()).pipe(
+    Effect.catch((error) =>
+      Effect.sync(() => {
+        logger.warn("shared server discovery failed", error)
+        return undefined
+      }),
+    ),
+  )
+  if (sharedServer) {
+    logger.log("using shared server", { url: sharedServer.url })
+    yield* Deferred.succeed(serverReady, {
+      url: sharedServer.url,
+      username: sharedServer.username,
+      password: sharedServer.password,
     })
     setInitStep({ phase: "done" })
 

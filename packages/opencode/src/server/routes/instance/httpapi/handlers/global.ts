@@ -5,6 +5,8 @@ import { Bus } from "@/bus"
 import { Installation } from "@/installation"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
+import { Hash } from "@opencode-ai/core/util/hash"
+import { Database } from "@/storage/db"
 import * as Log from "@opencode-ai/core/util/log"
 import { Effect, Queue, Schema } from "effect"
 import * as Stream from "effect/Stream"
@@ -15,6 +17,7 @@ import { RootHttpApi } from "../api"
 import { GlobalUpgradeInput } from "../groups/global"
 
 const log = Log.create({ service: "server" })
+const startedAt = Date.now()
 
 function eventData(data: unknown): Sse.Event {
   return {
@@ -73,7 +76,13 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
     const bridge = yield* EffectBridge.make()
 
     const health = Effect.fn("GlobalHttpApi.health")(function* () {
-      return { healthy: true as const, version: InstallationVersion }
+      return {
+        healthy: true as const,
+        version: InstallationVersion,
+        db: { hash: Hash.fast(Database.getPath()) },
+        uptime: Date.now() - startedAt,
+        ready: true,
+      }
     })
 
     const event = Effect.fn("GlobalHttpApi.event")(function* () {

@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process"
+import { readFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, utilityProcess } from "electron"
@@ -10,6 +12,15 @@ import type { SqliteMigrationProgress } from "../preload/types"
 export type WslConfig = { enabled: boolean }
 
 export type HealthCheck = { wait: Promise<void> }
+export type SharedServerMetadata = {
+  pid: number
+  url: string
+  username: string
+  password: string
+  dbPath: string
+  startedAt: string
+  version: string
+}
 
 type SidecarMessage =
   | { type: "sqlite"; progress: SqliteMigrationProgress }
@@ -55,6 +66,72 @@ export function setWslConfig(config: WslConfig) {
   getStore().set(WSL_ENABLED_KEY, config.enabled)
 }
 
+function stateHome() {
+  return process.env.XDG_STATE_HOME || join(app.getPath("home"), ".local", "state")
+}
+
+async function readSharedServerMetadata(): Promise<SharedServerMetadata | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(join(stateHome(), "opencode", "openagent-server", "server.json"), "utf8"))
+    if (
+      typeof parsed?.url !== "string" ||
+      typeof parsed?.username !== "string" ||
+      typeof parsed?.password !== "string"
+    ) {
+      return
+    }
+    return parsed
+  } catch {
+    return
+  }
+}
+
+async function startSharedServerFromCli(): Promise<SharedServerMetadata | undefined> {
+  const candidates = [
+    process.env.OPENAGENT_BIN_PATH,
+    process.env.OPENCODE_BIN_PATH,
+    process.env.PATH ? "openagent" : undefined,
+  ].filter((item): item is string => Boolean(item))
+
+  for (const command of candidates) {
+    try {
+      const metadata = await runServerStart(command)
+      if (await checkHealth(metadata.url, metadata.password, metadata.username)) return metadata
+    } catch {}
+  }
+}
+
+function runServerStart(command: string) {
+  return new Promise<SharedServerMetadata>((resolve, reject) => {
+    const child = spawn(command, ["server", "start", "--json"], {
+      env: createSidecarEnv(),
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+    let stdout = ""
+    let stderr = ""
+    child.stdout?.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")))
+    child.stderr?.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")))
+    child.once("error", reject)
+    child.once("exit", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || `openagent server start exited with code ${code}`))
+        return
+      }
+      try {
+        resolve(JSON.parse(stdout) as SharedServerMetadata)
+      } catch (error) {
+        reject(error)
+      }
+    })
+  })
+}
+
+export async function findOrStartSharedServer() {
+  const metadata = await readSharedServerMetadata()
+  if (metadata && (await checkHealth(metadata.url, metadata.password, metadata.username))) return metadata
+  return startSharedServerFromCli()
+}
+
 export function preferAppEnv(userDataPath: string) {
   const shell = process.platform === "win32" ? null : getUserShell()
   Object.assign(process.env, {
@@ -62,7 +139,6 @@ export function preferAppEnv(userDataPath: string) {
     OPENCODE_EXPERIMENTAL_ICON_DISCOVERY: "true",
     OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
     OPENCODE_CLIENT: "desktop",
-    XDG_STATE_HOME: process.env.XDG_STATE_HOME ?? userDataPath,
   })
 }
 
@@ -201,7 +277,7 @@ export async function spawnLocalServer(
   }
 }
 
-export async function checkHealth(url: string, password?: string | null): Promise<boolean> {
+export async function checkHealth(url: string, password?: string | null, username = "opencode"): Promise<boolean> {
   let healthUrl: URL
   try {
     healthUrl = new URL("/global/health", url)
@@ -211,7 +287,7 @@ export async function checkHealth(url: string, password?: string | null): Promis
 
   const headers = new Headers()
   if (password) {
-    const auth = Buffer.from(`opencode:${password}`).toString("base64")
+    const auth = Buffer.from(`${username}:${password}`).toString("base64")
     headers.set("authorization", `Basic ${auth}`)
   }
 

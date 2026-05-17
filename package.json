@@ -10,7 +10,7 @@
     "dev:server": "OPENCODE_DB=opencode-dev.db bun run --cwd packages/opencode --conditions=browser src/index.ts serve --hostname 127.0.0.1 --port 4096 --print-logs",
     "dev:desktop": "bun --cwd packages/desktop dev",
     "dev:desktop:shared": "OPENCODE_DESKTOP_SERVER_URL=http://127.0.0.1:4096 bun --cwd packages/desktop dev",
-    "dev:web": "bun --cwd packages/app dev",
+    "dev:web": "bun run script/dev-web.ts",
     "lint": "oxlint",
     "typecheck": "bun turbo typecheck",
     "upgrade-opentui": "bun run script/upgrade-opentui.ts",
