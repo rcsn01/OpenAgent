@@ -520,6 +520,12 @@ describe("HttpApi SDK", () => {
       Effect.gen(function* () {
         const project = yield* capture(() => sdk.project.current())
         const projects = yield* capture(() => sdk.project.list())
+        const opened = yield* capture(() => sdk.project.open({ directory }))
+        const openedProjects = yield* capture(() => sdk.project.opened())
+        const closed = yield* capture(() =>
+          sdk.project.close({ projectID: record(opened.data).id as string, directory }),
+        )
+        const openedAfterClose = yield* capture(() => sdk.project.opened())
         const paths = yield* capture(() => sdk.path.get())
         const config = yield* capture(() => sdk.config.get())
         const providers = yield* capture(() => sdk.config.providers())
@@ -539,6 +545,10 @@ describe("HttpApi SDK", () => {
           statuses: statuses({
             project,
             projects,
+            opened,
+            openedProjects,
+            closed,
+            openedAfterClose,
             paths,
             config,
             providers,
@@ -558,6 +568,10 @@ describe("HttpApi SDK", () => {
           paths: { directorySelected: record(paths.data).directory === directory },
           file: record(file.data).content,
           hasProject: array(projects.data).length > 0,
+          opened: record(opened.data).worktree === directory,
+          openedProjects: array(openedProjects.data).some((item) => record(item).worktree === directory),
+          closed: closed.data === true,
+          openedAfterClose: array(openedAfterClose.data).some((item) => record(item).worktree === directory),
           foundFile: JSON.stringify(findFiles.data).includes("hello.txt"),
           foundText: JSON.stringify(findText.data ?? null).includes("sdk-parity"),
           listedFile: JSON.stringify(files.data).includes("hello.txt"),

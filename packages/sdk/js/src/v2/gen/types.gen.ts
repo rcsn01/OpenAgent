@@ -29,6 +29,8 @@ export type Event =
   | EventMcpBrowserOpenFailed
   | EventCommandExecuted
   | EventProjectUpdated
+  | EventProjectOpened
+  | EventProjectClosed
   | EventSessionCompacted
   | EventVcsBranchUpdated
   | EventWorkspaceReady
@@ -831,6 +833,8 @@ export type GlobalEvent = {
     | EventMcpBrowserOpenFailed
     | EventCommandExecuted
     | EventProjectUpdated
+    | EventProjectOpened
+    | EventProjectClosed
     | EventSessionCompacted
     | EventVcsBranchUpdated
     | EventWorkspaceReady
@@ -2758,6 +2762,24 @@ export type EventProjectUpdated = {
   id: string
   type: "project.updated"
   properties: Project
+}
+
+export type EventProjectOpened = {
+  id: string
+  type: "project.opened"
+  properties: {
+    directory: string
+    project: Project
+  }
+}
+
+export type EventProjectClosed = {
+  id: string
+  type: "project.closed"
+  properties: {
+    directory: string
+    projectID: string
+  }
 }
 
 export type EventSessionCompacted = {
@@ -5651,6 +5673,66 @@ export type ProjectListResponses = {
 }
 
 export type ProjectListResponse = ProjectListResponses[keyof ProjectListResponses]
+
+export type ProjectOpenedData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/project/open"
+}
+
+export type ProjectOpenedResponses = {
+  /**
+   * List of opened sidebar projects
+   */
+  200: Array<Project>
+}
+
+export type ProjectOpenedResponse = ProjectOpenedResponses[keyof ProjectOpenedResponses]
+
+export type ProjectOpenData = {
+  body?: {
+    directory: string
+  }
+  path?: never
+  query?: {
+    workspace?: string
+  }
+  url: "/project/open"
+}
+
+export type ProjectOpenResponses = {
+  /**
+   * Opened project information
+   */
+  200: Project
+}
+
+export type ProjectOpenResponse = ProjectOpenResponses[keyof ProjectOpenResponses]
+
+export type ProjectCloseData = {
+  body?: never
+  path: {
+    projectID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/project/open/{projectID}"
+}
+
+export type ProjectCloseResponses = {
+  /**
+   * Whether an opened project was removed
+   */
+  200: boolean
+}
+
+export type ProjectCloseResponse = ProjectCloseResponses[keyof ProjectCloseResponses]
 
 export type ProjectCurrentData = {
   body?: never

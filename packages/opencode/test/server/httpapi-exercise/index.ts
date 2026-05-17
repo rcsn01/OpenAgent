@@ -148,6 +148,21 @@ const scenarios: Scenario[] = [
     .status(400),
   http.protected.get("/config/providers", "config.providers").json(),
   http.protected.get("/project", "project.list").json(200, array, "status"),
+  http.protected
+    .post("/project/open", "project.open")
+    .mutating()
+    .at((ctx) => ({ path: "/project/open", headers: ctx.headers(), body: { directory: ctx.directory } }))
+    .json(
+      200,
+      (body, ctx) => {
+        object(body)
+        check(body.worktree === ctx.directory, "project open should return current project")
+      },
+      "status",
+    ),
+  http.protected
+    .get("/project/open", "project.opened")
+    .json(200, array, "status"),
   http.protected.get("/project/current", "project.current").json(
     200,
     (body, ctx) => {
@@ -177,6 +192,15 @@ const scenarios: Scenario[] = [
       },
       "status",
     ),
+  http.protected
+    .delete("/project/open/{projectID}", "project.close")
+    .mutating()
+    .seeded((ctx) => ctx.project())
+    .at((ctx) => ({
+      path: `${route("/project/open/{projectID}", { projectID: ctx.state.id })}?directory=${encodeURIComponent(ctx.directory ?? "")}`,
+      headers: ctx.headers(),
+    }))
+    .json(200, boolean, "status"),
   http.protected
     .post("/project/git/init", "project.initGit")
     .mutating()

@@ -25,6 +25,7 @@ type GlobalStore = {
   ready: boolean
   path: Path
   project: Project[]
+  openProject: Project[]
   session_todo: {
     [sessionID: string]: Todo[]
   }
@@ -104,6 +105,19 @@ export const loadProjectsQuery = (sdk: OpencodeClient) =>
       ),
   })
 
+export const loadOpenProjectsQuery = (sdk: OpencodeClient) =>
+  queryOptions({
+    queryKey: ["project", "open"],
+    queryFn: () =>
+      retry(() =>
+        sdk.project.opened().then((x) => {
+          return (x.data ?? [])
+            .filter((p) => !!p?.id)
+            .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
+        }),
+      ),
+  })
+
 export async function bootstrapGlobal(input: {
   globalSDK: OpencodeClient
   requestFailedTitle: string
@@ -120,6 +134,10 @@ export async function bootstrapGlobal(input: {
       input.queryClient
         .fetchQuery(loadProjectsQuery(input.globalSDK))
         .then((data) => input.setGlobalStore("project", data)),
+    () =>
+      input.queryClient
+        .fetchQuery(loadOpenProjectsQuery(input.globalSDK))
+        .then((data) => input.setGlobalStore("openProject", data)),
   ]
   await runAll(slow)
   // showErrors({

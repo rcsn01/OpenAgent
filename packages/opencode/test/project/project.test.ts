@@ -543,6 +543,45 @@ describe("Project.update", () => {
 })
 
 describe("Project.list and Project.get", () => {
+  it.live("opened tracks shared sidebar membership without deleting metadata", () =>
+    Effect.gen(function* () {
+      const tmp = yield* tmpdirScoped({ git: true })
+      const opened = yield* run((svc) => svc.open(tmp))
+
+      const openedAgain = yield* run((svc) => svc.open(tmp))
+      expect(openedAgain.worktree).toBe(opened.worktree)
+
+      const allOpened = yield* run((svc) => svc.opened())
+      expect(allOpened.filter((p) => p.worktree === opened.worktree)).toHaveLength(1)
+
+      const closed = yield* run((svc) => svc.close({ projectID: opened.id, directory: opened.worktree }))
+      expect(closed).toBe(true)
+
+      const afterClose = yield* run((svc) => svc.opened())
+      expect(afterClose.find((p) => p.worktree === opened.worktree)).toBeUndefined()
+      expect(Project.get(opened.id)).toBeDefined()
+    }),
+  )
+
+  it.live("opened preserves non-git directories as separate sidebar entries", () =>
+    Effect.gen(function* () {
+      const one = yield* tmpdirScoped()
+      const two = yield* tmpdirScoped()
+
+      const first = yield* run((svc) => svc.open(one))
+      const second = yield* run((svc) => svc.open(two))
+
+      expect(first.id).toBe(ProjectID.global)
+      expect(second.id).toBe(ProjectID.global)
+      expect(first.worktree).toBe(one)
+      expect(second.worktree).toBe(two)
+
+      const allOpened = yield* run((svc) => svc.opened())
+      expect(allOpened.find((p) => p.worktree === one)).toBeDefined()
+      expect(allOpened.find((p) => p.worktree === two)).toBeDefined()
+    }),
+  )
+
   it.live("list returns all projects", () =>
     Effect.gen(function* () {
       const tmp = yield* tmpdirScoped({ git: true })

@@ -412,7 +412,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       return available[Math.floor(Math.random() * available.length)]
     }
 
-    function enrich(project: { worktree: string; expanded: boolean; pinned?: boolean }) {
+    function enrich(project: Partial<Project> & { worktree: string; expanded: boolean; pinned?: boolean }) {
       const [childStore] = globalSync.child(project.worktree, { bootstrap: false })
       const projectID = childStore.project
       const metadata = projectID
@@ -463,7 +463,33 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
     }
 
     createEffect(() => {
-      const projects = server.projects.list()
+      if (globalSync.ready) return
+      if (server.projects.migrated()) return
+
+      const projects = server.projects.legacyList()
+      if (projects.length === 0) {
+        server.projects.markMigrated()
+        return
+      }
+
+      void Promise.allSettled(projects.map((project) => globalSdk.client.project.open({ directory: project.worktree })))
+        .then(() => globalSdk.client.project.opened())
+        .then((response) => {
+          globalSync.set("openProject", response.data ?? [])
+          server.projects.markMigrated()
+        })
+        .catch(() => undefined)
+    })
+
+    createEffect(() => {
+      const projects = globalSync.data.openProject.map((project) => {
+        const pref = server.projects.preferences(project.worktree)
+        return {
+          ...project,
+          expanded: pref?.expanded ?? true,
+          pinned: pref?.pinned ?? false,
+        }
+      })
       const seen = new Set(projects.map((project) => project.worktree))
 
       batch(() => {
@@ -471,10 +497,16 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const root = rootFor(project.worktree)
           if (root === project.worktree) continue
 
-          server.projects.close(project.worktree)
+          void globalSdk.client.project.close({ projectID: project.id ?? "global", directory: project.worktree })
 
           if (!seen.has(root)) {
-            server.projects.open(root)
+            void globalSdk.client.project.open({ directory: root }).then((response) => {
+              if (!response.data) return
+              globalSync.set("openProject", (current) => {
+                if (current.find((item) => item.worktree === response.data!.worktree)) return current
+                return [response.data!, ...current]
+              })
+            })
             seen.add(root)
           }
 
@@ -484,7 +516,30 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
       })
     })
 
-    const enriched = createMemo(() => server.projects.list().map(enrich))
+    const openProjects = createMemo(() => {
+      const order = new Map(server.projects.legacyList().map((project, index) => [project.worktree, index]))
+      return globalSync.data.openProject
+        .map((project, index) => {
+          const pref = server.projects.preferences(project.worktree)
+          return {
+            ...project,
+            expanded: pref?.expanded ?? true,
+            pinned: pref?.pinned ?? false,
+            __index: index,
+          }
+        })
+        .sort((a, b) => {
+          const ai = order.get(a.worktree)
+          const bi = order.get(b.worktree)
+          if (ai !== undefined && bi !== undefined) return ai - bi
+          if (ai !== undefined) return -1
+          if (bi !== undefined) return 1
+          return a.__index - b.__index
+        })
+        .map(({ __index, ...project }) => project)
+    })
+
+    const enriched = createMemo(() => openProjects().map(enrich))
     const list = createMemo(() => {
       const projects = enriched()
       return projects.map((project) => {
@@ -558,7 +613,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         sessionTimer = window.setTimeout(() => {
           sessionTimer = undefined
           void Promise.all(
-            server.projects.list().map((project) => {
+            openProjects().map((project) => {
               return globalSync.project.loadSessions(project.worktree)
             }),
           )
@@ -587,11 +642,22 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         list,
         open(directory: string) {
           const root = rootFor(directory)
-          if (server.projects.list().find((x) => x.worktree === root)) return
-          void globalSync.project.loadSessions(root)
+          if (openProjects().find((x) => x.worktree === root)) return
           server.projects.open(root)
+          void globalSdk.client.project.open({ directory: root }).then((response) => {
+            if (!response.data) return
+            globalSync.set("openProject", (current) => {
+              if (current.find((item) => item.worktree === response.data!.worktree)) return current
+              return [response.data!, ...current]
+            })
+            void globalSync.project.loadSessions(response.data.worktree)
+          })
         },
         close(directory: string) {
+          const project = openProjects().find((x) => x.worktree === directory)
+          void globalSdk.client.project.close({ projectID: project?.id ?? "global", directory }).then(() => {
+            globalSync.set("openProject", (current) => current.filter((item) => item.worktree !== directory))
+          })
           server.projects.close(directory)
         },
         expand(directory: string) {
@@ -601,6 +667,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           server.projects.collapse(directory)
         },
         move(directory: string, toIndex: number) {
+          for (const project of openProjects()) server.projects.ensure(project.worktree)
           server.projects.move(directory, toIndex)
         },
         setPinned(directory: string, pinned: boolean) {

@@ -14,6 +14,14 @@ const UpdatePayload = Schema.Struct({
   commands: Schema.optional(Project.Info.fields.commands),
 })
 
+const OpenPayload = Schema.Struct({
+  directory: Schema.String,
+})
+
+const OpenProjectQuery = Schema.Struct({
+  workspace: Schema.optional(Schema.String),
+})
+
 export const ProjectApi = HttpApi.make("project")
   .add(
     HttpApiGroup.make("project")
@@ -26,6 +34,38 @@ export const ProjectApi = HttpApi.make("project")
             identifier: "project.list",
             summary: "List all projects",
             description: "Get a list of projects that have been opened with OpenCode.",
+          }),
+        ),
+        HttpApiEndpoint.get("opened", `${root}/open`, {
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(Project.Info), "List of opened sidebar projects"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "project.opened",
+            summary: "List opened projects",
+            description: "Get the project list that should appear in clients' project sidebars.",
+          }),
+        ),
+        HttpApiEndpoint.post("open", `${root}/open`, {
+          query: OpenProjectQuery,
+          payload: OpenPayload,
+          success: described(Project.Info, "Opened project information"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "project.open",
+            summary: "Open project",
+            description: "Discover a directory and add it to the shared opened-project sidebar list.",
+          }),
+        ),
+        HttpApiEndpoint.delete("close", `${root}/open/:projectID`, {
+          params: { projectID: ProjectID },
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Boolean, "Whether an opened project was removed"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "project.close",
+            summary: "Close opened project",
+            description: "Remove a project from the shared opened-project sidebar list without deleting metadata.",
           }),
         ),
         HttpApiEndpoint.get("current", `${root}/current`, {

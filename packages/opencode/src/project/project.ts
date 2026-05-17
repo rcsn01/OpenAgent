@@ -1,7 +1,7 @@
-import { and } from "drizzle-orm"
+import { and, desc } from "drizzle-orm"
 import { Database } from "@/storage/db"
 import { eq } from "drizzle-orm"
-import { ProjectTable } from "./project.sql"
+import { ProjectOpenTable, ProjectTable } from "./project.sql"
 import { SessionTable } from "../session/session.sql"
 import * as Log from "@opencode-ai/core/util/log"
 import { Flag } from "@opencode-ai/core/flag/flag"
@@ -58,6 +58,20 @@ export type Info = Types.DeepMutable<Schema.Schema.Type<typeof Info>>
 
 export const Event = {
   Updated: BusEvent.define("project.updated", Info),
+  Opened: BusEvent.define(
+    "project.opened",
+    Schema.Struct({
+      directory: Schema.String,
+      project: Info,
+    }),
+  ),
+  Closed: BusEvent.define(
+    "project.closed",
+    Schema.Struct({
+      directory: Schema.String,
+      projectID: ProjectID,
+    }),
+  ),
 }
 
 type Row = typeof ProjectTable.$inferSelect
@@ -102,6 +116,11 @@ export const UpdatePayload = Schema.Struct({
 }).annotate({ identifier: "ProjectUpdateInput" })
 export type UpdatePayload = Types.DeepMutable<Schema.Schema.Type<typeof UpdatePayload>>
 
+export const OpenPayload = Schema.Struct({
+  directory: Schema.String,
+}).annotate({ identifier: "ProjectOpenInput" })
+export type OpenPayload = Types.DeepMutable<Schema.Schema.Type<typeof OpenPayload>>
+
 // ---------------------------------------------------------------------------
 // Effect service
 // ---------------------------------------------------------------------------
@@ -116,6 +135,9 @@ export interface Interface {
   readonly fromDirectory: (directory: string) => Effect.Effect<{ project: Info; sandbox: string }>
   readonly discover: (input: Info) => Effect.Effect<void>
   readonly list: () => Effect.Effect<Info[]>
+  readonly opened: () => Effect.Effect<Info[]>
+  readonly open: (directory: string) => Effect.Effect<Info>
+  readonly close: (input: { projectID: ProjectID; directory?: string }) => Effect.Effect<boolean>
   readonly get: (id: ProjectID) => Effect.Effect<Info | undefined>
   readonly update: (input: UpdateInput) => Effect.Effect<Info>
   readonly initGit: (input: { directory: string; project: Info }) => Effect.Effect<Info>
@@ -167,6 +189,24 @@ export const layer: Layer.Layer<
           directory: "global",
           project: data.id,
           payload: { type: Event.Updated.type, properties: data },
+        }),
+      )
+
+    const emitOpened = (directory: string, project: Info) =>
+      Effect.sync(() =>
+        GlobalBus.emit("event", {
+          directory: "global",
+          project: project.id,
+          payload: { type: Event.Opened.type, properties: { directory, project } },
+        }),
+      )
+
+    const emitClosed = (directory: string, projectID: ProjectID) =>
+      Effect.sync(() =>
+        GlobalBus.emit("event", {
+          directory: "global",
+          project: projectID,
+          payload: { type: Event.Closed.type, properties: { directory, projectID } },
         }),
       )
 
@@ -395,6 +435,68 @@ export const layer: Layer.Layer<
       return yield* db((d) => d.select().from(ProjectTable).all().map(fromRow))
     })
 
+    const opened = Effect.fn("Project.opened")(function* () {
+      const rows = yield* db((d) => d.select().from(ProjectOpenTable).orderBy(desc(ProjectOpenTable.time_updated)).all())
+      return rows.flatMap((row) => {
+        const project = Database.use((d) => d.select().from(ProjectTable).where(eq(ProjectTable.id, row.project_id)).get())
+        if (!project) return []
+        return [{ ...fromRow(project), worktree: row.directory }]
+      })
+    })
+
+    const open = Effect.fn("Project.open")(function* (directory: string) {
+      const { project } = yield* fromDirectory(directory)
+      const openedDirectory = project.id === ProjectID.global ? pathSvc.normalize(directory) : project.worktree
+      const now = Date.now()
+      yield* db((d) =>
+        d
+          .insert(ProjectOpenTable)
+          .values({
+            directory: openedDirectory,
+            project_id: project.id,
+            time_created: now,
+            time_updated: now,
+          })
+          .onConflictDoUpdate({
+            target: ProjectOpenTable.directory,
+            set: {
+              project_id: project.id,
+              time_updated: now,
+            },
+          })
+          .run(),
+      )
+      const result = { ...project, worktree: openedDirectory }
+      yield* emitOpened(openedDirectory, result)
+      return result
+    })
+
+    const close = Effect.fn("Project.close")(function* (input: { projectID: ProjectID; directory?: string }) {
+      const directory = input.directory ? pathSvc.normalize(input.directory) : undefined
+      const rows = yield* db((d) =>
+        directory
+          ? d
+              .select()
+              .from(ProjectOpenTable)
+              .where(and(eq(ProjectOpenTable.directory, directory), eq(ProjectOpenTable.project_id, input.projectID)))
+              .all()
+          : d.select().from(ProjectOpenTable).where(eq(ProjectOpenTable.project_id, input.projectID)).all(),
+      )
+      if (rows.length === 0) return false
+      yield* db((d) => {
+        if (directory)
+          return d
+            .delete(ProjectOpenTable)
+            .where(and(eq(ProjectOpenTable.directory, directory), eq(ProjectOpenTable.project_id, input.projectID)))
+            .run()
+        return d.delete(ProjectOpenTable).where(eq(ProjectOpenTable.project_id, input.projectID)).run()
+      })
+      for (const row of rows) {
+        yield* emitClosed(row.directory, row.project_id)
+      }
+      return true
+    })
+
     const get = Effect.fn("Project.get")(function* (id: ProjectID) {
       const row = yield* db((d) => d.select().from(ProjectTable).where(eq(ProjectTable.id, id)).get())
       return row ? fromRow(row) : undefined
@@ -507,6 +609,9 @@ export const layer: Layer.Layer<
       fromDirectory,
       discover,
       list,
+      opened,
+      open,
+      close,
       get,
       update,
       initGit,

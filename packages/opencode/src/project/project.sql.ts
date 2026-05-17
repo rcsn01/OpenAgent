@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core"
+import { index, sqliteTable, text, integer } from "drizzle-orm/sqlite-core"
 import { Timestamps } from "../storage/schema.sql"
 import type { ProjectID } from "./schema"
 
@@ -15,3 +15,16 @@ export const ProjectTable = sqliteTable("project", {
   sandboxes: text({ mode: "json" }).notNull().$type<string[]>(),
   commands: text({ mode: "json" }).$type<{ start?: string }>(),
 })
+
+export const ProjectOpenTable = sqliteTable(
+  "project_open",
+  {
+    directory: text().primaryKey(),
+    project_id: text()
+      .$type<ProjectID>()
+      .notNull()
+      .references(() => ProjectTable.id, { onDelete: "cascade" }),
+    ...Timestamps,
+  },
+  (table) => [index("project_open_project_idx").on(table.project_id)],
+)

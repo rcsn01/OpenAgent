@@ -15,6 +15,21 @@ export const projectHandlers = HttpApiBuilder.group(InstanceHttpApi, "project", 
       return yield* svc.list()
     })
 
+    const opened = Effect.fn("ProjectHttpApi.opened")(function* () {
+      return yield* svc.opened()
+    })
+
+    const open = Effect.fn("ProjectHttpApi.open")(function* (ctx: { payload: Project.OpenPayload }) {
+      return yield* svc.open(ctx.payload.directory)
+    })
+
+    const close = Effect.fn("ProjectHttpApi.close")(function* (ctx: {
+      params: { projectID: ProjectID }
+      query: { directory?: string }
+    }) {
+      return yield* svc.close({ projectID: ctx.params.projectID, directory: ctx.query.directory })
+    })
+
     const current = Effect.fn("ProjectHttpApi.current")(function* () {
       return (yield* InstanceState.context).project
     })
@@ -39,6 +54,13 @@ export const projectHandlers = HttpApiBuilder.group(InstanceHttpApi, "project", 
       return yield* svc.update({ ...ctx.payload, projectID: ctx.params.projectID })
     })
 
-    return handlers.handle("list", list).handle("current", current).handle("initGit", initGit).handle("update", update)
+    return handlers
+      .handle("list", list)
+      .handle("opened", opened)
+      .handle("open", open)
+      .handle("close", close)
+      .handle("current", current)
+      .handle("initGit", initGit)
+      .handle("update", update)
   }),
 )

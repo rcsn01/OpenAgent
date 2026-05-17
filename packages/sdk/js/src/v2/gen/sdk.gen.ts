@@ -118,9 +118,12 @@ import type {
   PermissionRespondErrors,
   PermissionRespondResponses,
   PermissionRuleset,
+  ProjectCloseResponses,
   ProjectCurrentResponses,
   ProjectInitGitResponses,
   ProjectListResponses,
+  ProjectOpenedResponses,
+  ProjectOpenResponses,
   ProjectUpdateErrors,
   ProjectUpdateResponses,
   Prompt,
@@ -2800,6 +2803,103 @@ export class Project extends HeyApiClient {
     )
     return (options?.client ?? this.client).get<ProjectListResponses, unknown, ThrowOnError>({
       url: "/project",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * List opened projects
+   *
+   * Get the project list that should appear in clients' project sidebars.
+   */
+  public opened<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ProjectOpenedResponses, unknown, ThrowOnError>({
+      url: "/project/open",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Open project
+   *
+   * Discover a directory and add it to the shared opened-project sidebar list.
+   */
+  public open<ThrowOnError extends boolean = false>(
+    parameters?: {
+      workspace?: string
+      directory?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "workspace" },
+            { in: "body", key: "directory" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProjectOpenResponses, unknown, ThrowOnError>({
+      url: "/project/open",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Close opened project
+   *
+   * Remove a project from the shared opened-project sidebar list without deleting metadata.
+   */
+  public close<ThrowOnError extends boolean = false>(
+    parameters: {
+      projectID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "projectID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<ProjectCloseResponses, unknown, ThrowOnError>({
+      url: "/project/open/{projectID}",
       ...options,
       ...params,
     })

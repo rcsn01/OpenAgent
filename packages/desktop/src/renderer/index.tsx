@@ -322,8 +322,8 @@ render(() => {
 
   const [windowCount] = createResource(() => window.api.getWindowCount())
 
-  // Fetch sidecar credentials (available immediately, before health check)
-  const [sidecar] = createResource(() => window.api.awaitInitialization(() => undefined))
+  // Fetch the bundled sidecar credentials, or an external shared dev server URL.
+  const [serverData] = createResource(() => window.api.awaitInitialization(() => undefined))
 
   const [defaultServer] = createResource(() =>
     platform.getDefaultServer?.().then((url) => {
@@ -333,8 +333,18 @@ render(() => {
   const [locale] = createResource(loadLocale)
 
   const servers = () => {
-    const data = sidecar()
+    const data = serverData()
     if (!data) return []
+    if (!data.username && !data.password) {
+      const server: ServerConnection.Http = {
+        displayName: "Shared Dev Server",
+        type: "http",
+        http: {
+          url: data.url,
+        },
+      }
+      return [server] as ServerConnection.Any[]
+    }
     const server: ServerConnection.Sidecar = {
       displayName: "Local Server",
       type: "sidecar",
@@ -387,17 +397,20 @@ render(() => {
         <Show
           when={
             !defaultServer.loading &&
-            !sidecar.loading &&
+            !serverData.loading &&
             !windowConfig.loading &&
             !windowCount.loading &&
             !locale.loading
           }
         >
           {(_) => {
+            const availableServers = servers()
+            const defaultKey =
+              defaultServer.latest ?? (availableServers[0] ? ServerConnection.key(availableServers[0]) : undefined)
             return (
               <AppInterface
-                defaultServer={defaultServer.latest ?? ServerConnection.Key.make("sidecar")}
-                servers={servers()}
+                defaultServer={defaultKey ?? ServerConnection.Key.make("sidecar")}
+                servers={availableServers}
                 router={MemoryRouter}
               >
                 <Inner />

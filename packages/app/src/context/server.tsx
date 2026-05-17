@@ -162,6 +162,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
         list: [] as StoredServer[],
         projects: {} as Record<string, StoredProject[]>,
         lastProject: {} as Record<string, string>,
+        projectOpenMigrated: {} as Record<string, boolean>,
       }),
     )
 
@@ -260,6 +261,22 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       return (c?.type === "sidecar" && c.variant === "base") || (c?.type === "http" && isLocalHost(c.http.url))
     })
 
+    function upsertProjectPreference(directory: string, patch: Partial<StoredProject> = {}) {
+      const key = origin()
+      if (!key) return
+      const current = store.projects[key] ?? []
+      const index = current.findIndex((x) => x.worktree === directory)
+      if (index !== -1) {
+        setStore("projects", key, index, (value) => ({ ...value, ...patch }))
+        return
+      }
+      setStore("projects", key, current.length, {
+        worktree: directory,
+        expanded: patch.expanded ?? true,
+        pinned: patch.pinned ?? false,
+      })
+    }
+
     return {
       ready: isReady,
       healthy,
@@ -281,12 +298,25 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       remove,
       projects: {
         list: projectsList,
-        open(directory: string) {
+        legacyList: projectsList,
+        preferences(directory: string) {
+          return projectsList().find((x) => x.worktree === directory)
+        },
+        ensure(directory: string) {
+          upsertProjectPreference(directory)
+        },
+        migrated() {
+          const key = origin()
+          if (!key) return true
+          return store.projectOpenMigrated[key] === true
+        },
+        markMigrated() {
           const key = origin()
           if (!key) return
-          const current = store.projects[key] ?? []
-          if (current.find((x) => x.worktree === directory)) return
-          setStore("projects", key, [{ worktree: directory, expanded: true, pinned: false }, ...current])
+          setStore("projectOpenMigrated", key, true)
+        },
+        open(directory: string) {
+          upsertProjectPreference(directory, { expanded: true })
         },
         close(directory: string) {
           const key = origin()
@@ -299,25 +329,13 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
           )
         },
         expand(directory: string) {
-          const key = origin()
-          if (!key) return
-          const current = store.projects[key] ?? []
-          const index = current.findIndex((x) => x.worktree === directory)
-          if (index !== -1) setStore("projects", key, index, "expanded", true)
+          upsertProjectPreference(directory, { expanded: true })
         },
         collapse(directory: string) {
-          const key = origin()
-          if (!key) return
-          const current = store.projects[key] ?? []
-          const index = current.findIndex((x) => x.worktree === directory)
-          if (index !== -1) setStore("projects", key, index, "expanded", false)
+          upsertProjectPreference(directory, { expanded: false })
         },
         setPinned(directory: string, pinned: boolean) {
-          const key = origin()
-          if (!key) return
-          const current = store.projects[key] ?? []
-          const index = current.findIndex((x) => x.worktree === directory)
-          if (index !== -1) setStore("projects", key, index, "pinned", pinned)
+          upsertProjectPreference(directory, { pinned })
         },
         move(directory: string, toIndex: number) {
           const key = origin()

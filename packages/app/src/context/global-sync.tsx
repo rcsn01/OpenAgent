@@ -20,6 +20,7 @@ import {
   clearProviderRev,
   loadAgentsQuery,
   loadGlobalConfigQuery,
+  loadOpenProjectsQuery,
   loadPathQuery,
   loadProjectsQuery,
   loadProvidersQuery,
@@ -42,6 +43,7 @@ type GlobalStore = {
   error?: InitError
   path: Path
   project: Project[]
+  openProject: Project[]
   session_todo: {
     [sessionID: string]: Todo[]
   }
@@ -67,6 +69,7 @@ function makeQueryOptionsApi(globalSDK: () => OpencodeClient, sdkFor: (dir: Path
   return {
     globalConfig: () => loadGlobalConfigQuery(globalSDK()),
     projects: () => loadProjectsQuery(globalSDK()),
+    openProjects: () => loadOpenProjectsQuery(globalSDK()),
     providers: (directory: PathKey | null) =>
       loadProvidersQuery(directory, directory === null ? globalSDK() : sdkFor(directory)),
     path: (directory: PathKey | null) => loadPathQuery(directory, directory === null ? globalSDK() : sdkFor(directory)),
@@ -112,6 +115,7 @@ function createGlobalSync() {
       return bootstrap.isPending
     },
     project: [],
+    openProject: [],
     session_todo: {},
     provider_auth: {},
     get path() {
@@ -148,9 +152,17 @@ function createGlobalSync() {
     setGlobalStore("project", next)
   }
 
+  const setOpenProjects = (next: Project[] | ((draft: Project[]) => Project[])) => {
+    setGlobalStore("openProject", next)
+  }
+
   const setBootStore = ((...input: unknown[]) => {
     if (input[0] === "project" && Array.isArray(input[1])) {
       setProjects(input[1] as Project[])
+      return input[1]
+    }
+    if (input[0] === "openProject" && Array.isArray(input[1])) {
+      setOpenProjects(input[1] as Project[])
       return input[1]
     }
     return (setGlobalStore as (...args: unknown[]) => unknown)(...input)
@@ -175,6 +187,10 @@ function createGlobalSync() {
   const set = ((...input: unknown[]) => {
     if (input[0] === "project" && (Array.isArray(input[1]) || typeof input[1] === "function")) {
       setProjects(input[1] as Project[] | ((draft: Project[]) => Project[]))
+      return input[1]
+    }
+    if (input[0] === "openProject" && (Array.isArray(input[1]) || typeof input[1] === "function")) {
+      setOpenProjects(input[1] as Project[] | ((draft: Project[]) => Project[]))
       return input[1]
     }
     return (setGlobalStore as (...args: unknown[]) => unknown)(...input)
@@ -356,6 +372,10 @@ function createGlobalSync() {
         },
         setGlobalProject: setProjects,
       })
+      if (event.type === "project.opened" || event.type === "project.closed") {
+        if (recent) return
+        void queryClient.fetchQuery(queryOptionsApi.openProjects()).then(setOpenProjects)
+      }
       if (event.type === "server.connected" || event.type === "global.disposed") {
         if (recent) return
         for (const directory of Object.keys(children.children)) {

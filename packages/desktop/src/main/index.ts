@@ -51,6 +51,7 @@ const APP_IDS: Record<string, string> = {
   prod: "ai.opencode.desktop",
 }
 const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
+const SHARED_SERVER_URL = process.env.OPENCODE_DESKTOP_SERVER_URL?.trim().replace(/\/+$/, "")
 
 let logger: ReturnType<typeof initLogging>
 let mainWindow: BrowserWindow | null = null
@@ -272,6 +273,7 @@ const main = Effect.gen(function* () {
   setupAutoUpdater()
 
   const needsMigration = ((): boolean => {
+    if (SHARED_SERVER_URL) return false
     if (process.env.OPENCODE_DB === ":memory:") return false
 
     const xdg = process.env.XDG_DATA_HOME
@@ -279,6 +281,32 @@ const main = Effect.gen(function* () {
     return !existsSync(join(base, "opencode", "opencode.db"))
   })()
   let overlay: BrowserWindow | null = null
+
+  if (SHARED_SERVER_URL) {
+    logger.log("using shared desktop server", { url: SHARED_SERVER_URL })
+    yield* Deferred.succeed(serverReady, {
+      url: SHARED_SERVER_URL,
+      username: "",
+      password: "",
+    })
+    setInitStep({ phase: "done" })
+
+    mainWindow = createMainWindow()
+    if (mainWindow) {
+      createMenu({
+        trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
+        checkForUpdates: () => {
+          void checkForUpdates(true, killSidecar)
+        },
+        reload: () => mainWindow?.reload(),
+        relaunch: () => {
+          app.relaunch()
+          app.exit(0)
+        },
+      })
+    }
+    return
+  }
 
   const port = yield* Effect.gen(function* () {
     const fromEnv = process.env.OPENCODE_PORT
