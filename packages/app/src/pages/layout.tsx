@@ -64,6 +64,7 @@ import { DialogAutomations } from "@/components/dialog-automations"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
+import { sessionTitle } from "@/utils/session-title"
 import {
   displayName,
   effectiveWorkspaceOrder,
@@ -894,6 +895,86 @@ export default function Layout(props: ParentProps) {
         navigateWithSidebarReset(appRoute.href())
       }
     }
+  }
+
+  async function deleteSession(session: Session) {
+    const [store, setStore] = globalSync.child(session.directory)
+    const sessions = store.session ?? []
+    const roots = sessions.filter((item) => !item.parentID && !item.time?.archived)
+    const index = roots.findIndex((item) => item.id === session.id)
+    const nextSession = index === -1 ? undefined : (roots[index + 1] ?? roots[index - 1])
+
+    const removed = new Set<string>([session.id])
+    const byParent = new Map<string, string[]>()
+    for (const item of sessions) {
+      if (!item.parentID) continue
+      const children = byParent.get(item.parentID)
+      if (children) children.push(item.id)
+      else byParent.set(item.parentID, [item.id])
+    }
+
+    const stack = [session.id]
+    while (stack.length) {
+      const parentID = stack.pop()
+      if (!parentID) continue
+
+      for (const child of byParent.get(parentID) ?? []) {
+        if (removed.has(child)) continue
+        removed.add(child)
+        stack.push(child)
+      }
+    }
+
+    await globalSDK.client.session.delete({ directory: session.directory, sessionID: session.id })
+    setStore(
+      produce((draft) => {
+        draft.session = draft.session.filter((item) => !removed.has(item.id))
+      }),
+    )
+
+    const active = currentSessionID()
+    if (!active || !removed.has(active)) return
+    if (nextSession) navigateWithSidebarReset(appRoute.href(nextSession.id))
+    else navigateWithSidebarReset(appRoute.href())
+  }
+
+  function DialogDeleteSession(props: { session: Session }) {
+    const name = createMemo(() => sessionTitle(props.session.title) || language.t("command.session.new"))
+    const handleDelete = async () => {
+      try {
+        await deleteSession(props.session)
+        dialog.close()
+      } catch (err) {
+        showToast({
+          title: language.t("session.delete.failed.title"),
+          description: errorMessage(err, language.t("common.requestFailed")),
+        })
+      }
+    }
+
+    return (
+      <Dialog title={language.t("session.delete.title")} fit>
+        <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
+          <div class="flex flex-col gap-1">
+            <span class="text-14-regular text-text-strong">
+              {language.t("session.delete.confirm", { name: name() })}
+            </span>
+          </div>
+          <div class="flex justify-end gap-2">
+            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
+              {language.t("common.cancel")}
+            </Button>
+            <Button variant="primary" size="large" onClick={() => void handleDelete()}>
+              {language.t("session.delete.button")}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    )
+  }
+
+  function showDeleteSessionDialog(session: Session) {
+    dialog.show(() => <DialogDeleteSession session={session} />)
   }
 
   command.register("layout", () => {
@@ -2390,6 +2471,8 @@ export default function Layout(props: ParentProps) {
           onArchiveProjectChats={(project) => void showArchiveProjectChatsDialog(project)}
           onRemoveProject={(project) => closeProject(project.worktree)}
           onOpenSession={navigateToSession}
+          onArchiveSession={(session) => void archiveSession(session)}
+          onDeleteSession={showDeleteSessionDialog}
           hasMoreProjectSessions={projectHasMoreSessions}
           onLoadMoreProjectSessions={loadMoreProjectSessions}
           onNewChat={openSidebarNewChat}

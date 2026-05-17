@@ -64,10 +64,31 @@ const sessionGlow = {
   error: "failed",
 } as const
 
-const ProjectSessionButton = (props: { session: Session; active: Accessor<boolean>; onOpen: () => void }) => {
+const SessionMenuItem = (props: {
+  icon: Parameters<typeof Icon>[0]["name"]
+  label: string
+  onSelect: () => void
+}) => (
+  <DropdownMenu.Item onSelect={props.onSelect} class="flex items-center gap-2.5">
+    <span class="flex size-4 shrink-0 items-center justify-center text-icon-base">
+      <Icon name={props.icon} size="small" />
+    </span>
+    <DropdownMenu.ItemLabel>{props.label}</DropdownMenu.ItemLabel>
+  </DropdownMenu.Item>
+)
+
+const ProjectSessionButton = (props: {
+  session: Session
+  active: Accessor<boolean>
+  onOpen: () => void
+  onArchive: (session: Session) => void
+  onDelete: (session: Session) => void
+}) => {
   const globalSync = useGlobalSync()
+  const language = useLanguage()
   const notification = useNotification()
   const permission = usePermission()
+  const [menu, setMenu] = createStore({ open: false })
   const [sessionStore] = globalSync.child(props.session.directory, { bootstrap: false })
   const unseenCount = createMemo(() => notification.session.unseenCount(props.session.id))
   const hasPermissions = createMemo(() => {
@@ -87,22 +108,42 @@ const ProjectSessionButton = (props: { session: Session; active: Accessor<boolea
   })
 
   return (
-    <button
-      type="button"
+    <div
       data-component="sidebar-session-row"
       data-session-glow={glow()}
-      class="flex w-full items-center gap-2 rounded-xl py-1.5 pl-10 pr-3 text-left transition-colors hover:bg-surface-base-hover"
+      class="group/session flex w-full items-center gap-1 rounded-xl py-1.5 pl-10 pr-1.5 text-left transition-colors hover:bg-surface-base-hover focus-within:bg-surface-base-hover"
       classList={{
         "bg-surface-base-active": props.active() && glow() !== "working",
         "hover:bg-transparent": glow() === "working",
       }}
-      onClick={props.onOpen}
     >
-      <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
-        {sessionTitle(props.session.title) || getFilename(props.session.directory)}
-      </span>
-      <span class="type-prose-md shrink-0 text-text-weak">{compactRelativeTime(updatedAt(props.session))}</span>
-    </button>
+      <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={props.onOpen}>
+        <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
+          {sessionTitle(props.session.title) || getFilename(props.session.directory)}
+        </span>
+        <span class="type-prose-md shrink-0 text-text-weak">{compactRelativeTime(updatedAt(props.session))}</span>
+      </button>
+      <DropdownMenu open={menu.open} onOpenChange={(open) => setMenu("open", open)}>
+        <Tooltip value={language.t("common.moreOptions")} placement="top">
+          <DropdownMenu.Trigger
+            as={IconButton}
+            icon="settings-gear"
+            variant="ghost"
+            data-action="session-menu"
+            data-session={props.session.id}
+            class="size-6 shrink-0 rounded-lg text-text-weak transition-opacity hover:text-text-strong data-[expanded]:bg-surface-base-active opacity-0 pointer-events-none group-hover/session:opacity-100 group-hover/session:pointer-events-auto group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto data-[expanded]:opacity-100 data-[expanded]:pointer-events-auto"
+            aria-label={language.t("common.moreOptions")}
+          />
+        </Tooltip>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content>
+            <SessionMenuItem icon="archive" label={language.t("common.archive")} onSelect={() => props.onArchive(props.session)} />
+            <DropdownMenu.Separator />
+            <SessionMenuItem icon="trash" label={language.t("common.delete")} onSelect={() => props.onDelete(props.session)} />
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu>
+    </div>
   )
 }
 
@@ -163,16 +204,18 @@ const ProjectSection = (props: {
   onArchiveProjectChats: (project: LocalProject) => void
   onRemoveProject: (project: LocalProject) => void
   onOpenSession: (session: Session) => void
+  onArchiveSession: (session: Session) => void
+  onDeleteSession: (session: Session) => void
   hasMoreProjectSessions: (project: LocalProject) => boolean
   onLoadMoreProjectSessions: (project: LocalProject) => Promise<void>
-  showSessions: Accessor<boolean>
+  visibleCount: Record<string, number>
+  setProjectVisibleCount: (worktree: string, count: number) => void
   sortMode: Accessor<ProjectSortMode>
   editorOpen: (id: string) => boolean
   InlineEditor: InlineEditorComponent
 }) => {
   const language = useLanguage()
-  const [visibleCount, setVisibleCount] = createStore({} as Record<string, number>)
-  const projectVisibleCount = (project: LocalProject) => visibleCount[project.worktree] ?? 5
+  const projectVisibleCount = (project: LocalProject) => props.visibleCount[project.worktree] ?? 5
 
   return (
     <Show when={props.projects().length > 0}>
@@ -198,18 +241,18 @@ const ProjectSection = (props: {
             const showMoreControl = () => canShowMore() || canShowLess()
             const toggleProjectSessions = () => {
               if (sessionsVisible()) {
-                setVisibleCount(project.worktree, 0)
+                props.setProjectVisibleCount(project.worktree, 0)
                 return
               }
-              setVisibleCount(project.worktree, 5)
+              props.setProjectVisibleCount(project.worktree, 5)
             }
             const showMore = async () => {
               const current = projectVisibleCount(project)
               if (current >= sessions().length && hasMore()) await props.onLoadMoreProjectSessions(project)
-              setVisibleCount(project.worktree, current + 5)
+              props.setProjectVisibleCount(project.worktree, current + 5)
             }
             const showLess = () => {
-              setVisibleCount(project.worktree, Math.max(5, projectVisibleCount(project) - 5))
+              props.setProjectVisibleCount(project.worktree, Math.max(5, projectVisibleCount(project) - 5))
             }
 
             return (
@@ -263,7 +306,7 @@ const ProjectSection = (props: {
                   </div>
                 </div>
 
-                <Show when={props.showSessions() && sessionsVisible()}>
+                <Show when={sessionsVisible()}>
                   <div class="space-y-0.5">
                     <Show
                       when={sessions().length > 0}
@@ -280,6 +323,8 @@ const ProjectSection = (props: {
                               session={session}
                               active={active}
                               onOpen={() => props.onOpenSession(session)}
+                              onArchive={props.onArchiveSession}
+                              onDelete={props.onDeleteSession}
                             />
                           )
                         }}
@@ -333,6 +378,8 @@ export const SidebarHub = (props: {
   onArchiveProjectChats: (project: LocalProject) => void
   onRemoveProject: (project: LocalProject) => void
   onOpenSession: (session: Session) => void
+  onArchiveSession: (session: Session) => void
+  onDeleteSession: (session: Session) => void
   hasMoreProjectSessions: (project: LocalProject) => boolean
   onLoadMoreProjectSessions: (project: LocalProject) => Promise<void>
   onNewChat: () => void
@@ -347,11 +394,17 @@ export const SidebarHub = (props: {
 }) => {
   const language = useLanguage()
   const [view, setView] = createStore({
-    showSessions: true,
     organize: "project" as ProjectOrganizeMode,
     sort: "updated" as ProjectSortMode,
     show: "all" as ProjectShowMode,
+    visibleCount: {} as Record<string, number>,
   })
+  const setProjectVisibleCount = (worktree: string, count: number) => setView("visibleCount", worktree, count)
+  const collapseAllProjects = () => {
+    for (const project of visibleProjects()) {
+      setProjectVisibleCount(project.worktree, 0)
+    }
+  }
   const visibleProjectSessions = (project: LocalProject) =>
     props.getProjectSessions(project).filter((session) => !isAutomationSession(session))
   const projectTime = (project: LocalProject, mode: ProjectSortMode) => {
@@ -408,20 +461,15 @@ export const SidebarHub = (props: {
                 <div class="type-prose-md text-text-weaker">{language.t("sidebar.project.projectsSection")}</div>
                 <div class="flex shrink-0 items-center gap-0.5 opacity-0 pointer-events-none transition-opacity group-hover/project-header:opacity-100 group-hover/project-header:pointer-events-auto group-focus-within/project-header:opacity-100 group-focus-within/project-header:pointer-events-auto">
                   <Tooltip
-                    value={
-                      view.showSessions ? language.t("sidebar.project.compact") : language.t("sidebar.project.expand")
-                    }
+                    value={language.t("sidebar.project.compact")}
                     placement="top"
                   >
                     <IconButton
-                      icon={view.showSessions ? "collapse" : "expand"}
+                      icon="collapse"
                       variant="ghost"
                       class="size-7 rounded-lg text-text-weak hover:text-text-strong"
-                      aria-label={
-                        view.showSessions ? language.t("sidebar.project.compact") : language.t("sidebar.project.expand")
-                      }
-                      aria-pressed={!view.showSessions}
-                      onClick={() => setView("showSessions", (value) => !value)}
+                      aria-label={language.t("sidebar.project.compact")}
+                      onClick={collapseAllProjects}
                     />
                   </Tooltip>
                   <DropdownMenu>
@@ -531,9 +579,12 @@ export const SidebarHub = (props: {
                     onArchiveProjectChats={props.onArchiveProjectChats}
                     onRemoveProject={props.onRemoveProject}
                     onOpenSession={props.onOpenSession}
+                    onArchiveSession={props.onArchiveSession}
+                    onDeleteSession={props.onDeleteSession}
                     hasMoreProjectSessions={props.hasMoreProjectSessions}
                     onLoadMoreProjectSessions={props.onLoadMoreProjectSessions}
-                    showSessions={() => view.showSessions}
+                    visibleCount={view.visibleCount}
+                    setProjectVisibleCount={setProjectVisibleCount}
                     sortMode={() => view.sort}
                     editorOpen={props.editorOpen}
                     InlineEditor={props.InlineEditor}
@@ -556,9 +607,12 @@ export const SidebarHub = (props: {
                   onArchiveProjectChats={props.onArchiveProjectChats}
                   onRemoveProject={props.onRemoveProject}
                   onOpenSession={props.onOpenSession}
+                  onArchiveSession={props.onArchiveSession}
+                  onDeleteSession={props.onDeleteSession}
                   hasMoreProjectSessions={props.hasMoreProjectSessions}
                   onLoadMoreProjectSessions={props.onLoadMoreProjectSessions}
-                  showSessions={() => view.showSessions}
+                  visibleCount={view.visibleCount}
+                  setProjectVisibleCount={setProjectVisibleCount}
                   sortMode={() => view.sort}
                   editorOpen={props.editorOpen}
                   InlineEditor={props.InlineEditor}
@@ -578,9 +632,12 @@ export const SidebarHub = (props: {
                   onArchiveProjectChats={props.onArchiveProjectChats}
                   onRemoveProject={props.onRemoveProject}
                   onOpenSession={props.onOpenSession}
+                  onArchiveSession={props.onArchiveSession}
+                  onDeleteSession={props.onDeleteSession}
                   hasMoreProjectSessions={props.hasMoreProjectSessions}
                   onLoadMoreProjectSessions={props.onLoadMoreProjectSessions}
-                  showSessions={() => view.showSessions}
+                  visibleCount={view.visibleCount}
+                  setProjectVisibleCount={setProjectVisibleCount}
                   sortMode={() => view.sort}
                   editorOpen={props.editorOpen}
                   InlineEditor={props.InlineEditor}
