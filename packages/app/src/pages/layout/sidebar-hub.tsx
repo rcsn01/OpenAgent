@@ -484,53 +484,59 @@ export const SidebarHub = (props: {
                     </Tooltip>
                     <DropdownMenu.Portal>
                       <DropdownMenu.Content>
-                        <ProjectHeaderMenuLabel label={language.t("sidebar.project.organize")} />
-                        <ProjectHeaderMenuItem
-                          icon="folder"
-                          label={language.t("sidebar.project.organize.byProject")}
-                          selected={view.organize === "project"}
-                          onSelect={() => setView("organize", "project")}
-                        />
-                        <ProjectHeaderMenuItem
-                          icon="folder"
-                          label={language.t("sidebar.project.organize.recent")}
-                          selected={view.organize === "recent"}
-                          onSelect={() => setView("organize", "recent")}
-                        />
-                        <ProjectHeaderMenuItem
-                          icon="status"
-                          label={language.t("sidebar.project.organize.chronological")}
-                          selected={view.organize === "chronological"}
-                          onSelect={() => setView("organize", "chronological")}
-                        />
+                        <DropdownMenu.Group>
+                          <ProjectHeaderMenuLabel label={language.t("sidebar.project.organize")} />
+                          <ProjectHeaderMenuItem
+                            icon="folder"
+                            label={language.t("sidebar.project.organize.byProject")}
+                            selected={view.organize === "project"}
+                            onSelect={() => setView("organize", "project")}
+                          />
+                          <ProjectHeaderMenuItem
+                            icon="folder"
+                            label={language.t("sidebar.project.organize.recent")}
+                            selected={view.organize === "recent"}
+                            onSelect={() => setView("organize", "recent")}
+                          />
+                          <ProjectHeaderMenuItem
+                            icon="status"
+                            label={language.t("sidebar.project.organize.chronological")}
+                            selected={view.organize === "chronological"}
+                            onSelect={() => setView("organize", "chronological")}
+                          />
+                        </DropdownMenu.Group>
                         <DropdownMenu.Separator />
-                        <ProjectHeaderMenuLabel label={language.t("sidebar.project.sortBy")} />
-                        <ProjectHeaderMenuItem
-                          icon="plus-small"
-                          label={language.t("sidebar.project.sort.created")}
-                          selected={view.sort === "created"}
-                          onSelect={() => setView("sort", "created")}
-                        />
-                        <ProjectHeaderMenuItem
-                          icon="edit-small-2"
-                          label={language.t("sidebar.project.sort.updated")}
-                          selected={view.sort === "updated"}
-                          onSelect={() => setView("sort", "updated")}
-                        />
+                        <DropdownMenu.Group>
+                          <ProjectHeaderMenuLabel label={language.t("sidebar.project.sortBy")} />
+                          <ProjectHeaderMenuItem
+                            icon="plus-small"
+                            label={language.t("sidebar.project.sort.created")}
+                            selected={view.sort === "created"}
+                            onSelect={() => setView("sort", "created")}
+                          />
+                          <ProjectHeaderMenuItem
+                            icon="edit-small-2"
+                            label={language.t("sidebar.project.sort.updated")}
+                            selected={view.sort === "updated"}
+                            onSelect={() => setView("sort", "updated")}
+                          />
+                        </DropdownMenu.Group>
                         <DropdownMenu.Separator />
-                        <ProjectHeaderMenuLabel label={language.t("sidebar.project.show")} />
-                        <ProjectHeaderMenuItem
-                          icon="speech-bubble"
-                          label={language.t("sidebar.project.show.all")}
-                          selected={view.show === "all"}
-                          onSelect={() => setView("show", "all")}
-                        />
-                        <ProjectHeaderMenuItem
-                          icon="star"
-                          label={language.t("sidebar.project.show.relevant")}
-                          selected={view.show === "relevant"}
-                          onSelect={() => setView("show", "relevant")}
-                        />
+                        <DropdownMenu.Group>
+                          <ProjectHeaderMenuLabel label={language.t("sidebar.project.show")} />
+                          <ProjectHeaderMenuItem
+                            icon="speech-bubble"
+                            label={language.t("sidebar.project.show.all")}
+                            selected={view.show === "all"}
+                            onSelect={() => setView("show", "all")}
+                          />
+                          <ProjectHeaderMenuItem
+                            icon="star"
+                            label={language.t("sidebar.project.show.relevant")}
+                            selected={view.show === "relevant"}
+                            onSelect={() => setView("show", "relevant")}
+                          />
+                        </DropdownMenu.Group>
                       </DropdownMenu.Content>
                     </DropdownMenu.Portal>
                   </DropdownMenu>
