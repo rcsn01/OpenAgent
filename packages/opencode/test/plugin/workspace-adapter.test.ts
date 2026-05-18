@@ -13,9 +13,9 @@ import { Config } from "../../src/config/config"
 import { Env } from "../../src/env"
 import { RuntimeFlags } from "../../src/effect/runtime-flags"
 import { Workspace } from "../../src/control-plane/workspace"
+import { InstanceRef } from "../../src/effect/instance-ref"
 import { Plugin } from "../../src/plugin/index"
 import { InstanceBootstrap } from "../../src/project/bootstrap-service"
-import { Instance } from "../../src/project/instance"
 import { InstanceStore } from "../../src/project/instance-store"
 import { Project } from "../../src/project/project"
 import { Vcs } from "../../src/project/vcs"
@@ -116,11 +116,13 @@ describe("plugin.workspace", () => {
         const plugin = yield* Plugin.Service
         yield* plugin.init()
         const workspace = yield* Workspace.Service
+        const instance = yield* InstanceRef
+        if (!instance) throw new Error("InstanceRef not provided")
         const info = yield* workspace.create({
           type,
           branch: null,
           extra: { key: "value" },
-          projectID: Instance.project.id,
+          projectID: instance.project.id,
         })
 
         expect(info.type).toBe(type)

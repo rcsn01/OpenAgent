@@ -1,10 +1,10 @@
 import { Effect, Fiber, ScopedCache, Scope, Context } from "effect"
 import * as EffectLogger from "@opencode-ai/core/effect/logger"
-import { Instance, type InstanceContext } from "@/project/instance"
-import { LocalContext } from "@/util/local-context"
+import type { InstanceContext } from "@/project/instance-context"
 import { InstanceRef, WorkspaceRef } from "./instance-ref"
 import { registerDisposer } from "./instance-registry"
 import { WorkspaceContext } from "@/control-plane/workspace-context"
+import { EffectContextBridge } from "./context-bridge"
 
 const TypeId = "~opencode/InstanceState"
 
@@ -14,19 +14,18 @@ export interface InstanceState<A, E = never, R = never> {
 }
 
 export const bind = <F extends (...args: any[]) => any>(fn: F): F => {
-  try {
-    return Instance.bind(fn)
-  } catch (err) {
-    if (!(err instanceof LocalContext.NotFound)) throw err
-  }
   const fiber = Fiber.getCurrent()
-  const ctx = fiber ? Context.getReferenceUnsafe(fiber.context, InstanceRef) : undefined
-  if (!ctx) return fn
-  return ((...args: any[]) => Instance.restore(ctx, () => fn(...args))) as F
+  const bridged = EffectContextBridge.current()
+  const instance = (fiber ? Context.getReferenceUnsafe(fiber.context, InstanceRef) : undefined) ?? bridged.instance
+  const workspace = (fiber ? Context.getReferenceUnsafe(fiber.context, WorkspaceRef) : undefined) ?? bridged.workspace
+  if (!instance && workspace === undefined) return fn
+  return ((...args: any[]) => EffectContextBridge.restore({ instance, workspace }, () => fn(...args))) as F
 }
 
 export const context = Effect.gen(function* () {
-  return (yield* InstanceRef) ?? Instance.current
+  const ctx = (yield* InstanceRef) ?? EffectContextBridge.current().instance
+  if (!ctx) return yield* Effect.die("InstanceRef not provided")
+  return ctx
 })
 
 export const workspaceID = Effect.gen(function* () {

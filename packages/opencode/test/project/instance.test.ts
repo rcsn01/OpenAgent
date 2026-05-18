@@ -1,10 +1,11 @@
 import { describe, expect } from "bun:test"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Deferred, Effect, Fiber, Layer } from "effect"
+import { EffectContextBridge } from "../../src/effect/context-bridge"
 import { InstanceRef } from "../../src/effect/instance-ref"
 import { registerDisposer } from "../../src/effect/instance-registry"
+import { attach } from "../../src/effect/run-service"
 import { InstanceBootstrap } from "../../src/project/bootstrap-service"
-import { Instance } from "../../src/project/instance"
 import { InstanceStore } from "../../src/project/instance-store"
 import { TestInstance, tmpdirScoped } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -37,7 +38,7 @@ const registerDisposerScoped = (disposer: (directory: string) => Promise<void>) 
   )
 
 describe("InstanceStore", () => {
-  it.live("loads instance context without installing ALS for the caller", () =>
+  it.live("loads instance context without ambient caller state", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped({ git: true })
       const store = yield* InstanceStore.Service
@@ -45,7 +46,6 @@ describe("InstanceStore", () => {
 
       expect(ctx.directory).toBe(dir)
       expect(ctx.worktree).toBe(dir)
-      expect(() => Instance.current).toThrow()
     }),
   )
 
@@ -63,7 +63,6 @@ describe("InstanceStore", () => {
       yield* store.load({ directory: dir })
 
       expect(initializedDirectory).toBe(dir)
-      expect(() => Instance.current).toThrow()
     }),
   )
 
@@ -247,17 +246,27 @@ describe("InstanceStore", () => {
   )
 
   it.instance(
-    "provides legacy Promise callers with instance ALS",
+    "bridges Promise callers back to explicit InstanceRef context",
     () =>
       Effect.gen(function* () {
         const test = yield* TestInstance
         const ctx = yield* InstanceRef
         if (!ctx) throw new Error("InstanceRef not provided")
 
-        const directory = yield* Effect.promise(() => Promise.resolve(Instance.restore(ctx, () => Instance.directory)))
+        const directory = yield* Effect.promise(() =>
+          EffectContextBridge.restore({ instance: ctx }, async () => {
+            await Promise.resolve()
+            return Effect.runPromise(
+              attach(
+                Effect.gen(function* () {
+                  return (yield* InstanceRef)?.directory
+                }),
+              ),
+            )
+          }),
+        )
 
         expect(directory).toBe(test.directory)
-        expect(() => Instance.current).toThrow()
       }),
     { git: true },
   )

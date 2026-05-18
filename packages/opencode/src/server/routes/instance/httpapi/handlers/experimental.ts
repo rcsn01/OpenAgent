@@ -9,7 +9,6 @@ import { MCP } from "@/mcp"
 import { installPlugin, patchPluginConfig, readPluginManifest, setPluginEnabledInFile } from "@/plugin/install"
 import { parsePluginSpecifier, pluginSource, resolvePathPluginTarget } from "@/plugin/shared"
 import { Project } from "@/project/project"
-import { Instance } from "@/project/instance"
 import { Session } from "@/session/session"
 import { ToolJsonSchema } from "@/tool/json-schema"
 import { ToolRegistry } from "@/tool/registry"
@@ -180,15 +179,16 @@ export const experimentalHandlers = HttpApiBuilder.group(InstanceHttpApi, "exper
       const serverTargets = manifest.targets.filter((item) => item.kind === "server")
       if (!serverTargets.length) return yield* Effect.fail(new HttpApiError.BadRequest({}))
 
+      const instance = yield* InstanceState.context
       const patched = yield* Effect.promise(() =>
         patchPluginConfig({
           spec: ctx.payload.spec,
           targets: serverTargets,
           force: ctx.payload.force,
           global: ctx.payload.global,
-          vcs: Instance.project.vcs,
-          worktree: Instance.worktree,
-          directory: Instance.directory,
+          vcs: instance.project.vcs,
+          worktree: instance.worktree,
+          directory: instance.directory,
           config: Global.Path.config,
         }),
       )

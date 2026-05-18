@@ -14,8 +14,6 @@ import { GlobalBus, type GlobalEvent } from "@/bus/global"
 import { Database } from "@/storage/db"
 import { ProjectID } from "@/project/schema"
 import { ProjectTable } from "@/project/project.sql"
-import { Instance } from "@/project/instance"
-import { WithInstance } from "../../src/project/with-instance"
 import { InstanceRef } from "@/effect/instance-ref"
 import { Session as SessionNs } from "@/session/session"
 import { SessionID } from "@/session/schema"
@@ -23,12 +21,13 @@ import { SessionTable } from "@/session/session.sql"
 import { SyncEvent } from "@/sync"
 import { EventSequenceTable } from "@/sync/event.sql"
 import { resetDatabase } from "../fixture/db"
-import { disposeAllInstances, provideTmpdirInstance, TestInstance, tmpdir } from "../fixture/fixture"
+import { disposeAllInstances, provideTestInstance, provideTmpdirInstance, TestInstance, tmpdir } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { registerAdapter } from "../../src/control-plane/adapters"
 import { WorkspaceID } from "../../src/control-plane/schema"
 import { WorkspaceTable } from "../../src/control-plane/workspace.sql"
 import type { Target, WorkspaceAdapter, WorkspaceInfo } from "../../src/control-plane/types"
+import type { InstanceContext } from "../../src/project/instance-context"
 import * as Workspace from "../../src/control-plane/workspace"
 import { AppRuntime } from "@/effect/app-runtime"
 import { InstanceStore } from "@/project/instance-store"
@@ -122,11 +121,11 @@ afterEach(async () => {
   await resetDatabase()
 })
 
-async function withInstance<T>(fn: (dir: string) => T | Promise<T>) {
+async function withInstance<T>(fn: (dir: string, ctx: InstanceContext) => T | Promise<T>) {
   await using tmp = await tmpdir({ git: true })
-  return await WithInstance.provide({
+  return await provideTestInstance({
     directory: tmp.path,
-    fn: () => fn(tmp.path),
+    fn: (ctx) => fn(tmp.path, ctx),
   })
 }
 
@@ -410,22 +409,22 @@ describe("workspace schemas and exports", () => {
 
 describe("workspace CRUD", () => {
   test("get returns undefined for a missing workspace", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       expect(await getWorkspace(WorkspaceID.ascending("wrk_missing_get"))).toBeUndefined()
     })
   })
 
   test("list maps database rows, filters by project, and sorts by id", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const otherProjectID = ProjectID.make("project-other")
       insertProject(otherProjectID, "/tmp/other")
-      const a = workspaceInfo(Instance.project.id, "manual", {
+      const a = workspaceInfo(ctx.project.id, "manual", {
         id: WorkspaceID.ascending("wrk_a_list"),
         branch: "a",
         directory: "/a",
         extra: { a: true },
       })
-      const b = workspaceInfo(Instance.project.id, "manual", {
+      const b = workspaceInfo(ctx.project.id, "manual", {
         id: WorkspaceID.ascending("wrk_b_list"),
         branch: "b",
         directory: "/b",
@@ -436,12 +435,12 @@ describe("workspace CRUD", () => {
       insertWorkspace(other)
       insertWorkspace(a)
 
-      expect(await listWorkspaces(Instance.project)).toEqual([a, b])
+      expect(await listWorkspaces(ctx.project)).toEqual([a, b])
     })
   })
 
   test("create configures, persists, creates, starts local sync, and passes environment", async () => {
-    await withInstance(async (dir) => {
+    await withInstance(async (dir, ctx) => {
       process.env.OPENCODE_AUTH_CONTENT = JSON.stringify({ test: { type: "api", key: "secret" } })
       process.env.OTEL_EXPORTER_OTLP_HEADERS = "authorization=otel"
       process.env.OTEL_EXPORTER_OTLP_ENDPOINT = "https://otel.test"
@@ -467,13 +466,13 @@ describe("workspace CRUD", () => {
           return { type: "local", directory: targetDir }
         },
       })
-      registerAdapter(Instance.project.id, type, recorded.adapter)
+      registerAdapter(ctx.project.id, type, recorded.adapter)
 
       const info = await createWorkspace({
         id: workspaceID,
         type,
         branch: null,
-        projectID: Instance.project.id,
+        projectID: ctx.project.id,
         extra: null,
       })
 
@@ -484,11 +483,11 @@ describe("workspace CRUD", () => {
         name: "Configured Name",
         directory: targetDir,
         extra: { configured: true },
-        projectID: Instance.project.id,
+        projectID: ctx.project.id,
         timeUsed: info.timeUsed,
       })
       expect(await getWorkspace(workspaceID)).toEqual(info)
-      expect(await listWorkspaces(Instance.project)).toEqual([info])
+      expect(await listWorkspaces(ctx.project)).toEqual([info])
       expect(recorded.calls.configure).toHaveLength(1)
       expect(recorded.calls.configure[0]).toMatchObject({ id: workspaceID, type, directory: null })
       expect(recorded.calls.create).toHaveLength(1)
@@ -499,7 +498,7 @@ describe("workspace CRUD", () => {
         name: "Configured Name",
         directory: targetDir,
         extra: { configured: true },
-        projectID: Instance.project.id,
+        projectID: ctx.project.id,
       })
       expect(JSON.parse(recorded.calls.create[0].env.OPENCODE_AUTH_CONTENT ?? "{}")).toEqual({
         test: { type: "api", key: "secret" },
@@ -517,10 +516,10 @@ describe("workspace CRUD", () => {
   })
 
   test("create propagates configure failures and does not insert a workspace", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const type = unique("configure-failure")
       registerAdapter(
-        Instance.project.id,
+        ctx.project.id,
         type,
         recordedAdapter({
           configure() {
@@ -533,14 +532,14 @@ describe("workspace CRUD", () => {
       )
 
       await expect(
-        createWorkspace({ type, branch: null, projectID: Instance.project.id, extra: null }),
+        createWorkspace({ type, branch: null, projectID: ctx.project.id, extra: null }),
       ).rejects.toThrow("configure exploded")
-      expect(await listWorkspaces(Instance.project)).toEqual([])
+      expect(await listWorkspaces(ctx.project)).toEqual([])
     })
   })
 
   test("create leaves the inserted row when adapter create fails", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const type = unique("create-failure")
       const recorded = recordedAdapter({
         async create() {
@@ -550,13 +549,13 @@ describe("workspace CRUD", () => {
           return { type: "local", directory: "/unused" }
         },
       })
-      registerAdapter(Instance.project.id, type, recorded.adapter)
+      registerAdapter(ctx.project.id, type, recorded.adapter)
 
       await expect(
-        createWorkspace({ type, branch: "branch", projectID: Instance.project.id, extra: { x: 1 } }),
+        createWorkspace({ type, branch: "branch", projectID: ctx.project.id, extra: { x: 1 } }),
       ).rejects.toThrow("create exploded")
 
-      const rows = await listWorkspaces(Instance.project)
+      const rows = await listWorkspaces(ctx.project)
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({ type, branch: "branch", extra: { x: 1 } })
       expect(recorded.calls.target).toHaveLength(0)
@@ -565,13 +564,13 @@ describe("workspace CRUD", () => {
   })
 
   test("create returns after a local workspace reports error", async () => {
-    await withInstance(async (dir) => {
+    await withInstance(async (dir, ctx) => {
       const type = unique("local-error")
       const missing = path.join(dir, "missing-local-target")
       const recorded = localAdapter(missing, { createDir: false })
-      registerAdapter(Instance.project.id, type, recorded.adapter)
+      registerAdapter(ctx.project.id, type, recorded.adapter)
 
-      const info = await createWorkspace({ type, branch: null, projectID: Instance.project.id, extra: null })
+      const info = await createWorkspace({ type, branch: null, projectID: ctx.project.id, extra: null })
 
       expect(info.directory).toBe(missing)
       expect((await workspaceStatus()).find((item) => item.workspaceID === info.id)?.status).toBe("error")
@@ -580,9 +579,9 @@ describe("workspace CRUD", () => {
   })
 
   test("syncList registers adapter-listed workspaces that are missing by name", async () => {
-    await withInstance(async (dir) => {
+    await withInstance(async (dir, ctx) => {
       const type = unique("list-sync")
-      const existing = workspaceInfo(Instance.project.id, type, {
+      const existing = workspaceInfo(ctx.project.id, type, {
         id: WorkspaceID.ascending("wrk_list_sync_existing"),
         name: "existing",
         directory: path.join(dir, "existing"),
@@ -595,7 +594,7 @@ describe("workspace CRUD", () => {
         branch: "feature/discovered",
         directory: path.join(dir, "discovered"),
         extra: { source: "adapter" },
-        projectID: Instance.project.id,
+        projectID: ctx.project.id,
       }
       const recorded = recordedAdapter({
         list() {
@@ -606,7 +605,7 @@ describe("workspace CRUD", () => {
               branch: "ignored",
               directory: path.join(dir, "ignored"),
               extra: null,
-              projectID: Instance.project.id,
+              projectID: ctx.project.id,
             },
             discovered,
           ]
@@ -615,15 +614,15 @@ describe("workspace CRUD", () => {
           return { type: "local", directory: info.directory ?? dir }
         },
       })
-      registerAdapter(Instance.project.id, type, recorded.adapter)
+      registerAdapter(ctx.project.id, type, recorded.adapter)
 
-      await syncListWorkspaces(Instance.project)
-      const synced = (await listWorkspaces(Instance.project)).filter((item) => item.name === discovered.name)
+      await syncListWorkspaces(ctx.project)
+      const synced = (await listWorkspaces(ctx.project)).filter((item) => item.name === discovered.name)
 
       expect(synced).toHaveLength(1)
       expect(synced[0]).toMatchObject(discovered)
       expect(synced[0]?.id).toStartWith("wrk_")
-      expect(await listWorkspaces(Instance.project)).toEqual(expect.arrayContaining([existing, synced[0]]))
+      expect(await listWorkspaces(ctx.project)).toEqual(expect.arrayContaining([existing, synced[0]]))
       expect(recorded.calls.list).toBe(1)
       expect(recorded.calls.configure).toHaveLength(0)
       expect(recorded.calls.create).toHaveLength(0)
@@ -632,7 +631,7 @@ describe("workspace CRUD", () => {
   })
 
   test("syncList calls every registered adapter with a list method", async () => {
-    await withInstance(async (dir) => {
+    await withInstance(async (dir, ctx) => {
       const typeA = unique("list-sync-a")
       const typeB = unique("list-sync-b")
       const adapterA = recordedAdapter({
@@ -644,7 +643,7 @@ describe("workspace CRUD", () => {
               branch: null,
               directory: path.join(dir, "adapter-a"),
               extra: null,
-              projectID: Instance.project.id,
+              projectID: ctx.project.id,
             },
           ]
         },
@@ -661,7 +660,7 @@ describe("workspace CRUD", () => {
               branch: null,
               directory: path.join(dir, "adapter-b"),
               extra: null,
-              projectID: Instance.project.id,
+              projectID: ctx.project.id,
             },
           ]
         },
@@ -674,12 +673,12 @@ describe("workspace CRUD", () => {
           return { type: "local", directory: dir }
         },
       })
-      registerAdapter(Instance.project.id, typeA, adapterA.adapter)
-      registerAdapter(Instance.project.id, typeB, adapterB.adapter)
-      registerAdapter(Instance.project.id, unique("list-sync-none"), noList.adapter)
+      registerAdapter(ctx.project.id, typeA, adapterA.adapter)
+      registerAdapter(ctx.project.id, typeB, adapterB.adapter)
+      registerAdapter(ctx.project.id, unique("list-sync-none"), noList.adapter)
 
-      await syncListWorkspaces(Instance.project)
-      const synced = await listWorkspaces(Instance.project)
+      await syncListWorkspaces(ctx.project)
+      const synced = await listWorkspaces(ctx.project)
 
       expect(
         synced
@@ -719,11 +718,13 @@ describe("workspace CRUD", () => {
         (dir) =>
           Effect.gen(function* () {
             const workspace = yield* Workspace.Service
+            const ctx = yield* InstanceRef
+            if (!ctx) throw new Error("InstanceRef not provided")
             const type = unique("remote-create")
             const recorded = remoteAdapter(`${url}/base/?ignored=1#hash`, { directory: dir })
-            registerAdapter(Instance.project.id, type, recorded.adapter)
+            registerAdapter(ctx.project.id, type, recorded.adapter)
 
-            const info = yield* workspace.create({ type, branch: null, projectID: Instance.project.id, extra: null })
+            const info = yield* workspace.create({ type, branch: null, projectID: ctx.project.id, extra: null })
 
             expect(
               calls.map((call) => `${call.method} ${call.url.pathname}${call.url.search}${call.url.hash}`),
@@ -742,7 +743,7 @@ describe("workspace CRUD", () => {
   })
 
   test("remove returns undefined for a missing workspace", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       expect(await removeWorkspace(WorkspaceID.ascending("wrk_missing_remove"))).toBeUndefined()
     })
   })
@@ -782,11 +783,11 @@ describe("workspace CRUD", () => {
   )
 
   test("remove still deletes the row when the adapter cannot remove resources", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const type = unique("remove-throws")
-      const info = workspaceInfo(Instance.project.id, type, { id: WorkspaceID.ascending("wrk_remove_throws") })
+      const info = workspaceInfo(ctx.project.id, type, { id: WorkspaceID.ascending("wrk_remove_throws") })
       registerAdapter(
-        Instance.project.id,
+        ctx.project.id,
         type,
         recordedAdapter({
           async remove() {
@@ -911,8 +912,8 @@ describe("workspace CRUD", () => {
   )
 
   test("sessionWarp detaches to the source project when invoked from a workspace instance", async () => {
-    await withInstance(async () => {
-      const projectID = Instance.project.id
+    await withInstance(async (_dir, ctx) => {
+      const projectID = ctx.project.id
       await using workspaceTmp = await tmpdir({ git: true })
       const previousType = unique("warp-detach-workspace-instance")
       const previous = workspaceInfo(projectID, previousType)
@@ -921,10 +922,10 @@ describe("workspace CRUD", () => {
       const session = await AppRuntime.runPromise(SessionNs.Service.use((svc) => svc.create({})))
       attachSessionToWorkspace(session.id, previous.id)
 
-      const workspaceProjectID = await WithInstance.provide({
+      const workspaceProjectID = await provideTestInstance({
         directory: workspaceTmp.path,
-        fn: async () => {
-          const id = Instance.project.id
+        fn: async (workspaceCtx) => {
+          const id = workspaceCtx.project.id
           expect(id).not.toBe(projectID)
           await warpWorkspaceSession({ workspaceID: null, sessionID: session.id })
           return id
@@ -988,14 +989,16 @@ describe("workspace CRUD", () => {
           Effect.gen(function* () {
             const workspace = yield* Workspace.Service
             const sessionSvc = yield* SessionNs.Service
+            const ctx = yield* InstanceRef
+            if (!ctx) throw new Error("InstanceRef not provided")
             const previousType = unique("warp-remote-source")
             const targetType = unique("warp-remote-target")
-            const previous = workspaceInfo(Instance.project.id, previousType)
-            const target = workspaceInfo(Instance.project.id, targetType, { directory: "remote-target-dir" })
+            const previous = workspaceInfo(ctx.project.id, previousType)
+            const target = workspaceInfo(ctx.project.id, targetType, { directory: "remote-target-dir" })
             insertWorkspace(previous)
             insertWorkspace(target)
-            registerAdapter(Instance.project.id, previousType, remoteAdapter(`${url}/warp-source`).adapter)
-            registerAdapter(Instance.project.id, targetType, remoteAdapter(`${url}/warp-target`).adapter)
+            registerAdapter(ctx.project.id, previousType, remoteAdapter(`${url}/warp-source`).adapter)
+            registerAdapter(ctx.project.id, targetType, remoteAdapter(`${url}/warp-target`).adapter)
             const session = yield* sessionSvc.create({})
             attachSessionToWorkspace(session.id, previous.id)
             historySessionID = session.id
@@ -1197,15 +1200,17 @@ describe("workspace sync state", () => {
           Effect.gen(function* () {
             const workspace = yield* Workspace.Service
             const sessionSvc = yield* SessionNs.Service
+            const ctx = yield* InstanceRef
+            if (!ctx) throw new Error("InstanceRef not provided")
             const captured = captureGlobalEvents()
             try {
               const type = unique("remote-start")
-              const info = workspaceInfo(Instance.project.id, type)
+              const info = workspaceInfo(ctx.project.id, type)
               insertWorkspace(info)
-              registerAdapter(Instance.project.id, type, remoteAdapter(`${url}/sync`).adapter)
+              registerAdapter(ctx.project.id, type, remoteAdapter(`${url}/sync`).adapter)
               attachSessionToWorkspace((yield* sessionSvc.create({})).id, info.id)
 
-              yield* workspace.startWorkspaceSyncing(Instance.project.id)
+              yield* workspace.startWorkspaceSyncing(ctx.project.id)
               yield* eventuallyEffect(
                 Effect.gen(function* () {
                   expect((yield* workspace.status()).find((item) => item.workspaceID === info.id)?.status).toBe(
@@ -1213,7 +1218,7 @@ describe("workspace sync state", () => {
                   )
                 }),
               )
-              yield* workspace.startWorkspaceSyncing(Instance.project.id)
+              yield* workspace.startWorkspaceSyncing(ctx.project.id)
               yield* Effect.sleep("25 millis")
 
               expect(
@@ -1252,13 +1257,15 @@ describe("workspace sync state", () => {
           Effect.gen(function* () {
             const workspace = yield* Workspace.Service
             const sessionSvc = yield* SessionNs.Service
+            const ctx = yield* InstanceRef
+            if (!ctx) throw new Error("InstanceRef not provided")
             const type = unique("remote-connect-fail")
-            const info = workspaceInfo(Instance.project.id, type)
+            const info = workspaceInfo(ctx.project.id, type)
             insertWorkspace(info)
-            registerAdapter(Instance.project.id, type, remoteAdapter(`${url}/failed`).adapter)
+            registerAdapter(ctx.project.id, type, remoteAdapter(`${url}/failed`).adapter)
             attachSessionToWorkspace((yield* sessionSvc.create({})).id, info.id)
 
-            yield* workspace.startWorkspaceSyncing(Instance.project.id)
+            yield* workspace.startWorkspaceSyncing(ctx.project.id)
 
             yield* eventuallyEffect(
               Effect.gen(function* () {
@@ -1292,13 +1299,15 @@ describe("workspace sync state", () => {
           Effect.gen(function* () {
             const workspace = yield* Workspace.Service
             const sessionSvc = yield* SessionNs.Service
+            const ctx = yield* InstanceRef
+            if (!ctx) throw new Error("InstanceRef not provided")
             const type = unique("remote-history-fail")
-            const info = workspaceInfo(Instance.project.id, type)
+            const info = workspaceInfo(ctx.project.id, type)
             insertWorkspace(info)
-            registerAdapter(Instance.project.id, type, remoteAdapter(`${url}/history-failed`).adapter)
+            registerAdapter(ctx.project.id, type, remoteAdapter(`${url}/history-failed`).adapter)
             attachSessionToWorkspace((yield* sessionSvc.create({})).id, info.id)
 
-            yield* workspace.startWorkspaceSyncing(Instance.project.id)
+            yield* workspace.startWorkspaceSyncing(ctx.project.id)
 
             yield* eventuallyEffect(
               Effect.gen(function* () {
@@ -1347,18 +1356,20 @@ describe("workspace sync state", () => {
           Effect.gen(function* () {
             const workspace = yield* Workspace.Service
             const sessionSvc = yield* SessionNs.Service
+            const ctx = yield* InstanceRef
+            if (!ctx) throw new Error("InstanceRef not provided")
             const captured = captureGlobalEvents()
             try {
               const type = unique("history-replay")
-              const info = workspaceInfo(Instance.project.id, type)
+              const info = workspaceInfo(ctx.project.id, type)
               insertWorkspace(info)
-              registerAdapter(Instance.project.id, type, remoteAdapter(`${url}/history`).adapter)
+              registerAdapter(ctx.project.id, type, remoteAdapter(`${url}/history`).adapter)
               const session = yield* sessionSvc.create({ title: "before history" })
               attachSessionToWorkspace(session.id, info.id)
               historySessionID = session.id
               historyNextSeq = (sessionSequence(session.id) ?? -1) + 1
 
-              yield* workspace.startWorkspaceSyncing(Instance.project.id)
+              yield* workspace.startWorkspaceSyncing(ctx.project.id)
 
               yield* eventuallyEffect(
                 Effect.gen(function* () {
@@ -1414,15 +1425,17 @@ describe("workspace sync state", () => {
           Effect.gen(function* () {
             const workspace = yield* Workspace.Service
             const sessionSvc = yield* SessionNs.Service
+            const ctx = yield* InstanceRef
+            if (!ctx) throw new Error("InstanceRef not provided")
             const captured = captureGlobalEvents()
             try {
               const type = unique("sse-forward")
-              const info = workspaceInfo(Instance.project.id, type)
+              const info = workspaceInfo(ctx.project.id, type)
               insertWorkspace(info)
-              registerAdapter(Instance.project.id, type, remoteAdapter(`${url}/sse-forward`).adapter)
+              registerAdapter(ctx.project.id, type, remoteAdapter(`${url}/sse-forward`).adapter)
               attachSessionToWorkspace((yield* sessionSvc.create({})).id, info.id)
 
-              yield* workspace.startWorkspaceSyncing(Instance.project.id)
+              yield* workspace.startWorkspaceSyncing(ctx.project.id)
 
               yield* eventuallyEffect(
                 Effect.sync(() =>
@@ -1495,18 +1508,20 @@ describe("workspace sync state", () => {
           Effect.gen(function* () {
             const workspace = yield* Workspace.Service
             const sessionSvc = yield* SessionNs.Service
+            const ctx = yield* InstanceRef
+            if (!ctx) throw new Error("InstanceRef not provided")
             const captured = captureGlobalEvents()
             try {
               const type = unique("sse-sync")
-              const info = workspaceInfo(Instance.project.id, type)
+              const info = workspaceInfo(ctx.project.id, type)
               insertWorkspace(info)
-              registerAdapter(Instance.project.id, type, remoteAdapter(`${url}/sse-sync`).adapter)
+              registerAdapter(ctx.project.id, type, remoteAdapter(`${url}/sse-sync`).adapter)
               const session = yield* sessionSvc.create({ title: "before sse" })
               attachSessionToWorkspace(session.id, info.id)
               sseSessionID = session.id
               sseNextSeq = (sessionSequence(session.id) ?? -1) + 1
 
-              yield* workspace.startWorkspaceSyncing(Instance.project.id)
+              yield* workspace.startWorkspaceSyncing(ctx.project.id)
 
               yield* eventuallyEffect(
                 Effect.gen(function* () {
@@ -1534,13 +1549,13 @@ describe("workspace sync state", () => {
 
 describe("workspace waitForSync", () => {
   test("returns immediately for an empty fence", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       await expect(waitForWorkspaceSync(WorkspaceID.ascending("wrk_wait_empty"), {})).resolves.toBeUndefined()
     })
   })
 
   test("returns immediately when the stored sequence already satisfies the fence", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const sessionID = SessionID.descending("ses_wait_done")
       Database.use((db) => db.insert(EventSequenceTable).values({ aggregate_id: sessionID, seq: 4 }).run())
 
@@ -1554,7 +1569,7 @@ describe("workspace waitForSync", () => {
   })
 
   test("waits until the database reaches the requested sequence and a workspace event arrives", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const workspaceID = WorkspaceID.ascending("wrk_wait_event")
       const sessionID = SessionID.descending("ses_wait_event")
       Database.use((db) => db.insert(EventSequenceTable).values({ aggregate_id: sessionID, seq: 1 }).run())
@@ -1571,7 +1586,7 @@ describe("workspace waitForSync", () => {
   })
 
   test("a sync event for a different workspace can also release the fence", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const workspaceID = WorkspaceID.ascending("wrk_wait_sync_any")
       const sessionID = SessionID.descending("ses_wait_sync_any")
       Database.use((db) => db.insert(EventSequenceTable).values({ aggregate_id: sessionID, seq: 0 }).run())
@@ -1591,7 +1606,7 @@ describe("workspace waitForSync", () => {
   })
 
   test("rejects with the abort reason when aborted", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const abort = new AbortController()
       const reason = new Error("caller aborted")
       const waited = waitForWorkspaceSync(
@@ -1610,7 +1625,7 @@ describe("workspace waitForSync", () => {
   })
 
   test("times out with the requested fence in the error message", async () => {
-    await withInstance(async () => {
+    await withInstance(async (_dir, ctx) => {
       const sessionID = SessionID.descending("ses_wait_timeout")
 
       await expect(waitForWorkspaceSync(WorkspaceID.ascending("wrk_wait_timeout"), { [sessionID]: 1 })).rejects.toThrow(

@@ -13,10 +13,10 @@ import * as Log from "@opencode-ai/core/util/log"
 import { Server } from "../../src/server/server"
 import { resetDatabase } from "../fixture/db"
 import { disposeAllInstances, provideInstance, tmpdirScoped } from "../fixture/fixture"
-import { Instance } from "../../src/project/instance"
 import { InstanceBootstrap } from "../../src/project/bootstrap"
 import { InstanceStore } from "../../src/project/instance-store"
 import { Project } from "../../src/project/project"
+import type { ProjectID } from "../../src/project/schema"
 import { InstancePaths } from "../../src/server/routes/instance/httpapi/groups/instance"
 import { WorkspaceRef } from "../../src/effect/instance-ref"
 import { testEffect } from "../lib/effect"
@@ -62,7 +62,7 @@ function localAdapter(directory: string): WorkspaceAdapter {
   }
 }
 
-function listedAdapter(directory: string, type: string): WorkspaceAdapter {
+function listedAdapter(directory: string, type: string, projectID: ProjectID): WorkspaceAdapter {
   return {
     name: "Listed Test",
     description: "List a local test workspace",
@@ -79,7 +79,7 @@ function listedAdapter(directory: string, type: string): WorkspaceAdapter {
           branch: "listed/main",
           directory,
           extra: { listed: true },
-          projectID: Instance.project.id,
+          projectID,
         },
       ]
     },
@@ -229,7 +229,7 @@ describe("workspace HttpApi", () => {
       const dir = yield* tmpdirScoped({ git: true })
       const project = yield* Project.use.fromDirectory(dir)
       const type = `listed-${Math.random().toString(36).slice(2)}`
-      registerAdapter(project.project.id, type, listedAdapter(path.join(dir, ".listed"), type))
+      registerAdapter(project.project.id, type, listedAdapter(path.join(dir, ".listed"), type, project.project.id))
 
       const response = yield* request(WorkspacePaths.syncList, dir, { method: "POST" })
 

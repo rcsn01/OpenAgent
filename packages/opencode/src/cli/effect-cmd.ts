@@ -3,8 +3,8 @@ import { Effect, Schema } from "effect"
 import { AppRuntime, type AppServices } from "@/effect/app-runtime"
 import { InstanceStore } from "@/project/instance-store"
 import { InstanceRef } from "@/effect/instance-ref"
-import { Instance } from "@/project/instance"
 import { cmd, type WithDoubleDash } from "./cmd/cmd"
+import { EffectContextBridge } from "@/effect/context-bridge"
 
 /**
  * User-visible command failure. Throw via `fail("...")` from an effectCmd handler
@@ -83,17 +83,16 @@ export const effectCmd = <Args, A>(opts: EffectCmdOpts<Args, A>) =>
         return
       }
       const directory = opts.directory?.(args) ?? process.cwd()
-      // Two-phase: load ctx, then run body inside Instance.current ALS.
+      // Two-phase: load ctx, then run body inside the explicit Effect context bridge.
       // Effect's InstanceRef is provided via fiber context, but that context is
-      // lost across `await` inside `Effect.promise(async () => ...)` callbacks
-      // — when handlers re-enter Effect via `AppRuntime.runPromise(svc.method())`
-      // there, attach() falls back to Instance.current ALS, which Node preserves
-      // across awaits. Matches the pre-effectCmd `bootstrap()` behavior.
+      // lost across `await` inside `Effect.promise(async () => ...)` callbacks.
+      // The bridge carries the same explicit InstanceRef value across JS async
+      // callbacks so re-entered AppRuntime effects keep project context.
       const { store, ctx } = await AppRuntime.runPromise(
         InstanceStore.Service.use((store) => store.load({ directory }).pipe(Effect.map((ctx) => ({ store, ctx })))),
       )
       try {
-        await Instance.restore(ctx, () =>
+        await EffectContextBridge.restore({ instance: ctx }, () =>
           AppRuntime.runPromise(opts.handler(args).pipe(Effect.provideService(InstanceRef, ctx))),
         )
       } finally {

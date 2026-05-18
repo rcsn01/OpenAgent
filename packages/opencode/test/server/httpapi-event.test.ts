@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { Bus } from "../../src/bus"
-import { Instance } from "../../src/project/instance"
 import { Server } from "../../src/server/server"
 import { EventPaths } from "../../src/server/routes/instance/httpapi/groups/event"
 import { Event as ServerEvent } from "../../src/server/event"
@@ -108,7 +107,7 @@ describe("event HttpApi", () => {
 
       const next = readEvent(reader)
       const ctx = await reloadTestInstance({ directory: tmp.path })
-      await Instance.restore(ctx, () => Bus.publish(ServerEvent.Connected, {}))
+      await Bus.publish(ctx, ServerEvent.Connected, {})
 
       expect(await next).toMatchObject({ type: "server.connected", properties: {} })
     } finally {

@@ -6,18 +6,18 @@ import { ConfigManaged } from "@/config/managed"
 import { ConfigParse } from "../../src/config/parse"
 import { EffectFlock } from "@opencode-ai/core/util/effect-flock"
 
-import { Instance } from "../../src/project/instance"
-import { WithInstance } from "../../src/project/with-instance"
 import { Auth } from "../../src/auth"
 import { Account } from "../../src/account/account"
 import { AccessToken, AccountID, OrgID } from "../../src/account/schema"
 import { AppFileSystem } from "@opencode-ai/core/filesystem"
 import { Env } from "../../src/env"
-import { provideTestInstance, provideTmpdirInstance, TestInstance } from "../fixture/fixture"
+import { provideInstance, provideTestInstance, provideTmpdirInstance, TestInstance } from "../fixture/fixture"
 import { tmpdir } from "../fixture/fixture"
 import { InstanceRuntime } from "@/project/instance-runtime"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { testEffect } from "../lib/effect"
+import { EffectContextBridge } from "@/effect/context-bridge"
+import { InstanceRef } from "@/effect/instance-ref"
 
 /** Infra layer that provides FileSystem, Path, ChildProcessSpawner for test fixtures */
 const infra = CrossSpawnSpawner.defaultLayer.pipe(
@@ -61,25 +61,28 @@ const layer = Config.layer.pipe(
 
 const it = testEffect(layer)
 
-const load = () => Effect.runPromise(Config.Service.use((svc) => svc.get()).pipe(Effect.scoped, Effect.provide(layer)))
+const runConfig = <A, E>(effect: Effect.Effect<A, E, Config.Service>) => {
+  const current = EffectContextBridge.current().instance
+  const scoped = effect.pipe(Effect.scoped, Effect.provide(layer))
+  if (current) return Effect.runPromise(scoped.pipe(Effect.provideService(InstanceRef, current)))
+  return Effect.runPromise(scoped.pipe(provideInstance(process.cwd())))
+}
+
+const load = () => runConfig(Config.Service.use((svc) => svc.get()))
 const save = (config: Config.Info) =>
-  Effect.runPromise(Config.Service.use((svc) => svc.update(config)).pipe(Effect.scoped, Effect.provide(layer)))
+  runConfig(Config.Service.use((svc) => svc.update(config)))
 const saveGlobal = (config: Config.Info) =>
-  Effect.runPromise(
+  runConfig(
     Config.Service.use((svc) => svc.updateGlobal(config)).pipe(
       Effect.map((result) => result.info),
-      Effect.scoped,
-      Effect.provide(layer),
     ),
   )
 const clear = async (wait = false) => {
-  await Effect.runPromise(Config.Service.use((svc) => svc.invalidate()).pipe(Effect.scoped, Effect.provide(layer)))
+  await runConfig(Config.Service.use((svc) => svc.invalidate()))
   if (wait) await InstanceRuntime.disposeAllInstances()
 }
-const listDirs = () =>
-  Effect.runPromise(Config.Service.use((svc) => svc.directories()).pipe(Effect.scoped, Effect.provide(layer)))
-const ready = () =>
-  Effect.runPromise(Config.Service.use((svc) => svc.waitForDependencies()).pipe(Effect.scoped, Effect.provide(layer)))
+const listDirs = () => runConfig(Config.Service.use((svc) => svc.directories()))
+const ready = () => runConfig(Config.Service.use((svc) => svc.waitForDependencies()))
 
 // Get managed config directory from environment (set in preload.ts)
 const managedConfigDir = process.env.OPENCODE_TEST_MANAGED_CONFIG_DIR!
@@ -114,13 +117,13 @@ async function check(map: (dir: string) => string) {
       $schema: "https://opencode.ai/config.json",
       snapshot: false,
     })
-    await WithInstance.provide({
+    await provideTestInstance({
       directory: map(tmp.path),
-      fn: async () => {
+      fn: async (ctx) => {
         const cfg = await load()
         expect(cfg.snapshot).toBe(true)
-        expect(Instance.directory).toBe(Filesystem.resolve(tmp.path))
-        expect(Instance.project.id).not.toBe(ProjectID.global)
+        expect(ctx.directory).toBe(Filesystem.resolve(tmp.path))
+        expect(ctx.project.id).not.toBe(ProjectID.global)
       },
     })
   } finally {
@@ -132,7 +135,7 @@ async function check(map: (dir: string) => string) {
 
 test("loads config with defaults when no files exist", async () => {
   await using tmp = await tmpdir()
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -148,7 +151,7 @@ test("creates global jsonc config with schema when no global configs exist", asy
   await clear(true)
 
   try {
-    await WithInstance.provide({
+    await provideTestInstance({
       directory: tmp.path,
       fn: async () => {
         await load()
@@ -173,7 +176,7 @@ test("does not create global config when OPENCODE_CONFIG_DIR is set", async () =
   await clear(true)
 
   try {
-    await WithInstance.provide({
+    await provideTestInstance({
       directory: tmp.path,
       fn: async () => {
         await load()
@@ -199,7 +202,7 @@ test("loads JSON config file", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -218,7 +221,7 @@ test("loads shell config field", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -240,7 +243,7 @@ test("updates config and preserves empty shell sentinel", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       await save({ shell: "" })
@@ -318,7 +321,7 @@ test("loads formatter boolean config", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -336,7 +339,7 @@ test("loads lsp boolean config", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -373,7 +376,7 @@ test("ignores legacy tui keys in opencode config", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -398,7 +401,7 @@ test("loads JSONC config file", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -426,7 +429,7 @@ test("jsonc overrides json in the same directory", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -449,7 +452,7 @@ test("handles environment variable substitution", async () => {
         })
       },
     })
-    await WithInstance.provide({
+    await provideTestInstance({
       directory: tmp.path,
       fn: async () => {
         const config = await load()
@@ -481,7 +484,7 @@ test("preserves env variables when adding $schema to config", async () => {
         )
       },
     })
-    await WithInstance.provide({
+    await provideTestInstance({
       directory: tmp.path,
       fn: async () => {
         const config = await load()
@@ -578,7 +581,7 @@ test("handles file inclusion substitution", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -597,7 +600,7 @@ test("handles file inclusion with replacement tokens", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -653,7 +656,7 @@ test("handles agent configuration", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -684,7 +687,7 @@ test("treats agent variant as model-scoped setting (not provider option)", async
     },
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -714,7 +717,7 @@ test("handles command configuration", async () => {
       })
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -739,7 +742,7 @@ test("migrates autoshare to share field", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -766,7 +769,7 @@ test("migrates mode field to agent field", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -798,7 +801,7 @@ Test agent prompt`,
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -831,7 +834,7 @@ Ordered permissions`,
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -869,7 +872,7 @@ Nested agent prompt`,
     },
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -918,7 +921,7 @@ Nested command template`,
     },
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -963,7 +966,7 @@ Nested command template`,
     },
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -983,7 +986,7 @@ Nested command template`,
 
 test("updates config and writes to file", async () => {
   await using tmp = await tmpdir()
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const newConfig = { model: "updated/model" }
@@ -1040,7 +1043,7 @@ it.instance("invalidates the active workspace config cache", () =>
 
 test("gets config directories", async () => {
   await using tmp = await tmpdir()
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const dirs = await listDirs()
@@ -1070,7 +1073,7 @@ test("does not try to install dependencies in read-only OPENCODE_CONFIG_DIR", as
   process.env.OPENCODE_CONFIG_DIR = tmp.extra
 
   try {
-    await WithInstance.provide({
+    await provideTestInstance({
       directory: tmp.path,
       fn: async () => {
         await load()
@@ -1105,7 +1108,7 @@ test("installs dependencies in writable OPENCODE_CONFIG_DIR", async () => {
   )
 
   try {
-    await WithInstance.provide({
+    await provideTestInstance({
       directory: tmp.path,
       fn: async () => {
         await Effect.runPromise(Config.Service.use((svc) => svc.get()).pipe(Effect.scoped, Effect.provide(testLayer)))
@@ -1238,7 +1241,7 @@ Helper subagent prompt`,
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1277,7 +1280,7 @@ test("merges instructions arrays from global and local configs", async () => {
     },
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: path.join(tmp.path, "project"),
     fn: async () => {
       const config = await load()
@@ -1316,7 +1319,7 @@ test("deduplicates duplicate instructions from global and local configs", async 
     },
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: path.join(tmp.path, "project"),
     fn: async () => {
       const config = await load()
@@ -1451,7 +1454,7 @@ test("migrates legacy tools config to permissions - allow", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1482,7 +1485,7 @@ test("migrates legacy tools config to permissions - deny", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1512,7 +1515,7 @@ test("migrates legacy write tool to edit permission", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1544,7 +1547,7 @@ test("managed settings override user settings", async () => {
     share: "disabled",
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1572,7 +1575,7 @@ test("managed settings override project settings", async () => {
     disabled_providers: ["openai"],
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1592,7 +1595,7 @@ test("missing managed settings file is not an error", async () => {
     },
   })
 
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1619,7 +1622,7 @@ test("migrates legacy edit tool to edit permission", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1648,7 +1651,7 @@ test("migrates legacy patch tool to edit permission", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1680,7 +1683,7 @@ test("migrates mixed legacy tools config", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1715,7 +1718,7 @@ test("merges legacy tools with existing permission config", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1752,7 +1755,7 @@ test("permission config preserves user key order", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1835,7 +1838,7 @@ test("project config can override MCP server enabled status", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1891,7 +1894,7 @@ test("MCP config deep merges preserving base config properties", async () => {
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -1942,7 +1945,7 @@ test("local .opencode config can override MCP from project config", async () => 
       )
     },
   })
-  await WithInstance.provide({
+  await provideTestInstance({
     directory: tmp.path,
     fn: async () => {
       const config = await load()
@@ -2308,7 +2311,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
           )
         },
       })
-      await WithInstance.provide({
+      await provideTestInstance({
         directory: tmp.path,
         fn: async () => {
           const config = await load()
@@ -2339,7 +2342,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
           await Filesystem.write(path.join(opencodeDir, "test-cmd.md"), "# Test Command\nThis is a test command.")
         },
       })
-      await WithInstance.provide({
+      await provideTestInstance({
         directory: tmp.path,
         fn: async () => {
           const directories = await listDirs()
@@ -2363,7 +2366,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
 
     try {
       await using tmp = await tmpdir()
-      await WithInstance.provide({
+      await provideTestInstance({
         directory: tmp.path,
         fn: async () => {
           // Should still get default config (from global or defaults)
@@ -2405,7 +2408,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
         },
       })
 
-      await WithInstance.provide({
+      await provideTestInstance({
         directory: tmp.path,
         fn: async () => {
           // The relative instruction should be skipped without error
@@ -2465,7 +2468,7 @@ describe("OPENCODE_DISABLE_PROJECT_CONFIG", () => {
       process.env["OPENCODE_DISABLE_PROJECT_CONFIG"] = "true"
       process.env["OPENCODE_CONFIG_DIR"] = configDirTmp.path
 
-      await WithInstance.provide({
+      await provideTestInstance({
         directory: projectTmp.path,
         fn: async () => {
           const config = await load()
@@ -2500,7 +2503,7 @@ describe("OPENCODE_CONFIG_CONTENT token substitution", () => {
 
     try {
       await using tmp = await tmpdir()
-      await WithInstance.provide({
+      await provideTestInstance({
         directory: tmp.path,
         fn: async () => {
           const config = await load()
@@ -2534,7 +2537,7 @@ describe("OPENCODE_CONFIG_CONTENT token substitution", () => {
           })
         },
       })
-      await WithInstance.provide({
+      await provideTestInstance({
         directory: tmp.path,
         fn: async () => {
           const config = await load()

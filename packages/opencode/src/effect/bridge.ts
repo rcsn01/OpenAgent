@@ -1,10 +1,10 @@
 import { Context, Effect, Exit, Fiber } from "effect"
 import { WorkspaceContext } from "@/control-plane/workspace-context"
-import { Instance, type InstanceContext } from "@/project/instance"
+import type { InstanceContext } from "@/project/instance-context"
 import type { WorkspaceID } from "@/control-plane/schema"
-import { LocalContext } from "@/util/local-context"
 import { InstanceRef, WorkspaceRef } from "./instance-ref"
 import { attachWith } from "./run-service"
+import { EffectContextBridge } from "./context-bridge"
 
 export interface Shape {
   readonly promise: <A, E, R>(effect: Effect.Effect<A, E, R>) => Promise<A>
@@ -14,27 +14,18 @@ export interface Shape {
 }
 
 function restore<R>(instance: InstanceContext | undefined, workspace: WorkspaceID | undefined, fn: () => R): R {
-  if (instance && workspace !== undefined) {
-    return WorkspaceContext.restore(workspace, () => Instance.restore(instance, fn))
-  }
-  if (instance) return Instance.restore(instance, fn)
-  if (workspace !== undefined) return WorkspaceContext.restore(workspace, fn)
+  if (instance || workspace !== undefined) return EffectContextBridge.restore({ instance, workspace }, fn)
   return fn()
-}
-
-function currentInstance() {
-  try {
-    return Instance.current
-  } catch (err) {
-    if (!(err instanceof LocalContext.NotFound)) throw err
-  }
 }
 
 function captureSync() {
   const fiber = Fiber.getCurrent()
-  const instance = (fiber ? Context.getReferenceUnsafe(fiber.context, InstanceRef) : undefined) ?? currentInstance()
+  const bridged = EffectContextBridge.current()
+  const instance = (fiber ? Context.getReferenceUnsafe(fiber.context, InstanceRef) : undefined) ?? bridged.instance
   const workspace =
-    (fiber ? Context.getReferenceUnsafe(fiber.context, WorkspaceRef) : undefined) ?? WorkspaceContext.workspaceID
+    (fiber ? Context.getReferenceUnsafe(fiber.context, WorkspaceRef) : undefined) ??
+    bridged.workspace ??
+    WorkspaceContext.workspaceID
   return { instance, workspace }
 }
 
@@ -52,16 +43,12 @@ export const bind = <Args extends readonly unknown[], Result>(fn: (...args: Args
 }
 
 /**
- * Bridge from Effect into a Promise-returning JS callback while installing
- * legacy `Instance.context` and `WorkspaceContext` AsyncLocalStorage for
- * the duration of the callback. Effect's `InstanceRef`/`WorkspaceRef` do
- * not propagate across async/await boundaries inside `Effect.promise(() =>
- * async fn)` callbacks that re-enter Effect via `AppRuntime.runPromise`,
- * but Node's AsyncLocalStorage does. Use this whenever an Effect crosses
- * into JS that may itself spawn new Effect runtimes (workspace adapters,
- * legacy plugins, etc.).
+ * Bridge from Effect into a Promise-returning JS callback while carrying
+ * explicit `InstanceRef` and `WorkspaceRef` values across the JS async
+ * boundary. Effect fiber context does not propagate across every
+ * `Effect.promise(() => async fn)` re-entry path, but this bridge does.
  *
- * Mirrors `Effect.promise` but restores legacy ALS first.
+ * Mirrors `Effect.promise` but restores explicit refs first.
  */
 export const fromPromise = <T>(fn: () => Promise<T> | T): Effect.Effect<T> =>
   Effect.gen(function* () {
@@ -74,7 +61,8 @@ export function make(): Effect.Effect<Shape> {
   return Effect.gen(function* () {
     const ctx = yield* Effect.context()
     const value = yield* InstanceRef
-    const instance = value ?? currentInstance()
+    const bridged = EffectContextBridge.current()
+    const instance = value ?? bridged.instance
     const workspace = (yield* WorkspaceRef) ?? WorkspaceContext.workspaceID
     const attach = <A, E, R>(effect: Effect.Effect<A, E, R>) => attachWith(effect, { instance, workspace })
     const wrap = <A, E, R>(effect: Effect.Effect<A, E, R>) =>

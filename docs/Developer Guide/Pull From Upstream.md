@@ -235,9 +235,10 @@ rg -n "symbolOrImportName" packages/opencode/src packages/opencode/test
 
 The `v1.15.4` merge established these rules:
 
-- Keep `project/instance.ts` and `project/with-instance.ts` while OpenAgent still references them.
+- On branches before `migration/explicit-instance-context`, keep `project/instance.ts` and `project/with-instance.ts` while OpenAgent still references them.
+- On branches after `migration/explicit-instance-context`, do not reintroduce `project/instance.ts`, `project/with-instance.ts`, or `Instance.restore`; use `InstanceRef`, `InstanceStore`, and the explicit effect context bridge.
 - Preserve OpenAgent's general-chat directory resolver in HTTP instance middleware.
-- Provide `InstanceRef` explicitly in request/runtime boundaries, but keep legacy `Instance.restore` compatibility where OpenAgent still needs it.
+- Provide `InstanceRef` explicitly in request/runtime boundaries.
 - For sync and bus changes, preserve existing module-level subscribers while adding explicit instance/workspace context for new publish paths.
 - For workspace adapters, pass explicit instance/workspace context, but keep fallbacks that work with OpenAgent's current instance state.
 - For ACP/default-agent lookups, run directory-scoped effects with a loaded instance context.

@@ -1,17 +1,11 @@
-import { Instance } from "../project/instance"
 import { InstanceRuntime } from "../project/instance-runtime"
-import { WithInstance } from "../project/with-instance"
+import { EffectContextBridge } from "@/effect/context-bridge"
 
 export async function bootstrap<T>(directory: string, cb: () => Promise<T>) {
-  return WithInstance.provide({
-    directory,
-    fn: async () => {
-      try {
-        const result = await cb()
-        return result
-      } finally {
-        await InstanceRuntime.disposeInstance(Instance.current)
-      }
-    },
-  })
+  const ctx = await InstanceRuntime.load({ directory })
+  try {
+    return await EffectContextBridge.restore({ instance: ctx }, cb)
+  } finally {
+    await InstanceRuntime.disposeInstance(ctx)
+  }
 }

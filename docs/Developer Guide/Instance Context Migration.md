@@ -2,6 +2,8 @@
 
 Use this guide to migrate OpenAgent away from the legacy ambient `Instance.current` layer and toward upstream's explicit `InstanceRef` / `InstanceStore` context model.
 
+Status: implemented on `migration/explicit-instance-context`.
+
 This migration should happen on a dedicated branch after the upstream merge branch has landed in `dev`.
 
 Current branch:
@@ -12,7 +14,7 @@ migration/explicit-instance-context
 
 ## Goal
 
-Remove OpenAgent's dependency on:
+The migration removes OpenAgent's dependency on:
 
 - `packages/opencode/src/project/instance.ts`
 - `packages/opencode/src/project/with-instance.ts`

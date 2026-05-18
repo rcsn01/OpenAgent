@@ -48,7 +48,7 @@ describe("tool.assertExternalDirectory", () => {
     }),
   )
 
-  it.live("no-ops for paths inside Instance.directory", () =>
+  it.live("no-ops for paths inside the active instance directory", () =>
     provideInstance("/tmp/project")(
       Effect.gen(function* () {
         const { requests, ctx } = makeCtx()
