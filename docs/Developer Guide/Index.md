@@ -7,6 +7,7 @@ How to set up, develop, and contribute to OpenAgent.
 - [[Developer Guide/Local Development]] — project overview, repository structure, and local dev commands
 - [[Developer Guide/Coding Conventions]] — style guide, testing practices, and type-checking rules
 - [[Developer Guide/Pull From Upstream]] — compare OpenAgent against the latest upstream opencode release
+- [[Developer Guide/Instance Context Migration]] — plan for replacing ambient `Instance.current` with explicit `InstanceRef` context
 
 ## Quick Reference
 
