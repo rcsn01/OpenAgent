@@ -1,7 +1,10 @@
-import type { Agent, Project, ProviderListResponse } from "@opencode-ai/sdk/v2/client"
+import type { Agent, Project, ProviderListResponse, Session } from "@opencode-ai/sdk/v2/client"
 export { pathKey as directoryKey, type PathKey as DirectoryKey } from "@/utils/path-key"
 
 export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+
+export const isAutomationSession = (session: Pick<Session, "title"> & { source?: string }) =>
+  session.source === "automation" || session.title?.startsWith("[Automation] ")
 
 function isAgent(input: unknown): input is Agent {
   if (!input || typeof input !== "object") return false

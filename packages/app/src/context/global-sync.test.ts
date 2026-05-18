@@ -1,6 +1,19 @@
 import { describe, expect, test } from "bun:test"
+import type { Session } from "@opencode-ai/sdk/v2/client"
 import { canDisposeDirectory, pickDirectoriesToEvict } from "./global-sync/eviction"
-import { estimateRootSessionTotal, loadRootSessionsWithFallback } from "./global-sync/session-load"
+import {
+  estimateRootSessionTotal,
+  loadRootSessionsWithFallback,
+  preserveLoadedAutomationSessions,
+} from "./global-sync/session-load"
+
+const session = (input: { id: string; source?: "user" | "automation"; title?: string; archived?: number }) =>
+  ({
+    id: input.id,
+    title: input.title ?? input.id,
+    source: input.source ?? "user",
+    time: { created: 1, updated: 1, archived: input.archived },
+  }) as Session
 
 describe("pickDirectoriesToEvict", () => {
   test("keeps pinned stores and evicts idle stores", () => {
@@ -74,6 +87,26 @@ describe("estimateRootSessionTotal", () => {
 
   test("keeps exact total when limited fetch is under limit", () => {
     expect(estimateRootSessionTotal({ count: 9, limit: 10, limited: true })).toBe(9)
+  })
+})
+
+describe("preserveLoadedAutomationSessions", () => {
+  test("keeps loaded automation roots across root-list refreshes", () => {
+    const result = preserveLoadedAutomationSessions({
+      sessions: [session({ id: "ses_user" })],
+      existing: [session({ id: "ses_auto", source: "automation" }), session({ id: "ses_old" })],
+    })
+
+    expect(result.map((item) => item.id)).toEqual(["ses_auto", "ses_user"])
+  })
+
+  test("does not preserve archived automations", () => {
+    const result = preserveLoadedAutomationSessions({
+      sessions: [session({ id: "ses_user" })],
+      existing: [session({ id: "ses_auto", source: "automation", archived: 10 })],
+    })
+
+    expect(result.map((item) => item.id)).toEqual(["ses_user"])
   })
 })
 

@@ -93,3 +93,4 @@ Local development setup and coding conventions.
 - [[Developer Guide/Index|Developer Guide]] — overview and navigation
 - [[Developer Guide/Local Development]] — project overview and local dev commands
 - [[Developer Guide/Coding Conventions]] — style guide, testing, and type-checking
+- [[Developer Guide/Pull From Upstream]] — inspect what upstream opencode added since the last shared commit

@@ -101,6 +101,7 @@ export function DialogAutomations(props: {
   const [variant, setVariant] = createSignal<string | undefined>()
   let saveRequestID = 0
   let queuedSave = false
+  let creatingAutomation = false
   let projectSelect: HTMLSelectElement | undefined
 
   const automations = useQuery(() => ({
@@ -256,9 +257,16 @@ export function DialogAutomations(props: {
     },
     onSuccess: (result, snapshot) => {
       const item = result.data
-      if (item && !snapshot.editing && props.onOpenAutomation) {
+      if (item && !snapshot.editing) {
+        showToast({
+          variant: "success",
+          title: "Automation created",
+          description: item.name,
+        })
         void invalidate()
-        props.onOpenAutomation({ directory: item.directory, id: item.id })
+        if (props.onOpenAutomations) props.onOpenAutomations({ replace: true })
+        else setMode("list")
+        resetForm()
         return
       }
       if (item) {
@@ -282,6 +290,7 @@ export function DialogAutomations(props: {
         description: errorMessage(err, "Automation could not be saved"),
       }),
     onSettled: () => {
+      creatingAutomation = false
       if (!queuedSave) return
       queuedSave = false
       queueMicrotask(persistEdits)
@@ -331,12 +340,21 @@ export function DialogAutomations(props: {
 
   const persistEdits = () => {
     if (!canSave()) return
+    if (!editing()) return
     if (save.isPending) {
       queuedSave = true
       return
     }
     const snapshot = saveSnapshot()
     if (snapshot) save.mutate(snapshot)
+  }
+
+  const createAutomation = () => {
+    if (!canSave() || save.isPending || creatingAutomation) return
+    const snapshot = saveSnapshot()
+    if (!snapshot) return
+    creatingAutomation = true
+    save.mutate(snapshot)
   }
 
   const updateStatusDraft = (next: Automation["status"]) => {
@@ -526,18 +544,18 @@ export function DialogAutomations(props: {
                 size="large"
                 variant="primary"
                 icon="arrow-right"
-                disabled={!canSave() || runNow.isPending}
+                disabled={!canSave() || save.isPending || runNow.isPending}
+                aria-busy={save.isPending && !editing() ? "true" : undefined}
                 onClick={() => {
                   const current = editing()
                   if (!current) {
-                    const snapshot = saveSnapshot()
-                    if (snapshot) save.mutate(snapshot)
+                    createAutomation()
                     return
                   }
                   runNow.mutate(current)
                 }}
               >
-                {editing() ? "Run now" : "Create"}
+                {editing() ? "Run now" : save.isPending ? "Creating..." : "Create"}
               </Button>
             </div>
 
