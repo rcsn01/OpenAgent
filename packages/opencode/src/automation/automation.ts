@@ -1,5 +1,5 @@
 import z from "zod"
-import { and, asc, desc, eq, lte } from "drizzle-orm"
+import { and, asc, desc, eq } from "drizzle-orm"
 import { Effect, Context, Layer, Schedule, Duration, Scope, Cause } from "effect"
 import * as Log from "@opencode-ai/core/util/log"
 import { Global } from "@opencode-ai/core/global"
@@ -15,10 +15,12 @@ import { AutomationRunTable, AutomationTable } from "./automation.sql"
 import { SessionID } from "@/session/schema"
 import { ProjectID } from "@/project/schema"
 import { ModelID, ProviderID } from "@/provider/schema"
+import { Config } from "@/config/config"
 import fs from "fs/promises"
 import path from "path"
 
 const log = Log.create({ service: "automation" })
+const DEFAULT_PARALLEL_LIMIT = 10
 
 export const AutomationID = z.string().startsWith("atm_").transform((x) => x as AutomationID)
 export type AutomationID = string & { readonly __brand: "AutomationID" }
@@ -244,6 +246,27 @@ export function nextRunAt(schedule: Automation.Schedule, from = Date.now()) {
   return next.getTime()
 }
 
+export function automationDueAt(
+  automation: Pick<Automation.Info, "schedule" | "status" | "nextRunAt" | "lastRunAt">,
+  now = Date.now(),
+) {
+  if (automation.status === "paused") return undefined
+
+  const scheduledAt = automation.nextRunAt
+  const lastRunScheduledAt =
+    automation.lastRunAt === undefined ? Number.POSITIVE_INFINITY : nextRunAt(automation.schedule, automation.lastRunAt)
+  const dueAt = Math.min(scheduledAt, lastRunScheduledAt)
+
+  return dueAt <= now ? dueAt : undefined
+}
+
+export function automationParallelLimit(config: Pick<Config.Info, "automation">) {
+  const configured = config.automation?.parallel
+  return typeof configured === "number" && Number.isFinite(configured)
+    ? Math.max(1, Math.floor(configured))
+    : DEFAULT_PARALLEL_LIMIT
+}
+
 export interface Interface {
   readonly list: (input?: { directory?: string }) => Effect.Effect<Automation.Info[]>
   readonly create: (input: Automation.CreateInput) => Effect.Effect<Automation.Info>
@@ -262,6 +285,7 @@ export const layer = Layer.effect(
     const projects = yield* Project.Service
     const sessionSvc = yield* Session.Service
     const promptSvc = yield* SessionPrompt.Service
+    const configSvc = yield* Config.Service
     const scope = yield* Scope.Scope
 
     const get = Effect.fn("Automation.get")(function* (automationID: AutomationID) {
@@ -358,9 +382,22 @@ export const layer = Layer.effect(
           .get(),
       )
 
+    const runningAutomations = () =>
+      Database.use((db) =>
+        db
+          .select({ automationID: AutomationRunTable.automation_id })
+          .from(AutomationRunTable)
+          .where(eq(AutomationRunTable.status, "running"))
+          .all(),
+      )
+
     const execute = Effect.fn("Automation.execute")(function* (automation: Automation.Info) {
       const existing = hasRunning(automation.id)
       if (existing) return yield* runs({ automationID: automation.id, limit: 1 }).pipe(Effect.map((items) => items[0]!))
+
+      const config = yield* configSvc.get()
+      const limit = automationParallelLimit(config)
+      if (runningAutomations().length >= limit) throw new Error(`Automation parallel limit reached (${limit})`)
 
       const now = Date.now()
       const runID = ascending("automation_run") as AutomationRunID
@@ -453,7 +490,7 @@ export const layer = Layer.effect(
           .update(AutomationTable)
           .set({
             last_run_at: run.startedAt,
-            next_run_at: nextRunAt(automation.schedule),
+            next_run_at: nextRunAt(automation.schedule, run.startedAt),
             time_updated: Date.now(),
           })
           .where(eq(AutomationTable.id, automation.id))
@@ -464,17 +501,29 @@ export const layer = Layer.effect(
 
     const runDue: Interface["runDue"] = Effect.fn("Automation.runDue")(function* () {
       const now = Date.now()
+      const config = yield* configSvc.get()
+      const running = runningAutomations()
+      const available = automationParallelLimit(config) - running.length
+      if (available <= 0) return
+
+      const runningAutomationIDs = new Set(running.map((run) => run.automationID))
       const rows = Database.use((db) =>
         db
           .select()
           .from(AutomationTable)
-          .where(and(eq(AutomationTable.status, "active"), lte(AutomationTable.next_run_at, now)))
+          .where(eq(AutomationTable.status, "active"))
           .orderBy(asc(AutomationTable.next_run_at))
-          .limit(10)
           .all(),
       )
-      for (const row of rows) {
-        const automation = toInfo(row)
+      const due = rows
+        .map(toInfo)
+        .filter((automation) => !runningAutomationIDs.has(automation.id))
+        .map((automation) => ({ automation, dueAt: automationDueAt(automation, now) }))
+        .filter((item): item is { automation: Automation.Info; dueAt: number } => item.dueAt !== undefined)
+        .sort((a, b) => a.dueAt - b.dueAt)
+        .slice(0, Math.min(10, available))
+
+      for (const { automation } of due) {
         yield* runNow(automation.id).pipe(
           Effect.catchCause((cause) =>
             Effect.sync(() => log.error("scheduled automation failed", { automationID: automation.id, cause })),
@@ -497,4 +546,5 @@ export const defaultLayer = layer.pipe(
   Layer.provide(Project.defaultLayer),
   Layer.provide(Session.defaultLayer),
   Layer.provide(SessionPrompt.defaultLayer),
+  Layer.provide(Config.defaultLayer),
 )

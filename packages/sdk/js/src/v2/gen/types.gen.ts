@@ -1356,6 +1356,15 @@ export type Config = {
     [key: string]: boolean
   }
   attachment?: AttachmentConfig
+  /**
+   * Automation scheduling configuration
+   */
+  automation?: {
+    /**
+     * Maximum number of automation runs that may be active at the same time (default: 10)
+     */
+    parallel?: number
+  }
   enterprise?: {
     url?: string
   }

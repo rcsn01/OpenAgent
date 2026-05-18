@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { Button } from "@opencode-ai/ui/button"
 import { Icon } from "@opencode-ai/ui/icon"
+import { Popover } from "@opencode-ai/ui/popover"
 import { showToast } from "@opencode-ai/ui/toast"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useGlobalSDK } from "@/context/global-sdk"
+import { useGlobalSync } from "@/context/global-sync"
 import { type LocalProject } from "@/context/layout"
 import { useModels } from "@/context/models"
 import { displayName, errorMessage } from "@/pages/layout/helpers"
@@ -15,6 +17,10 @@ type Automation = AutomationListResponse[number]
 type Schedule = Automation["schedule"]
 type ScheduleKind = "minute" | "hourly" | "daily" | "weekday" | "weekly"
 type AutomationModel = NonNullable<Automation["model"]>
+const DEFAULT_AUTOMATION_PARALLEL_LIMIT = 10
+const MIN_AUTOMATION_PARALLEL_LIMIT = 1
+const MAX_AUTOMATION_PARALLEL_LIMIT = 20
+
 type SaveSnapshot = {
   requestID: number
   editing?: Automation
@@ -79,6 +85,7 @@ export function DialogAutomations(props: {
 }) {
   const dialog = useDialog()
   const globalSDK = useGlobalSDK()
+  const sync = useGlobalSync()
   const models = useModels()
   const queryClient = useQueryClient()
   const firstProject = () => props.projects[0]
@@ -99,6 +106,8 @@ export function DialogAutomations(props: {
   const [minutes, setMinutes] = createSignal("5")
   const [model, setModel] = createSignal<Automation["model"]>()
   const [variant, setVariant] = createSignal<string | undefined>()
+  const [settingsOpen, setSettingsOpen] = createSignal(false)
+  const [parallelLimitDraft, setParallelLimitDraft] = createSignal(String(DEFAULT_AUTOMATION_PARALLEL_LIMIT))
   let saveRequestID = 0
   let queuedSave = false
   let creatingAutomation = false
@@ -127,6 +136,43 @@ export function DialogAutomations(props: {
     if (project) return displayName(project)
     return worktree.split(/[\\/]/).filter(Boolean).at(-1) ?? worktree
   }
+
+  const automationParallelLimit = () =>
+    finiteNumber(sync.data.config.automation?.parallel) ?? DEFAULT_AUTOMATION_PARALLEL_LIMIT
+
+  const normalizeParallelLimit = (value: string) => {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return DEFAULT_AUTOMATION_PARALLEL_LIMIT
+    return Math.max(
+      MIN_AUTOMATION_PARALLEL_LIMIT,
+      Math.min(MAX_AUTOMATION_PARALLEL_LIMIT, Math.floor(parsed)),
+    )
+  }
+
+  const saveParallelLimit = async () => {
+    const next = normalizeParallelLimit(parallelLimitDraft())
+    setParallelLimitDraft(String(next))
+    if (next === automationParallelLimit()) return
+    try {
+      await sync.updateConfig({
+        ...sync.data.config,
+        automation: {
+          ...(sync.data.config.automation ?? {}),
+          parallel: next,
+        },
+      })
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Automation settings could not be saved",
+        description: errorMessage(err, "Automation settings could not be saved"),
+      })
+    }
+  }
+
+  createEffect(() => {
+    setParallelLimitDraft(String(automationParallelLimit()))
+  })
 
   createEffect(() => {
     const select = projectSelect
@@ -394,16 +440,52 @@ export function DialogAutomations(props: {
         when={mode() === "editor"}
         fallback={
           <>
-        <div class="absolute right-4 top-4 z-10">
-          <Button icon="plus-small" class="rounded-xl" onClick={() => openEditor()}>
-            New automation
-          </Button>
-        </div>
-
         <div class="no-scrollbar min-h-0 flex-1 overflow-auto px-10 py-10">
           <div class="mx-auto flex max-w-[760px] flex-col gap-8">
-            <header class="pr-40">
+            <header class="group/automation-heading flex items-center justify-between gap-4">
               <h2 class="text-[32px] font-medium leading-tight text-text-strong">Automations</h2>
+              <Popover
+                open={settingsOpen()}
+                onOpenChange={setSettingsOpen}
+                placement="bottom-end"
+                title="Automation settings"
+                class="w-[280px]"
+                trigger={
+                  <button
+                    type="button"
+                    class="flex size-8 items-center justify-center rounded-md text-icon-base opacity-0 transition-[background-color,color,opacity] hover:bg-surface-base-hover hover:text-icon-strong focus:opacity-100 group-hover/automation-heading:opacity-100"
+                    classList={{ "opacity-100": settingsOpen() }}
+                    aria-label="Automation settings"
+                  >
+                    <Icon name="settings-gear" size="small" />
+                  </button>
+                }
+              >
+                <div class="flex flex-col gap-3">
+                  <label class="flex flex-col gap-1.5">
+                    <span class="text-13-medium text-text-strong">Parallel automations</span>
+                    <span class="text-12-regular leading-5 text-text-weak">
+                      Maximum automation runs active at the same time.
+                    </span>
+                    <input
+                      type="number"
+                      min={MIN_AUTOMATION_PARALLEL_LIMIT}
+                      max={MAX_AUTOMATION_PARALLEL_LIMIT}
+                      step="1"
+                      class="mt-1 h-9 rounded-lg border border-border-base bg-surface-base px-3 text-14-regular text-text-strong outline-none focus:border-border-strong"
+                      value={parallelLimitDraft()}
+                      onInput={(event) => setParallelLimitDraft(event.currentTarget.value)}
+                      onBlur={() => void saveParallelLimit()}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault()
+                          event.currentTarget.blur()
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </Popover>
             </header>
 
             <section>
@@ -475,6 +557,14 @@ export function DialogAutomations(props: {
                     )}
                   </For>
                 </Show>
+                <button
+                  type="button"
+                  class="mt-2 flex min-h-[52px] w-full items-center rounded-xl border border-dashed border-border-weaker-base px-4 text-left text-15-medium text-text-weak transition-colors hover:border-border-base hover:bg-surface-base hover:text-text-strong"
+                  aria-label="+ New Automation"
+                  onClick={() => openEditor()}
+                >
+                  + New Automation
+                </button>
               </div>
             </section>
           </div>

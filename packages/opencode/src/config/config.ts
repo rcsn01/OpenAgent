@@ -256,6 +256,15 @@ export const Info = Schema.Struct({
   attachment: Schema.optional(ConfigAttachment.Info).annotate({
     description: "Attachment processing configuration, including image size limits and resizing behavior",
   }),
+  automation: Schema.optional(
+    Schema.Struct({
+      parallel: Schema.optional(PositiveInt).annotate({
+        description: "Maximum number of automation runs that may be active at the same time (default: 10)",
+      }),
+    }),
+  ).annotate({
+    description: "Automation scheduling configuration",
+  }),
   enterprise: Schema.optional(
     Schema.Struct({
       url: Schema.optional(Schema.String).annotate({ description: "Enterprise URL" }),

@@ -4,9 +4,11 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import {
+  automationDueAt,
   automationMemoryDir,
   automationMemoryFile,
   automationMemoryPermission,
+  automationParallelLimit,
   automationPrompt,
   ensureAutomationMemoryFile,
   nextRunAt,
@@ -16,6 +18,8 @@ import {
 } from "../../src/automation/automation"
 
 describe("automation schedule", () => {
+  const at = (value: string) => new Date(value).getTime()
+
   test("schedules daily time for today when still ahead", () => {
     const from = new Date("2026-05-15T08:00:00").getTime()
     const next = nextRunAt({ type: "daily", time: "09:30" }, from)
@@ -48,6 +52,117 @@ describe("automation schedule", () => {
     expect(new Date(next).getDay()).toBe(1)
     expect(new Date(next).getHours()).toBe(9)
     expect(new Date(next).getMinutes()).toBe(30)
+  })
+
+  test("detects interval automation overdue from last run", () => {
+    const lastRunAt = at("2026-05-15T10:00:00")
+    const now = at("2026-05-15T10:31:00")
+    const dueAt = automationDueAt(
+      {
+        schedule: { type: "interval", minutes: 30 },
+        status: "active",
+        nextRunAt: at("2026-05-15T11:00:00"),
+        lastRunAt,
+      },
+      now,
+    )
+
+    expect(dueAt).toBe(at("2026-05-15T10:30:00"))
+  })
+
+  test("detects daily automation missed while app was closed", () => {
+    const now = at("2026-05-15T10:00:00")
+    const dueAt = automationDueAt(
+      {
+        schedule: { type: "daily", time: "09:30" },
+        status: "active",
+        nextRunAt: at("2026-05-16T09:30:00"),
+        lastRunAt: at("2026-05-14T09:30:00"),
+      },
+      now,
+    )
+
+    expect(dueAt).toBe(at("2026-05-15T09:30:00"))
+  })
+
+  test("detects weekday automation missed across a weekend", () => {
+    const now = at("2026-05-18T10:00:00")
+    const dueAt = automationDueAt(
+      {
+        schedule: { type: "weekday", time: "09:30" },
+        status: "active",
+        nextRunAt: at("2026-05-19T09:30:00"),
+        lastRunAt: at("2026-05-15T09:30:00"),
+      },
+      now,
+    )
+
+    expect(dueAt).toBe(at("2026-05-18T09:30:00"))
+  })
+
+  test("detects weekly automation missed across multiple days", () => {
+    const now = at("2026-05-18T10:00:00")
+    const dueAt = automationDueAt(
+      {
+        schedule: { type: "weekly", day: 1, time: "09:30" },
+        status: "active",
+        nextRunAt: at("2026-05-25T09:30:00"),
+        lastRunAt: at("2026-05-11T09:30:00"),
+      },
+      now,
+    )
+
+    expect(dueAt).toBe(at("2026-05-18T09:30:00"))
+  })
+
+  test("uses stored next run when automation has never run", () => {
+    const dueAt = automationDueAt(
+      {
+        schedule: { type: "interval", minutes: 30 },
+        status: "active",
+        nextRunAt: at("2026-05-15T09:30:00"),
+      },
+      at("2026-05-15T10:00:00"),
+    )
+
+    expect(dueAt).toBe(at("2026-05-15T09:30:00"))
+  })
+
+  test("does not mark paused automations due", () => {
+    const dueAt = automationDueAt(
+      {
+        schedule: { type: "interval", minutes: 30 },
+        status: "paused",
+        nextRunAt: at("2026-05-15T09:30:00"),
+        lastRunAt: at("2026-05-15T09:00:00"),
+      },
+      at("2026-05-15T10:00:00"),
+    )
+
+    expect(dueAt).toBeUndefined()
+  })
+
+  test("missed interval occurrences produce one catch-up decision", () => {
+    const schedule: Automation.Schedule = { type: "interval", minutes: 5 }
+    const now = at("2026-05-15T10:31:00")
+    const dueAt = automationDueAt(
+      {
+        schedule,
+        status: "active",
+        nextRunAt: at("2026-05-15T11:00:00"),
+        lastRunAt: at("2026-05-15T10:00:00"),
+      },
+      now,
+    )
+
+    expect(dueAt).toBe(at("2026-05-15T10:05:00"))
+    expect(nextRunAt(schedule, now)).toBe(at("2026-05-15T10:36:00"))
+  })
+
+  test("defaults and normalizes automation parallel limit", () => {
+    expect(automationParallelLimit({})).toBe(10)
+    expect(automationParallelLimit({ automation: { parallel: 3 } })).toBe(3)
+    expect(automationParallelLimit({ automation: { parallel: 3.9 } })).toBe(3)
   })
 })
 
