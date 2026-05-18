@@ -240,6 +240,7 @@ export const layer = Layer.effect(
               Permission.fromConfig({
                 question: "allow",
                 plan_exit: "allow",
+                todowrite: "deny",
                 ...DENY_META_TOOLS,
                 external_directory: {
                   [path.join(Global.Path.data, "plans", "*")]: "allow",

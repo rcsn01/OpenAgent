@@ -40,6 +40,13 @@ const build: Agent.Info = {
   options: {},
 }
 
+const plan: Agent.Info = {
+  name: "plan",
+  mode: "primary",
+  permission: Permission.fromConfig({ "*": "allow", todowrite: "deny" }),
+  options: {},
+}
+
 const it = testEffect(
   SystemPrompt.layer.pipe(
     Layer.provide(
@@ -57,6 +64,28 @@ const it = testEffect(
 )
 
 describe("session.system", () => {
+  it.effect("task tracking is included when todowrite is allowed and is stable across calls", () =>
+    Effect.gen(function* () {
+      const prompt = yield* SystemPrompt.Service
+      const first = yield* prompt.taskTracking(build)
+      const second = yield* prompt.taskTracking(build)
+      const output = first ?? (yield* Effect.fail(new NamedError.Unknown({ message: "missing task tracking output" })))
+
+      expect(first).toBe(second)
+      expect(output).toContain("## Task tracking")
+      expect(output).toContain("Keep exactly one item `in_progress` while work remains.")
+    }),
+  )
+
+  it.effect("task tracking is omitted when todowrite is denied", () =>
+    Effect.gen(function* () {
+      const prompt = yield* SystemPrompt.Service
+      const output = yield* prompt.taskTracking(plan)
+
+      expect(output).toBeUndefined()
+    }),
+  )
+
   it.effect("skills output is sorted by name and stable across calls", () =>
     Effect.gen(function* () {
       const prompt = yield* SystemPrompt.Service

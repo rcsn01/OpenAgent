@@ -34,6 +34,7 @@ export function provider(model: Provider.Model) {
 
 export interface Interface {
   readonly environment: (model: Provider.Model) => Effect.Effect<string[]>
+  readonly taskTracking: (agent: Agent.Info) => Effect.Effect<string | undefined>
   readonly skills: (agent: Agent.Info) => Effect.Effect<string | undefined>
 }
 
@@ -60,6 +61,16 @@ export const layer = Layer.effect(
             `</env>`,
           ].join("\n"),
         ]
+      }),
+
+      taskTracking: Effect.fn("SystemPrompt.taskTracking")(function* (agent: Agent.Info) {
+        if (Permission.disabled(["todowrite"], agent.permission).has("todowrite")) return
+
+        return [
+          "## Task tracking",
+          "",
+          "When you create a todo list for multi-step work, keep it current after completing or blocking any shared todo. Keep exactly one item `in_progress` while work remains. Do not leave a todo list stale across turns.",
+        ].join("\n")
       }),
 
       skills: Effect.fn("SystemPrompt.skills")(function* (agent: Agent.Info) {
