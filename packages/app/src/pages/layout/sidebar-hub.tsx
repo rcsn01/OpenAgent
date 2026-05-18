@@ -121,28 +121,35 @@ const ProjectSessionButton = (props: {
         <span class="type-prose-md min-w-0 flex-1 truncate text-text-strong">
           {sessionTitle(props.session.title) || getFilename(props.session.directory)}
         </span>
-        <span class="type-prose-md shrink-0 text-text-weak">{compactRelativeTime(updatedAt(props.session))}</span>
       </button>
-      <DropdownMenu open={menu.open} onOpenChange={(open) => setMenu("open", open)}>
-        <Tooltip value={language.t("common.moreOptions")} placement="top">
-          <DropdownMenu.Trigger
-            as={IconButton}
-            icon="settings-gear"
-            variant="ghost"
-            data-action="session-menu"
-            data-session={props.session.id}
-            class="size-6 shrink-0 rounded-lg text-text-weak transition-opacity hover:text-text-strong data-[expanded]:bg-surface-base-active opacity-0 pointer-events-none group-hover/session:opacity-100 group-hover/session:pointer-events-auto group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto data-[expanded]:opacity-100 data-[expanded]:pointer-events-auto"
-            aria-label={language.t("common.moreOptions")}
-          />
-        </Tooltip>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content>
-            <SessionMenuItem icon="archive" label={language.t("common.archive")} onSelect={() => props.onArchive(props.session)} />
-            <DropdownMenu.Separator />
-            <SessionMenuItem icon="trash" label={language.t("common.delete")} onSelect={() => props.onDelete(props.session)} />
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu>
+      <div class="relative h-6 min-w-8 shrink-0">
+        <span
+          class="type-prose-md absolute right-0 top-1/2 -translate-y-1/2 text-text-weak transition-opacity group-hover/session:opacity-0 group-focus-within/session:opacity-0"
+          classList={{ "opacity-0": menu.open }}
+        >
+          {compactRelativeTime(updatedAt(props.session))}
+        </span>
+        <DropdownMenu open={menu.open} onOpenChange={(open) => setMenu("open", open)}>
+          <Tooltip value={language.t("common.moreOptions")} placement="top">
+            <DropdownMenu.Trigger
+              as={IconButton}
+              icon="settings-gear"
+              variant="ghost"
+              data-action="session-menu"
+              data-session={props.session.id}
+              class="absolute right-0 top-1/2 size-6 -translate-y-1/2 rounded-lg text-text-weak transition-opacity hover:text-text-strong data-[expanded]:bg-surface-base-active opacity-0 pointer-events-none group-hover/session:opacity-100 group-hover/session:pointer-events-auto group-focus-within/session:opacity-100 group-focus-within/session:pointer-events-auto data-[expanded]:opacity-100 data-[expanded]:pointer-events-auto"
+              aria-label={language.t("common.moreOptions")}
+            />
+          </Tooltip>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content>
+              <SessionMenuItem icon="archive" label={language.t("common.archive")} onSelect={() => props.onArchive(props.session)} />
+              <DropdownMenu.Separator />
+              <SessionMenuItem icon="trash" label={language.t("common.delete")} onSelect={() => props.onDelete(props.session)} />
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }
