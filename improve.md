@@ -1,207 +1,129 @@
-# Improvement Plan: OpenAgent `build` vs Codex CLI
+# Improvement Plan: Making `build` Update Its Plan Reliably
 
-This document identifies proven patterns from the official Codex CLI (`openai/codex`) that can make the OpenAgent `build` agent more robust. It is not a proposal to copy Codex wholesale — OpenAgent's architecture is already more flexible in several areas. The goal is to close specific gaps while preserving what works well.
+## The Problem
 
----
+When OpenAgent `build` works on a multi-step task, it often creates a todo list (`todowrite`) at the beginning, then never updates it again. The user is left with a stale checklist that says items are "pending" even though the agent completed them several turns ago. The model forgets to update its own plan because the reminder only exists in the tool description — not in the system prompt.
 
-## Why Study Codex CLI?
-
-Codex CLI is the reference implementation for a local coding agent backed by OpenAI. After reading its Rust source, we found three concrete mechanics that OpenAgent `build` could adopt:
-
-1. **Hierarchical instruction discovery** — it walks the directory tree collecting *all* `AGENTS.md` files, not just the nearest.
-2. **Tool-output re-serialization** — it normalizes shell/patch tool output into a compact, human-readable format before re-injecting it into the model context.
-3. **Base-instruction priority chain** — it defines a strict fallback order when resolving the system prompt: config override → persisted history → model default.
+**Codex CLI does not have this problem.** Its model updates the plan reliably because the instruction is **baked into the system prompt** and **reinforced on every auto-continuation**.
 
 ---
 
-## The Differences Today
+## How Codex CLI Solves This
 
-| Feature | Codex CLI | OpenAgent `build` |
-|---------|-----------|-------------------|
-| **System prompt source** | Config → persisted history → model default | Provider prompt selected by model ID (`gpt.txt`, `anthropic.txt`, etc.) |
-| **Project docs** | Walks CWD → root, concatenates *all* `AGENTS.md`/`AGENTS.override.md` | Walks CWD → worktree, **stops at first match** |
-| **Tool output shape** | Re-serialized into structured human-readable text | Passed back into history **as-is** |
-| **Per-message instruction resolution** | Not implemented | Already walks upward from `read` target and attaches nearby docs once per message |
-| **Remote instructions** | Not supported | Supports HTTP(S) URLs in config |
-| **Agent-specific prompts** | Single unified identity | Provider prompt + `assistant.txt` + specialist prompts + plan reminders |
-| **Plugin system text hooks** | Not supported | `experimental.chat.system.transform` lets plugins rewrite the system text at runtime |
-| **Skill discovery** | Not supported | Dynamically injects available skill descriptions into the system prompt |
-| **Real-time / voice** | Dedicated backend prompt with personalization | Not supported |
+Codex CLI uses **two layers** of prompt reinforcement:
 
-OpenAgent already exceeds Codex in per-message resolution, remote instructions, multi-agent prompt customization, and plugin extensibility. The gaps are in **discovery depth**, **fallback chain**, and **tool normalization**.
+### Layer 1: Standing instruction in the base system prompt
 
----
+In the core model instructions (`gpt-5.2-codex_instructions_template.md`):
 
-## Recommended Improvements
+```markdown
+## Plan tool
 
-### 1. Hierarchical `AGENTS.md` Discovery (P1 — High Impact, Low Risk)
-
-**The problem**
-
-Currently, OpenAgent stops after the first `AGENTS.md` found on the path from CWD to the workspace root. In a monorepo, you typically have a root `AGENTS.md` with project-wide conventions *and* package-level overrides. OpenAgent silently drops the root-level conventions.
-
-**The Codex CLI approach**
-
-Codex CLI walks the full path and concatenates all matches with the separator `\n\n--- project-doc ---\n\n`. Root conventions come first; nearest overrides come last.
-
-**What to change**
-
-Update `packages/opencode/src/session/instruction.ts:systemPaths()` to collect **all** matching instruction files, not just the first.
-
-```typescript
-// Current (simplified) — stops at first match
-for (const file of FILES) {
-  const matches = yield* fs.findUp(file, ctx.directory, ctx.worktree)
-  if (matches.length > 0) {
-    matches.forEach((item) => paths.add(path.resolve(item)))
-    break // <-- ROOT OVERRIDES LOST
-  }
-}
-
-// Proposed — collect all matches, root-first order
-const allPaths: string[] = []
-for (const file of FILES) {
-  const matches = yield* fs.findUpAll(file, ctx.directory, ctx.worktree) // hypothetical
-  if (matches.length > 0) {
-    allPaths.push(...matches.reverse()) // root → CWD
-  }
-}
+When using the planning tool:
+- Skip using the planning tool for straightforward tasks (roughly the easiest 25%).
+- Do not make single-step plans.
+- When you made a plan, update it after having performed one of the sub-tasks that you shared on the plan.
 ```
 
-Concatenate them with a clear separator (Codex uses `\n\n--- project-doc ---\n\n`; we could use `\n\n---\n\n`) so the model understands that later sections are closer/more specific.
+This is **not** the tool description. This is a **system-level behavioral rule** that the model sees on every single turn, regardless of whether it uses the tool.
 
----
+### Layer 2: Reinforcement during auto-continuations
 
-### 2. Base Instruction Priority Chain (P2 — Medium Impact, Medium Risk)
+In the goal continuation prompt template (`templates/goals/continuation.md`):
 
-**The problem**
-
-The `build` agent has no formal fallback for base instructions. If the user didn't write an `AGENTS.md` and didn't set `config.instructions`, the system prompt is just the static provider prompt. There is no way for a resumed session to remember its original system prompt, and there is no model-aware default.
-
-**The Codex CLI approach**
-
-Codex CLI defines a strict priority chain (`codex-rs/core/src/session/mod.rs:544-555`):
-
-```text
-1. config.base_instructions
-2. conversation_history.get_base_instructions()  (persisted from prior session)
-3. model_info.get_model_instructions(config.personality)
+```markdown
+If update_plan is available and the next work is meaningfully multi-step, use it to show a concise plan tied to the real objective. Keep the plan current as steps complete or the next best action changes.
 ```
 
-**What to add**
+When Codex auto-continues a turn because the goal is still active, it injects this reminder. The model sees the plan-update instruction **again** right before it resumes work.
 
-Introduce a `base_instructions` field to the session configuration and persist it in thread metadata so that resuming a thread restores the same system prompt.
-
-Optionally, allow provider/model definitions to specify a `default_instructions` string so model-aware system prompts can be shipped alongside model configs.
-
-**Caveat:** OpenAgent already has provider-specific prompt files (`gpt.txt`, `anthropic.txt`). If those are already well-tuned, a model default chain adds little value. This improvement is most useful when paired with **hierarchical discovery** (P1) so that model defaults act as a final safety net.
+**Result**: The model is reminded so frequently that updating the plan becomes habitual. It doesn't need to "remember" — it's told explicitly.
 
 ---
 
-### 3. Tool Output Re-serialization (P3 — High Impact for Token Efficiency)
+## How OpenAgent Works Today
 
-**The problem**
+OpenAgent's `todowrite` has a **rich tool description** (`packages/opencode/src/tool/todowrite.txt`):
 
-When OpenAgent runs a shell command, the raw JSON tool output is appended to the conversation history. For long outputs, this is noisy and token-heavy.
+```markdown
+## When to use
+Use proactively when:
+- The task requires 3+ distinct steps or actions
+- You start a task - mark it `in_progress` (only one at a time) before working
+- You finish a task - mark it `completed` and add any follow-ups discovered during the work
 
-**The Codex CLI approach**
-
-Codex CLI normalizes shell and patch tool outputs before re-injecting them. For example, a JSON output like this:
-
-```json
-{"output": "...", "metadata": {"exit_code": 0, "duration_seconds": 1.2}}
+## Rules
+- Update status in real time; don't batch completions
+- Mark `completed` only after the required work is actually done
+- Keep exactly one `in_progress` while work remains
 ```
 
-is transformed into:
+**But** this description is **only visible when the model considers calling the tool**. It is not a standing system-level instruction. There is **no** equivalent to Codex CLI's `## Plan tool` section in the base prompt, and there is **no** continuation prompt that reinforces it.
 
-```text
-Exit code: 0
-Wall time: 1.2 seconds
-Total output lines: 42
-Output:
-...
+**Result**: The model often creates the todo list once, then treats it as "done" and never updates it again. The user sees stale status.
+
+---
+
+## The Fix
+
+### Option A: Add a standing system prompt instruction (recommended)
+
+In `packages/opencode/src/session/prompt.ts` or `packages/opencode/src/session/system.ts`, append a concise reminder to the system prompt stack:
+
+```markdown
+## Task tracking
+
+When you create a todo list for multi-step work, update it in real time as steps are completed or blocked. Keep exactly one item `in_progress`. Do not leave the list stale across turns.
 ```
 
-**What to add**
+This should be injected **for every turn**, not just when the model happens to look at the `todowrite` tool definition.
 
-In `src/session/prompt.ts` or a new normalization module, intercept shell/exec tool results before they are appended to the history. Parse the JSON, extract the human-readable payload, and discard redundant metadata.
+### Option B: Reinforce on session resumption / continuation
 
-This should be:
-- **Opt-in per tool type** (not all tools emit JSON).
-- **Non-destructive** (store raw result in message metadata so UI/debug tools can still access it).
+If OpenAgent ever adds auto-continuation (when a turn ends and the model should keep working), include the plan-update reminder in the continuation prompt:
 
----
-
-### 4. Codex-Style Instruction Concatenation Separator
-
-**The problem**
-
-When multiple instruction sources are present (global, project, per-message, remote URLs), OpenAgent appends them without a clear boundary. The model cannot distinguish between a root-level convention and a package-level override.
-
-**The Codex CLI approach**
-
-Codex CLI explicitly separates project docs with `\n\n--- project-doc ---\n\n`. The model implicitly understands that later blocks are more specific.
-
-**What to add**
-
-Adopt a standard separator when combining multiple instruction sources:
-
-```text
-Instructions from: /Users/.../.opencode/AGENTS.md
-...
-
----
-
-Instructions from: /Users/.../my-project/AGENTS.md
-...
+```markdown
+Continue working on the current task. If there is an active todo list, update it to reflect completed and current work before proceeding.
 ```
 
-This already exists in `instruction.ts` for file attribution, but it is not applied consistently across the entire instruction stack.
+### Option C: Make `todowrite` behave like Codex CLI's `update_plan`
+
+Codex CLI's `update_plan` is explicitly labeled a **"TODO/checklist tool"** (`plan.rs:81`). Its handler is a no-op that just fires a UI event. OpenAgent's `todowrite` already does more (it persists to DB), but the principle is the same: both are cosmetic.
+
+The improvement isn't in the tool mechanics — it's in **how frequently the model is told to use it**.
 
 ---
 
-## What OpenAgent Should NOT Change
+## Side Effects to Watch Out For
 
-| Area | Why Keep the Current Approach |
-|------|-------------------------------|
-| **Per-message resolution** | OpenAgent's `resolve()` method is already more sophisticated than Codex CLI. It dynamically attaches nearby docs when a file is read, preventing stale context. |
-| **Remote instructions** | Codex CLI doesn't support remote URLs. OpenAgent already does. |
-| **Agent-specific prompts** | Codex CLI uses a single identity for everything. OpenAgent's per-agent prompts (`assistant.txt`, specialists, plan reminders) give finer-grained control. |
-| **Background / swarm delegation** | Codex CLI supports subagent inheritance. OpenAgent intentionally restricts background tasks to `assistant`, keeping `build` focused on coding. |
-| **Plugin hooks** | OpenAgent plugins can rewrite system text. Codex CLI is monolithic. |
-| **Skill layer** | OpenAgent dynamically injects skill descriptions. Codex CLI doesn't appear to have a skill abstraction. |
+- **Token cost**: Adding system prompt text increases context window usage. Keep the reminder short.
+- **Over-update**: The model might call `todowrite` on trivial single-step tasks if the instruction is too broad. Match Codex CLI's phrasing: *"When you made a plan, update it after having performed one of the sub-tasks that you shared on the plan."*
+- **Tool hallucination**: If the model hasn't created a todo list yet, telling it to "update it" could cause confusion. Codex CLI's phrasing avoids this by referencing the plan "that you shared on the plan" — implying the plan already exists.
 
 ---
 
-## Implementation Priority
+## Why This Matters More Than the Goal System
 
-| Priority | Improvement | Effort | Impact |
-|----------|------------|--------|--------|
-| P1 | **Hierarchical AGENTS.md discovery** — collect all matches from root to CWD | Low | High — fixes monorepo instruction gaps |
-| P3 | **Tool output re-serialization** | Medium | High — saves tokens, improves comprehension |
-| P2 | **Base instruction priority chain** + persistence | Medium | Medium — makes resumed sessions consistent |
-| P4 | **Codex-style separator** between instruction sources | Low | Low — nice to have, improves model parsing |
+The goal runtime (`create_goal` / `update_goal`) is a **separate architectural feature** that adds runtime enforcement. But the plan-update behavior is a **prompt-level fix** that requires no new tools, no DB migrations, and no state tracking. It just makes the existing `todowrite` tool actually useful by reminding the model to use it.
+
+Codex CLI gets reliable plan updates **without** needing a goal runtime. The goal runtime is for auto-continuation and budget enforcement — nice to have, but orthogonal to the UX problem of stale todo lists.
 
 ---
+
+## Recommended Next Steps
+
+1. **Add a standing instruction** to the system prompt stack for `build` (and possibly `assistant`) that tells the model to keep its todo list current.
+2. **Keep `todowrite` unchanged** — it's already equivalent to Codex CLI's `update_plan`.
+3. **Consider Option B** later if/when auto-continuation is implemented.
 
 ## References
 
-### Codex CLI Source (analyzed from `openai/codex` main branch)
-- `codex-rs/core/src/session/mod.rs:544-555` — Base instruction resolution chain.
-- `codex-rs/core/src/agents_md.rs` — Hierarchical AGENTS.md discovery.
-- `codex-rs/core/src/client_common.rs` — Tool output re-serialization.
-- `codex-rs/core/src/realtime_prompt.rs` — Real-time backend prompt personalization.
-- `codex-rs/core/src/client.rs:746-765` — API request payload construction.
+### Codex CLI
+- `codex-rs/core/gpt-5.2-codex_instructions_template.md:57-62` — Standing `## Plan tool` instruction in base prompt.
+- `codex-rs/core/templates/goals/continuation.md:23` — Reinforcement in continuation prompt template.
+- `codex-rs/core/src/tools/handlers/plan.rs:79-82` — `update_plan` handler explicitly labeled "TODO/checklist tool".
 
-### OpenAgent Source
-- `packages/opencode/src/session/instruction.ts` — Instruction discovery, loading, and per-message resolution.
-- `packages/opencode/src/session/system.ts` — Provider prompt selection, environment info, skills.
-- `packages/opencode/src/session/prompt.ts` — Session loop, tool orchestration, plan/build mode switching.
-- `packages/opencode/src/session/llm.ts` — Prompt assembly and streaming.
-
-### OpenAgent Docs
-- `docs/Prompt System/Prompt Assembly Flow.md` — Exact system prompt stack and join order.
-- `docs/Prompt System/Codex CLI Prompt Architecture.md` — Deep dive into Codex CLI's prompt construction.
-- `docs/Prompt System/Codex CLI vs Build Agent Comparison.md` — Side-by-side feature comparison.
-- `docs/Prompt System/Codex CLI Instruction System Adoption for Build.md` — Feasibility analysis of adopting Codex patterns.
-- `docs/Agents/Primary Agents.md` — Build agent definition, capabilities, and role boundaries.
+### OpenAgent
+- `packages/opencode/src/tool/todowrite.txt` — Current tool description.
+- `packages/opencode/src/session/prompt.ts` — Session loop where system prompt reminders are injected.
+- `packages/opencode/src/session/system.ts` — System prompt assembly.
