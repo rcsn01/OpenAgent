@@ -1,4 +1,4 @@
-import { WorkspaceRef } from "@/effect/instance-ref"
+import { InstanceRef, WorkspaceRef } from "@/effect/instance-ref"
 import { InstanceStore } from "@/project/instance-store"
 import { resolveGeneralChatDirectory } from "@/general-chat/shared"
 import { Effect, Layer } from "effect"
@@ -28,9 +28,10 @@ function provideInstanceContext<E>(
   return Effect.gen(function* () {
     const route = yield* WorkspaceRouteContext
     const directory = yield* Effect.promise(() => resolveGeneralChatDirectory(decode(route.directory)))
-    return yield* store.provide(
-      { directory },
-      effect.pipe(Effect.provideService(WorkspaceRef, route.workspaceID)),
+    const ctx = yield* store.load({ directory })
+    return yield* effect.pipe(
+      Effect.provideService(InstanceRef, ctx),
+      Effect.provideService(WorkspaceRef, route.workspaceID),
     )
   })
 }

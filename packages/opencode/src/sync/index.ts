@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm"
 import { GlobalBus } from "@/bus/global"
 import { Bus as ProjectBus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
-import type { InstanceContext } from "@/project/instance"
+import type { InstanceContext } from "@/project/instance-context"
 import { EventSequenceTable, EventTable } from "./event.sql"
 import type { WorkspaceID } from "@/control-plane/schema"
 import { EventID } from "./schema"
@@ -303,7 +303,12 @@ function register(def: Definition) {
 function process<Def extends Definition>(
   def: Def,
   event: Event<Def>,
-  options: { publish: boolean; context?: PublishContext; ownerID?: string; experimentalWorkspaces: boolean },
+  options: {
+    publish: boolean
+    context?: PublishContext
+    ownerID?: string
+    experimentalWorkspaces: boolean
+  },
 ) {
   if (projectors == null) {
     throw new Error("No projectors available. Call `SyncEvent.init` to install projectors")
@@ -348,7 +353,11 @@ function process<Def extends Definition>(
         }
 
         const result = convertEvent(def.type, event.data)
-        const publish = (data: unknown) => ProjectBus.publish(def, data as Properties<Def>, { id: event.id })
+        const publish = (data: unknown) =>
+          ProjectBus.publish(options.context!.instance!, def, data as Properties<Def>, {
+            id: event.id,
+            workspace: options.context?.workspace,
+          })
         if (result instanceof Promise) {
           void result.then(publish)
         } else {

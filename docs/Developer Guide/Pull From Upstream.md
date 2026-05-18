@@ -1,8 +1,13 @@
 # Pull From Upstream
 
-Use this guide to see what upstream `opencode` has added since the last upstream commit already present in OpenAgent.
+Use this guide to compare OpenAgent against upstream `opencode`, then merge the parts that should be carried forward.
 
-This is an inspection workflow. It does not merge or change files.
+There are two separate workflows:
+
+1. Inspect what upstream added since the last upstream commit present in OpenAgent.
+2. Merge upstream changes into OpenAgent using the OpenAgent merge policy.
+
+Do the inspection first. Do not start applying code until the upstream-only change set is clear.
 
 ## 1. Confirm Remotes
 
@@ -135,6 +140,150 @@ The correct comparison is:
 git diff "$(git merge-base HEAD upstream/dev)" v1.15.4
 ```
 
+## 10. Create a Dedicated Merge Branch
+
+After inspection, create a merge branch from the current OpenAgent development branch.
+
+```bash
+git switch dev
+git status --short
+git switch -c merge/upstream-v1.15.4-tui-backend
+```
+
+Use the latest tag in the branch name. If the working tree is not clean, understand those changes before branching. Do not overwrite unrelated local work.
+
+## 11. Merge TUI Changes Directly
+
+TUI code should stay close to upstream. Once the upstream TUI file list is known, restore those files from the latest upstream tag.
+
+TUI paths usually include:
+
+```text
+packages/opencode/src/cli/cmd/tui
+packages/opencode/test/cli/cmd/tui
+packages/opencode/src/cli/cmd/prompt-display.ts
+```
+
+Example:
+
+```bash
+git restore --source="$LATEST_TAG" -- \
+  packages/opencode/src/cli/cmd/prompt-display.ts \
+  packages/opencode/src/cli/cmd/tui \
+  packages/opencode/test/cli/cmd/tui
+```
+
+If upstream added new TUI files, make sure they appear as untracked files and are included later.
+
+Also apply TUI dependency bumps when upstream changed them. For OpenTUI updates, check `package.json`, then run:
+
+```bash
+bun install
+```
+
+This updates `bun.lock`. Keep the lockfile change with the merge.
+
+## 12. Do Not Bulk-Merge Backend or Server Changes
+
+Backend/server changes are not merged by restoring whole directories. OpenAgent has local server behavior that upstream does not know about, including automation, general chat, specialist tools, shared server behavior, and legacy instance compatibility.
+
+For backend/server files, first list the upstream changes:
+
+```bash
+git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- \
+  packages/opencode/src \
+  packages/opencode/test \
+  packages/sdk
+```
+
+Then compare that list with local OpenAgent changes:
+
+```bash
+git diff --name-status "$LAST_UPSTREAM"..HEAD -- \
+  packages/opencode/src \
+  packages/opencode/test \
+  packages/sdk
+```
+
+Classify each backend change:
+
+- Safe direct port: file has no OpenAgent-specific local changes and upstream change is self-contained.
+- Careful manual port: file already has OpenAgent behavior, so copy the upstream intent into the current file by hand.
+- Defer or skip: upstream removed/reworked a compatibility layer that OpenAgent still depends on.
+
+Never delete OpenAgent-only server/runtime files just because upstream deleted an older equivalent. Check references first with `rg`.
+
+## 13. Backend Review Checklist
+
+For each backend/server upstream change, answer these questions before editing:
+
+- What behavior did upstream change?
+- Does OpenAgent already have local changes in the same file?
+- Does the upstream change depend on a larger upstream refactor?
+- Does applying it break automation, general chat, specialist tools, shared server mode, or legacy instance context?
+- What focused test or typecheck covers the change?
+
+Useful reference commands:
+
+```bash
+git diff "$LAST_UPSTREAM" "$LATEST_TAG" -- path/to/file.ts
+git diff "$LAST_UPSTREAM"..HEAD -- path/to/file.ts
+rg -n "symbolOrImportName" packages/opencode/src packages/opencode/test
+```
+
+## 14. Backend Patterns From the v1.15.4 Merge
+
+The `v1.15.4` merge established these rules:
+
+- Keep `project/instance.ts` and `project/with-instance.ts` while OpenAgent still references them.
+- Preserve OpenAgent's general-chat directory resolver in HTTP instance middleware.
+- Provide `InstanceRef` explicitly in request/runtime boundaries, but keep legacy `Instance.restore` compatibility where OpenAgent still needs it.
+- For sync and bus changes, preserve existing module-level subscribers while adding explicit instance/workspace context for new publish paths.
+- For workspace adapters, pass explicit instance/workspace context, but keep fallbacks that work with OpenAgent's current instance state.
+- For ACP/default-agent lookups, run directory-scoped effects with a loaded instance context.
+- Do not remove OpenAgent-specific tools, registry gating, automation routes, or shared server behavior while porting upstream tool/runtime fixes.
+
+## 15. Validate the Merge
+
+Run typecheck from the repo root:
+
+```bash
+bun run typecheck
+```
+
+Run focused tests for the changed areas from `packages/opencode`. Example set from the `v1.15.4` merge:
+
+```bash
+cd packages/opencode
+bun test --timeout 30000 test/cli/cmd/tui/aggregate-failures.test.ts test/cli/cmd/tui/prompt-history.test.ts
+bun test --timeout 30000 test/sync/index.test.ts
+OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 test/lsp/client.test.ts
+cd ../..
+```
+
+Workspace/control-plane tests may need local environment workarounds. If tests fail due to local infrastructure, record the exact failure. For example, a local `NodeHttpServer` `ServeError` while binding port `0` is different from a code regression in workspace logic.
+
+Always run:
+
+```bash
+git diff --check
+git status --short
+```
+
+## 16. Summarize What Was Merged
+
+When reporting the merge, separate the result by product area:
+
+- Backend: runtime, server, sync, config, LSP, tools, and tests
+- TUI: terminal UI behavior, prompt display/history, UI dependency bumps, and TUI tests
+- Desktop app: `packages/app`, `packages/desktop`, desktop package metadata, or no changes
+
+Also call out anything intentionally not merged. Example:
+
+```text
+Did not take upstream's deletion of project/instance.ts because OpenAgent still depends on that compatibility layer.
+```
+
 ## Quick Command Set
 
 ```bash
@@ -151,3 +300,26 @@ git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/opencode/src p
 git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/opencode/src/cli/cmd/tui packages/opencode/test/cli/cmd/tui
 git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/app packages/desktop
 ```
+
+## Quick Merge Command Set
+
+```bash
+git switch dev
+git switch -c "merge/upstream-${LATEST_TAG}-tui-backend"
+
+git restore --source="$LATEST_TAG" -- \
+  packages/opencode/src/cli/cmd/prompt-display.ts \
+  packages/opencode/src/cli/cmd/tui \
+  packages/opencode/test/cli/cmd/tui
+
+bun install
+
+git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/opencode/src packages/opencode/test packages/sdk
+git diff --name-status "$LAST_UPSTREAM"..HEAD -- packages/opencode/src packages/opencode/test packages/sdk
+
+bun run typecheck
+git diff --check
+git status --short
+```
+
+The quick merge command set is only the scaffold. Backend/server edits still require the manual review policy above.

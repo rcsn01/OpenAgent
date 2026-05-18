@@ -6,10 +6,14 @@ import { GlobalBus } from "./global"
 import { InstanceState } from "@/effect/instance-state"
 import { makeRuntime } from "@/effect/run-service"
 import { Identifier } from "@/id/id"
+import type { InstanceContext } from "@/project/instance-context"
+import { InstanceRef, WorkspaceRef } from "@/effect/instance-ref"
+import type { WorkspaceID } from "@/control-plane/schema"
 
 const log = Log.create({ service: "bus" })
 
 type BusProperties<D extends BusEvent.Definition<string, Schema.Top>> = Schema.Schema.Type<D["properties"]>
+type PublishOptions = { id?: string; workspace?: WorkspaceID }
 
 export const InstanceDisposed = BusEvent.define(
   "server.instance.disposed",
@@ -187,9 +191,32 @@ export function createID() {
 export async function publish<D extends BusEvent.Definition>(
   def: D,
   properties: BusProperties<D>,
-  options?: { id?: string },
+  options?: PublishOptions,
+): Promise<void>
+export async function publish<D extends BusEvent.Definition>(
+  ctx: InstanceContext,
+  def: D,
+  properties: BusProperties<D>,
+  options?: PublishOptions,
+): Promise<void>
+export async function publish<D extends BusEvent.Definition>(
+  first: D | InstanceContext,
+  second: D | BusProperties<D>,
+  third?: BusProperties<D> | PublishOptions,
+  fourth?: PublishOptions,
 ) {
-  return runPromise((svc) => svc.publish(def, properties, options))
+  if ("project" in first && "directory" in first) {
+    const ctx = first
+    const def = second as D
+    const properties = third as BusProperties<D>
+    return runPromise((svc) =>
+      svc.publish(def, properties, fourth).pipe(
+        Effect.provideService(InstanceRef, ctx),
+        Effect.provideService(WorkspaceRef, fourth?.workspace),
+      ),
+    )
+  }
+  return runPromise((svc) => svc.publish(first, second as BusProperties<D>, third as PublishOptions | undefined))
 }
 
 export function subscribe<D extends BusEvent.Definition>(def: D, callback: (event: Payload<D>) => unknown) {
