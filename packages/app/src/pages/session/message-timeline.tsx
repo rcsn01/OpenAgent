@@ -1,5 +1,5 @@
-import { For, createEffect, createMemo, on, onCleanup, Show, Index } from "solid-js"
-import { createStore } from "solid-js/store"
+import { Match, Switch, createEffect, createMemo, createSignal, onCleanup, Show, Index } from "solid-js"
+import { Virtualizer, type VirtualizerHandle } from "virtua/solid"
 import { Button } from "@opencode-ai/ui/button"
 import { FileIcon } from "@opencode-ai/ui/file-icon"
 import { Icon } from "@opencode-ai/ui/icon"
@@ -14,6 +14,7 @@ import { useSessionKey } from "@/pages/session/session-layout"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
+import { createMessageTimelineRows, type MessageTimelineRow } from "./message-timeline.data"
 
 type MessageComment = {
   path: string
@@ -81,103 +82,6 @@ const markBoundaryGesture = (input: {
   }
 }
 
-type StageConfig = {
-  init: number
-  batch: number
-}
-
-type TimelineStageInput = {
-  sessionKey: () => string
-  turnStart: () => number
-  messages: () => UserMessage[]
-  config: StageConfig
-}
-
-/**
- * Defer-mounts small timeline windows so revealing older turns does not
- * block first paint with a large DOM mount.
- *
- * Once staging completes for a session it never re-stages — backfill and
- * new messages render immediately.
- */
-function createTimelineStaging(input: TimelineStageInput) {
-  const [state, setState] = createStore({
-    activeSession: "",
-    completedSession: "",
-    count: 0,
-  })
-
-  const stagedCount = createMemo(() => {
-    const total = input.messages().length
-    if (input.turnStart() <= 0) return total
-    if (state.completedSession === input.sessionKey()) return total
-    const init = Math.min(total, input.config.init)
-    if (state.count <= init) return init
-    if (state.count >= total) return total
-    return state.count
-  })
-
-  const stagedUserMessages = createMemo(() => {
-    const list = input.messages()
-    const count = stagedCount()
-    if (count >= list.length) return list
-    return list.slice(Math.max(0, list.length - count))
-  })
-
-  let frame: number | undefined
-  const cancel = () => {
-    if (frame === undefined) return
-    cancelAnimationFrame(frame)
-    frame = undefined
-  }
-
-  createEffect(
-    on(
-      () => [input.sessionKey(), input.turnStart() > 0, input.messages().length] as const,
-      ([sessionKey, isWindowed, total]) => {
-        cancel()
-        const shouldStage =
-          isWindowed &&
-          total > input.config.init &&
-          state.completedSession !== sessionKey &&
-          state.activeSession !== sessionKey
-        if (!shouldStage) {
-          setState({ activeSession: "", count: total })
-          return
-        }
-
-        let count = Math.min(total, input.config.init)
-        setState({ activeSession: sessionKey, count })
-
-        const step = () => {
-          if (input.sessionKey() !== sessionKey) {
-            frame = undefined
-            return
-          }
-          const currentTotal = input.messages().length
-          count = Math.min(currentTotal, count + input.config.batch)
-          setState("count", count)
-          if (count >= currentTotal) {
-            setState({ completedSession: sessionKey, activeSession: "" })
-            frame = undefined
-            return
-          }
-          frame = requestAnimationFrame(step)
-        }
-        frame = requestAnimationFrame(step)
-      },
-    ),
-  )
-
-  const isStaging = createMemo(() => {
-    const key = input.sessionKey()
-    return state.activeSession === key && state.completedSession !== key
-  })
-
-  onCleanup(cancel)
-  return { messages: stagedUserMessages, isStaging }
-}
-
 export function MessageTimeline(props: {
   actions?: UserActions
   scroll: { overflow: boolean; bottom: boolean; jump: boolean }
@@ -192,11 +96,12 @@ export function MessageTimeline(props: {
   onAutoScrollInteraction: (event: MouseEvent) => void
   centered: boolean
   setContentRef: (el: HTMLDivElement) => void
-  turnStart: number
   historyMore: boolean
   historyLoading: boolean
+  historyShift: boolean
   onLoadEarlier: () => void
   renderedUserMessages: UserMessage[]
+  setRevealMessage: (fn: ((id: string) => boolean) | undefined) => void
   anchor: (id: string) => string
 }) {
   let touchGesture: number | undefined
@@ -204,9 +109,20 @@ export function MessageTimeline(props: {
   const sync = useSync()
   const settings = useSettings()
   const language = useLanguage()
-  const { params, sessionKey } = useSessionKey()
+  const { params } = useSessionKey()
 
-  const rendered = createMemo(() => props.renderedUserMessages.map((message) => message.id))
+  const [scrollElement, setScrollElement] = createSignal<HTMLDivElement>()
+  let virtualizer: VirtualizerHandle | undefined
+
+  const rows = createMemo<readonly MessageTimelineRow[]>(
+    (previous) =>
+      createMessageTimelineRows({
+        messages: props.renderedUserMessages,
+        historyMore: props.historyMore,
+        previous,
+      }),
+    [],
+  )
   const sessionID = createMemo(() => params.id)
   const sessionMessages = createMemo(() => {
     const id = sessionID()
@@ -243,22 +159,27 @@ export function MessageTimeline(props: {
 
     return undefined
   })
-  const stageCfg = { init: 1, batch: 3 }
-  const staging = createTimelineStaging({
-    sessionKey,
-    turnStart: () => props.turnStart,
-    messages: () => props.renderedUserMessages,
-    config: stageCfg,
+
+  const revealMessage = (id: string) => {
+    const index = rows().findIndex((row) => row.type === "message" && row.messageID === id)
+    if (index === -1) return false
+    virtualizer?.scrollToIndex(index, { align: "start" })
+    return true
+  }
+
+  createEffect(() => {
+    props.setRevealMessage(revealMessage)
   })
+  onCleanup(() => props.setRevealMessage(undefined))
 
   return (
     <div class="relative w-full h-full min-w-0">
       <div
         class="absolute left-1/2 -translate-x-1/2 bottom-6 z-[60] pointer-events-none transition-all duration-200 ease-out"
         classList={{
-          "opacity-100 translate-y-0 scale-100": props.scroll.overflow && props.scroll.jump && !staging.isStaging(),
+          "opacity-100 translate-y-0 scale-100": props.scroll.overflow && props.scroll.jump,
           "opacity-0 translate-y-2 scale-95 pointer-events-none":
-            !props.scroll.overflow || !props.scroll.jump || staging.isStaging(),
+            !props.scroll.overflow || !props.scroll.jump,
         }}
       >
         <button
@@ -277,7 +198,10 @@ export function MessageTimeline(props: {
         </button>
       </div>
       <ScrollView
-        viewportRef={props.setScrollRef}
+        viewportRef={(el) => {
+          setScrollElement(el)
+          props.setScrollRef(el)
+        }}
         onWheel={(e) => {
           const root = e.currentTarget
           const delta = normalizeWheelDelta({
@@ -324,127 +248,156 @@ export function MessageTimeline(props: {
         onClick={props.onAutoScrollInteraction}
         class="relative min-w-0 w-full h-full"
       >
-        <div ref={props.setContentRef} class="min-w-0 w-full">
+        <div
+          ref={props.setContentRef}
+          role="log"
+          data-slot="session-turn-list"
+          class="min-w-0 w-full pb-16 transition-[margin]"
+          classList={{
+            "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": props.centered,
+            "mt-0.5": props.centered,
+            "mt-0": !props.centered,
+          }}
+        >
           <div
-            role="log"
-            data-slot="session-turn-list"
-            class="flex flex-col items-start justify-start pb-16 transition-[margin]"
+            class="min-w-0 w-full"
             classList={{
-              "w-full": true,
               "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": props.centered,
-              "mt-0.5": props.centered,
-              "mt-0": !props.centered,
             }}
           >
-            <Show when={props.turnStart > 0 || props.historyMore}>
-              <div class="w-full flex justify-center">
-                <Button
-                  variant="ghost"
-                  size="large"
-                  class="text-12-medium opacity-50"
-                  disabled={props.historyLoading}
-                  onClick={props.onLoadEarlier}
+            <Show when={scrollElement()}>
+              {(root) => (
+                <Virtualizer
+                  ref={(handle) => {
+                    virtualizer = handle
+                  }}
+                  data={rows()}
+                  scrollRef={root()}
+                  shift={props.historyShift}
+                  bufferSize={800}
+                  itemSize={500}
                 >
-                  {props.historyLoading
-                    ? language.t("session.messages.loadingEarlier")
-                    : language.t("session.messages.loadEarlier")}
-                </Button>
-              </div>
-            </Show>
-            <For each={rendered()}>
-              {(messageID) => {
-                const active = createMemo(() => activeMessageID() === messageID)
-                const message = createMemo(() => sessionMessages().find((item) => item.id === messageID))
-                const comments = createMemo(() => messageComments(sync.data.part[messageID] ?? []), [], {
-                  equals: (a, b) =>
-                    a.length === b.length &&
-                    a.every(
-                      (c, i) =>
-                        c.path === b[i].path &&
-                        c.comment === b[i].comment &&
-                        c.selection?.startLine === b[i].selection?.startLine &&
-                        c.selection?.endLine === b[i].selection?.endLine,
-                    ),
-                })
-                const commentCount = createMemo(() => comments().length)
-                return (
-                  <div
-                    id={props.anchor(messageID)}
-                    data-message-id={messageID}
-                    classList={{
-                      "min-w-0 w-full max-w-full": true,
-                      "md:max-w-200 2xl:max-w-[1000px]": props.centered,
-                    }}
-                    style={{
-                      "content-visibility": active() ? undefined : "auto",
-                      "contain-intrinsic-size": active() ? undefined : "auto 500px",
-                    }}
-                  >
-                    <Show when={commentCount() > 0}>
-                      <div class="w-full px-4 md:px-5 pb-2">
-                        <div class="ml-auto max-w-[82%] overflow-x-auto no-scrollbar">
-                          <div class="flex w-max min-w-full justify-end gap-2">
-                            <Index each={comments()}>
-                              {(commentAccessor: () => MessageComment) => {
-                                const comment = createMemo(() => commentAccessor())
-                                return (
-                                  <Show when={comment()}>
-                                    {(c) => (
-                                      <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border-weak-base bg-background-stronger px-2.5 py-2">
-                                        <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-text-strong">
-                                          <FileIcon node={{ path: c().path, type: "file" }} class="size-3.5 shrink-0" />
-                                          <span class="truncate">{getFilename(c().path)}</span>
-                                          <Show when={c().selection}>
-                                            {(selection) => (
-                                              <span class="shrink-0 text-text-weak">
-                                                {selection().startLine === selection().endLine
-                                                  ? `:${selection().startLine}`
-                                                  : `:${selection().startLine}-${selection().endLine}`}
-                                              </span>
-                                            )}
-                                          </Show>
-                                        </div>
-                                        <div class="pt-1 text-12-regular text-text-strong whitespace-pre-wrap break-words">
-                                          {c().comment}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </Show>
-                                )
-                              }}
-                            </Index>
-                          </div>
+                  {(row) => (
+                    <Switch>
+                      <Match when={row.type === "load-earlier"}>
+                        <div class="w-full flex justify-center">
+                          <Button
+                            variant="ghost"
+                            size="large"
+                            class="text-12-medium opacity-50"
+                            disabled={props.historyLoading}
+                            onClick={props.onLoadEarlier}
+                          >
+                            {props.historyLoading
+                              ? language.t("session.messages.loadingEarlier")
+                              : language.t("session.messages.loadEarlier")}
+                          </Button>
                         </div>
-                      </div>
-                    </Show>
-                    <SessionTurn
-                      sessionID={sessionID() ?? ""}
-                      messageID={messageID}
-                      messages={sessionMessages()}
-                      actions={props.actions}
-                      active={active()}
-                      status={active() ? sessionStatus() : undefined}
-                      messageTimestamp={
-                        settings.general.showMessageTimestamps() && message()
-                          ? new Date(message()!.time.created).toLocaleString(undefined, {
-                              dateStyle: "medium",
-                              timeStyle: "short",
-                            })
-                          : undefined
-                      }
-                      showReasoningSummaries={settings.general.showReasoningSummaries()}
-                      shellToolDefaultOpen={settings.general.shellToolPartsExpanded()}
-                      editToolDefaultOpen={settings.general.editToolPartsExpanded()}
-                      classes={{
-                        root: "min-w-0 w-full relative",
-                        content: "flex flex-col justify-between !overflow-visible",
-                        container: "w-full px-4 md:px-5",
-                      }}
-                    />
-                  </div>
-                )
-              }}
-            </For>
+                      </Match>
+                      <Match when={row.type === "message" ? row : undefined}>
+                        {(messageRow) => {
+                          const messageID = messageRow().messageID
+                          const active = createMemo(() => activeMessageID() === messageID)
+                          const message = createMemo(() => sessionMessages().find((item) => item.id === messageID))
+                          const comments = createMemo(() => messageComments(sync.data.part[messageID] ?? []), [], {
+                            equals: (a, b) =>
+                              a.length === b.length &&
+                              a.every(
+                                (c, i) =>
+                                  c.path === b[i].path &&
+                                  c.comment === b[i].comment &&
+                                  c.selection?.startLine === b[i].selection?.startLine &&
+                                  c.selection?.endLine === b[i].selection?.endLine,
+                              ),
+                          })
+                          const commentCount = createMemo(() => comments().length)
+                          return (
+                            <div
+                              id={props.anchor(messageID)}
+                              data-message-id={messageID}
+                              data-timeline-row-key={messageRow().key}
+                              classList={{
+                                "min-w-0 w-full max-w-full": true,
+                                "md:max-w-200 2xl:max-w-[1000px]": props.centered,
+                              }}
+                              style={{
+                                "content-visibility": active() ? undefined : "auto",
+                                "contain-intrinsic-size": active() ? undefined : "auto 500px",
+                              }}
+                            >
+                              <Show when={commentCount() > 0}>
+                                <div class="w-full px-4 md:px-5 pb-2">
+                                  <div class="ml-auto max-w-[82%] overflow-x-auto no-scrollbar">
+                                    <div class="flex w-max min-w-full justify-end gap-2">
+                                      <Index each={comments()}>
+                                        {(commentAccessor: () => MessageComment) => {
+                                          const comment = createMemo(() => commentAccessor())
+                                          return (
+                                            <Show when={comment()}>
+                                              {(c) => (
+                                                <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border-weak-base bg-background-stronger px-2.5 py-2">
+                                                  <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-text-strong">
+                                                    <FileIcon
+                                                      node={{ path: c().path, type: "file" }}
+                                                      class="size-3.5 shrink-0"
+                                                    />
+                                                    <span class="truncate">{getFilename(c().path)}</span>
+                                                    <Show when={c().selection}>
+                                                      {(selection) => (
+                                                        <span class="shrink-0 text-text-weak">
+                                                          {selection().startLine === selection().endLine
+                                                            ? `:${selection().startLine}`
+                                                            : `:${selection().startLine}-${selection().endLine}`}
+                                                        </span>
+                                                      )}
+                                                    </Show>
+                                                  </div>
+                                                  <div class="pt-1 text-12-regular text-text-strong whitespace-pre-wrap break-words">
+                                                    {c().comment}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </Show>
+                                          )
+                                        }}
+                                      </Index>
+                                    </div>
+                                  </div>
+                                </div>
+                              </Show>
+                              <SessionTurn
+                                sessionID={sessionID() ?? ""}
+                                messageID={messageID}
+                                messages={sessionMessages()}
+                                actions={props.actions}
+                                active={active()}
+                                status={active() ? sessionStatus() : undefined}
+                                messageTimestamp={
+                                  settings.general.showMessageTimestamps() && message()
+                                    ? new Date(message()!.time.created).toLocaleString(undefined, {
+                                        dateStyle: "medium",
+                                        timeStyle: "short",
+                                      })
+                                    : undefined
+                                }
+                                showReasoningSummaries={settings.general.showReasoningSummaries()}
+                                shellToolDefaultOpen={settings.general.shellToolPartsExpanded()}
+                                editToolDefaultOpen={settings.general.editToolPartsExpanded()}
+                                classes={{
+                                  root: "min-w-0 w-full relative",
+                                  content: "flex flex-col justify-between !overflow-visible",
+                                  container: "w-full px-4 md:px-5",
+                                }}
+                              />
+                            </div>
+                          )
+                        }}
+                      </Match>
+                    </Switch>
+                  )}
+                </Virtualizer>
+              )}
+            </Show>
           </div>
         </div>
       </ScrollView>

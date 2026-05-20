@@ -66,6 +66,7 @@ import { useSessionFollowups } from "./session/session-followups"
 import { createSessionHistoryWindow } from "./session/session-history-window"
 import { useSessionPanelLayout } from "./session/session-panel-layout"
 import { useSessionTabHandoff } from "./session/session-tab-handoff"
+import { useUsageExceededDialogs } from "./session/use-usage-exceeded-dialogs"
 
 const emptyUserMessages: UserMessage[] = []
 const MIN_REVIEW_COLUMN_WIDTH = 200
@@ -92,6 +93,10 @@ export default function Page() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams<{ prompt?: string }>()
   const { params, sessionKey, tabs, view, href } = useSessionLayout()
+
+  useUsageExceededDialogs({
+    sessionID: () => params.id,
+  })
 
   createEffect(() => {
     if (!prompt.ready()) return
@@ -1170,7 +1175,6 @@ export default function Page() {
 
   const historyWindow = createSessionHistoryWindow({
     sessionID: () => params.id,
-    messagesReady,
     loaded: () => messages().length,
     visibleUserMessages,
     historyMore,
@@ -1192,7 +1196,7 @@ export default function Page() {
       const el = scroller
       if (!el) return
       if (el.scrollHeight > el.clientHeight + 1) return
-      if (historyWindow.turnStart() <= 0 && !historyMore()) return
+      if (!historyMore()) return
 
       void historyWindow.loadAndReveal()
     })
@@ -1204,15 +1208,14 @@ export default function Page() {
         [
           params.id,
           messagesReady(),
-          historyWindow.turnStart(),
           historyMore(),
           historyLoading(),
           autoScroll.userScrolled(),
           visibleUserMessages().length,
         ] as const,
-      ([id, ready, start, more, loading, scrolled]) => {
+      ([id, ready, more, loading, scrolled]) => {
         if (!id || !ready || loading || scrolled) return
-        if (start <= 0 && !more) return
+        if (!more) return
         fill()
       },
       { defer: true },
@@ -1407,6 +1410,8 @@ export default function Page() {
     },
   )
 
+  let revealTimelineMessage: ((id: string) => boolean) | undefined
+
   const { clearMessageHash, scrollToMessage } = useSessionHashScroll({
     sessionKey,
     sessionID: () => params.id,
@@ -1414,16 +1419,17 @@ export default function Page() {
     visibleUserMessages,
     historyMore,
     historyLoading,
-    loadMore: (sessionID) => sync.session.history.loadMore(sessionID),
-    turnStart: historyWindow.turnStart,
+    loadMore: async () => {
+      await historyWindow.loadAndReveal()
+    },
     currentMessageId: () => store.messageId,
     pendingMessage: () => ui.pendingMessage,
     setPendingMessage: (value) => setUi("pendingMessage", value),
     setActiveMessage,
-    setTurnStart: historyWindow.setTurnStart,
     autoScroll,
     scroller: () => scroller,
     anchor,
+    revealMessage: (id) => revealTimelineMessage?.(id) ?? false,
     scheduleScrollState,
     consumePendingMessage: layout.pendingMessage.consume,
   })
@@ -1516,13 +1522,16 @@ export default function Page() {
                     const root = scroller
                     if (root) scheduleScrollState(root)
                   }}
-                  turnStart={historyWindow.turnStart()}
                   historyMore={historyMore()}
                   historyLoading={historyLoading()}
+                  historyShift={historyWindow.historyShift()}
                   onLoadEarlier={() => {
                     void historyWindow.loadAndReveal()
                   }}
                   renderedUserMessages={historyWindow.renderedUserMessages()}
+                  setRevealMessage={(fn) => {
+                    revealTimelineMessage = fn
+                  }}
                   anchor={anchor}
                 />
               </Match>

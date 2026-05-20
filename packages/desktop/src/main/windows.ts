@@ -10,6 +10,7 @@ const rendererProtocol = "oc"
 const rendererHost = "renderer"
 const clipboardWritePermission = "clipboard-sanitized-write"
 const mediaPermission = "media"
+const notificationPermission = "notifications"
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -212,6 +213,11 @@ function allowTrustedRendererPermissions(win: BrowserWindow) {
       return
     }
 
+    if (permission === notificationPermission) {
+      callback(true)
+      return
+    }
+
     if (permission === mediaPermission && isAudioOnlyMediaRequest(details)) {
       callback(true)
       return
@@ -224,6 +230,7 @@ function allowTrustedRendererPermissions(win: BrowserWindow) {
     const trusted = isTrustedRendererUrl(details.requestingUrl) || isTrustedRendererUrl(requestingOrigin)
     if (!trusted) return false
     if (permission === clipboardWritePermission) return true
+    if (permission === notificationPermission) return true
     if (permission === mediaPermission) return true
     return false
   })

@@ -15,6 +15,10 @@
 
   document.documentElement.dataset.theme = themeId
   document.documentElement.dataset.colorScheme = mode
+  var themeColor = document.querySelector('meta[name="theme-color"]')
+  if (themeColor) {
+    themeColor.setAttribute("content", isDark ? "#131010" : "#F8F7F7")
+  }
 
   if (themeId === "oc-2") return
 

@@ -125,6 +125,16 @@ export const dict = {
   "dialog.model.unpaid.freeModels.title": "Free models provided by OpenAgent",
   "dialog.model.unpaid.addMore.title": "Add more models from popular providers",
 
+  "session.usageExceeded.free.title": "Free usage limit reached",
+  "session.usageExceeded.free.message":
+    "Your free OpenAgent usage has been used for now. Connect OpenAgent Go to keep this session moving.",
+  "session.usageExceeded.free.action": "Connect OpenAgent Go",
+  "session.usageExceeded.rate.title": "Usage temporarily limited",
+  "session.usageExceeded.rate.message":
+    "This account is being rate limited. You can open the provider details to review the limit and next steps.",
+  "session.usageExceeded.rate.action": "View details",
+  "session.usageExceeded.dontShowAgain": "Don't show this again",
+
   "dialog.provider.viewAll": "Show more providers",
 
   "provider.connect.title": "Connect {{provider}}",
