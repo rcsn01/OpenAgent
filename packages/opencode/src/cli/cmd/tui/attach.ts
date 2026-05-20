@@ -8,7 +8,7 @@ import { ServerAuth } from "@/server/auth"
 
 export const AttachCommand = cmd({
   command: "attach <url>",
-  describe: "attach to a running openagent server",
+  describe: "attach to a running opencode server",
   builder: (yargs) =>
     yargs
       .positional("url", {

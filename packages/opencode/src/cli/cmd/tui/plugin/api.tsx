@@ -148,11 +148,11 @@ function stateApi(sync: ReturnType<typeof useSync>): TuiPluginApi["state"] {
       list() {
         return sync.data.session
       },
-      get(sessionID) {
-        return sync.session.get(sessionID)
-      },
       count() {
         return sync.data.session.length
+      },
+      get(sessionID) {
+        return sync.session.get(sessionID)
       },
       diff(sessionID) {
         return (sync.data.session_diff[sessionID] ?? []).flatMap((item) =>

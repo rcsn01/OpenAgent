@@ -21,12 +21,6 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
     return project.workspace.get(workspaceID)
   }
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
-  const scrollbarOptions = {
-    trackOptions: {
-      backgroundColor: theme.background,
-      foregroundColor: theme.borderActive,
-    },
-  }
 
   return (
     <Show when={session()}>
@@ -40,7 +34,16 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
         paddingRight={2}
         position={props.overlay ? "absolute" : "relative"}
       >
-        <box height="100%" flexDirection="column">
+        <scrollbox
+          flexGrow={1}
+          scrollAcceleration={scrollAcceleration()}
+          verticalScrollbarOptions={{
+            trackOptions: {
+              backgroundColor: theme.background,
+              foregroundColor: theme.borderActive,
+            },
+          }}
+        >
           <box flexShrink={0} gap={1} paddingRight={1}>
             <TuiPluginRuntime.Slot
               name="sidebar_title"
@@ -80,44 +83,18 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
             </TuiPluginRuntime.Slot>
             <TuiPluginRuntime.Slot name="sidebar_content" session_id={props.sessionID} />
           </box>
+        </scrollbox>
 
-          <box flexGrow={1} minHeight={0} flexDirection="column" gap={1} paddingTop={1} paddingRight={1}>
-            <box flexGrow={1} minHeight={0} border={["top"]} borderColor={theme.border}>
-              <scrollbox
-                flexGrow={1}
-                scrollAcceleration={scrollAcceleration()}
-                verticalScrollbarOptions={scrollbarOptions}
-              >
-                <box flexShrink={0} paddingTop={1}>
-                  <TuiPluginRuntime.Slot name="sidebar_fill_top" session_id={props.sessionID} />
-                </box>
-              </scrollbox>
-            </box>
-
-            <box flexGrow={1} minHeight={0} border={["top"]} borderColor={theme.border}>
-              <scrollbox
-                flexGrow={1}
-                scrollAcceleration={scrollAcceleration()}
-                verticalScrollbarOptions={scrollbarOptions}
-              >
-                <box flexShrink={0} paddingTop={1}>
-                  <TuiPluginRuntime.Slot name="sidebar_fill_bottom" session_id={props.sessionID} />
-                </box>
-              </scrollbox>
-            </box>
-          </box>
-
-          <box flexShrink={0} gap={1} paddingTop={1}>
-            <TuiPluginRuntime.Slot name="sidebar_footer" mode="single_winner" session_id={props.sessionID}>
-              <text fg={theme.textMuted}>
-                <span style={{ fg: theme.success }}>•</span> <b>Open</b>
-                <span style={{ fg: theme.text }}>
-                  <b>Code</b>
-                </span>{" "}
-                <span>{InstallationVersion}</span>
-              </text>
-            </TuiPluginRuntime.Slot>
-          </box>
+        <box flexShrink={0} gap={1} paddingTop={1}>
+          <TuiPluginRuntime.Slot name="sidebar_footer" mode="single_winner" session_id={props.sessionID}>
+            <text fg={theme.textMuted}>
+              <span style={{ fg: theme.success }}>•</span> <b>Open</b>
+              <span style={{ fg: theme.text }}>
+                <b>Code</b>
+              </span>{" "}
+              <span>{InstallationVersion}</span>
+            </text>
+          </TuiPluginRuntime.Slot>
         </box>
       </box>
     </Show>
