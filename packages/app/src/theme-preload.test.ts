@@ -5,7 +5,7 @@ const src = await Bun.file(new URL("../public/oc-theme-preload.js", import.meta.
 const run = () => Function(src)()
 
 beforeEach(() => {
-  document.head.innerHTML = ""
+  document.head.innerHTML = '<meta name="theme-color" content="#F8F7F7" />'
   document.documentElement.removeAttribute("data-theme")
   document.documentElement.removeAttribute("data-color-scheme")
   localStorage.clear()
@@ -42,5 +42,19 @@ describe("theme preload", () => {
 
     expect(document.documentElement.dataset.theme).toBe("nightowl")
     expect(document.getElementById("oc-theme-preload")?.textContent).toContain("--background-base:#fff;")
+  })
+
+  test("keeps light theme-color for resolved light mode", () => {
+    run()
+
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#F8F7F7")
+  })
+
+  test("updates theme-color for resolved dark mode", () => {
+    localStorage.setItem("opencode-color-scheme", "dark")
+
+    run()
+
+    expect(document.querySelector('meta[name="theme-color"]')?.getAttribute("content")).toBe("#131010")
   })
 })

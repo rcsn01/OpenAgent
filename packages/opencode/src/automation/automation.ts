@@ -395,7 +395,14 @@ export const layer = Layer.effect(
       const existing = hasRunning(automation.id)
       if (existing) return yield* runs({ automationID: automation.id, limit: 1 }).pipe(Effect.map((items) => items[0]!))
 
-      const config = yield* configSvc.get()
+      const context = yield* projects.fromDirectory(automation.directory)
+      const instance = {
+        directory: automation.directory,
+        worktree: context.sandbox,
+        project: context.project,
+      }
+
+      const config = yield* configSvc.get().pipe(Effect.provideService(InstanceRef, instance))
       const limit = automationParallelLimit(config)
       if (runningAutomations().length >= limit) throw new Error(`Automation parallel limit reached (${limit})`)
 
@@ -425,12 +432,6 @@ export const layer = Layer.effect(
             .run(),
         )
 
-      const context = yield* projects.fromDirectory(automation.directory)
-      const instance = {
-        directory: automation.directory,
-        worktree: context.sandbox,
-        project: context.project,
-      }
       const memoryFile = yield* Effect.promise(() => ensureAutomationMemoryFile(automation.id))
 
       yield* Effect.gen(function* () {
@@ -501,7 +502,7 @@ export const layer = Layer.effect(
 
     const runDue: Interface["runDue"] = Effect.fn("Automation.runDue")(function* () {
       const now = Date.now()
-      const config = yield* configSvc.get()
+      const config = yield* configSvc.getGlobal()
       const running = runningAutomations()
       const available = automationParallelLimit(config) - running.length
       if (available <= 0) return

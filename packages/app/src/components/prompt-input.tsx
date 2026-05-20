@@ -871,12 +871,13 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     const rawParts = parseFromDOM()
     const images = imageAttachments()
     const cursorPosition = getCursorPosition(editorRef)
+    const editorText = (editorRef.textContent ?? "").replace(/\u200B/g, "")
     const rawText =
       rawParts.length === 1 && rawParts[0]?.type === "text"
         ? rawParts[0].content
         : rawParts.map((p) => ("content" in p ? p.content : "")).join("")
     const hasNonText = rawParts.some((part) => part.type !== "text")
-    const shouldReset = !NON_EMPTY_TEXT.test(rawText) && !hasNonText && images.length === 0
+    const shouldReset = !NON_EMPTY_TEXT.test(editorText) && !NON_EMPTY_TEXT.test(rawText) && !hasNonText && images.length === 0
 
     if (shouldReset) {
       closePopover()

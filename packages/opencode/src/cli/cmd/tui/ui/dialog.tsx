@@ -20,14 +20,9 @@ export function Dialog(
 
   let dismiss = false
   const width = () => {
-    if (props.size === "xlarge") return Math.min(156, dimensions().width - 4)
+    if (props.size === "xlarge") return 116
     if (props.size === "large") return 88
     return 60
-  }
-
-  const topPadding = () => {
-    if (props.size === "xlarge") return 1
-    return dimensions().height / 4
   }
 
   return (
@@ -47,7 +42,7 @@ export function Dialog(
       alignItems="center"
       position="absolute"
       zIndex={3000}
-      paddingTop={topPadding()}
+      paddingTop={dimensions().height / 4}
       left={0}
       top={0}
       backgroundColor={RGBA.fromInts(0, 0, 0, 150)}
@@ -193,6 +188,9 @@ export function DialogProvider(props: ParentProps) {
           evt.preventDefault()
           evt.stopPropagation()
         }}
+        onMouseUp={
+          !Flag.OPENCODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT ? () => Selection.copy(renderer, toast) : undefined
+        }
       >
         <Show when={value.stack.length}>
           <Dialog onClose={() => value.clear()} size={value.size}>
