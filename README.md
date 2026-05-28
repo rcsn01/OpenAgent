@@ -1,37 +1,30 @@
 # OpenAgent
 
-OpenAgent is forked from opencode, with non-linear agent workflows through dependency graph scheduling and hands-off speech recognition with native voice-activity detection.
+OpenAgent is currently a frontend-only shell for the web app and Electron desktop wrapper.
 
-## What makes it different
+The retained workspace packages are:
 
-**Non-linear orchestration**
-Unlike linear chatbots, OpenAgent runs tasks as a dependency graph. Agents work in parallel, unblock each other, and retry independently. You can kick off a dozen tasks across multiple projects and let them resolve themselves.
+- `packages/app`: Solid/Vite application shell.
+- `packages/ui`: shared UI components, contracts, and frontend utilities.
+- `packages/desktop`: Electron host for native dialogs, storage, notifications, updates, titlebar controls, WSL path conversion, markdown parsing, and speech capture/transcription.
 
-**100% hands-free**
-Built with the same real-time conversation engine as Gemini's app — native voice activity detection, continuous speech recognition, and interruptible responses. No button pushing. Talk to it like a person.
+Backend, SDK, CLI/TUI, plugin, server, container, extension, and Storybook surfaces have been removed from this cleanup pass. Runtime-backed actions use a typed null runtime so the UI can render empty states until a new runtime integration is added.
 
-**Works directly on your code**
-Because it's built on opencode, it has full repository access: read, edit, test, commit, and push — all autonomously. It can run in the background while you do something else.
+## Development
 
-**Multi-project, multi-thread**
-The non-linear scheduler means you're not locked into one conversation stream. Spin up agents across different repositories simultaneously. Fix a bug in project A, scaffold a feature in project B, and review a PR in project C — all at once.
+```sh
+bun install
+bun run dev:web
+bun run dev:desktop
+```
 
-**Real-world example**
-Connect via Discord call, then go bushwalking. While you're out, it organizes your email, schedules your calendar, writes your child's essay, pushes code for your day job, and moonlights three side contracts — all in parallel, all hands-free.
+## Verification
 
-**UI**
-The interface is a custom fork of Codex's GUI layout (not opencode's default). Clean three-panel design: sidebar navigation, main chat, and side panels for review/subagents.
-
-**⚠️ PROPRIETARY SOURCE CODE - VIEW ONLY**
-
-This repository is hosted publicly for **educational and portfolio demonstration purposes only**. This project is **NOT Open Source**.
-
-### ⛔ Licensing & Usage Restrictions
-The source code in this repository is **Proprietary** property of Rcsn01.
-**Copyright (c) 2026 Rcsn01. All rights reserved.**
-
-* **You MAY**: View, read, and inspect the code for educational or review purposes.
-* **You MAY NOT**: Copy, modify, distribute, sublicense, sell, or use this code (in whole or in part) for any commercial or non-commercial purpose.
-* **You MAY NOT**: Use this code to train AI models or create derivative works.
-
-For full legal terms, please refer to the [LICENSE](./LICENSE) file in this repository.
+```sh
+bun run lint
+bun run typecheck
+bun --cwd packages/ui test
+bun --cwd packages/app test:unit
+bun --cwd packages/app build
+bun --cwd packages/desktop build
+```

@@ -1,4 +1,4 @@
-import type { SessionStatus } from "@opencode-ai/sdk/v2"
+import type { SessionStatus } from "@opencode-ai/ui/contracts"
 
 export type UsageExceededReason = "free_tier_limit" | "account_rate_limit"
 export type UsageExceededState = {

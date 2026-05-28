@@ -1,6 +1,6 @@
 import { onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { base64Encode } from "@opencode-ai/ui/utils/encode"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import {
   collectNewSessionDeepLinks,

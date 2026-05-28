@@ -12,8 +12,7 @@ import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
 
 const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
-const DEV_SERVER_HOST = "127.0.0.1"
-const DEV_SERVER_PORT = "4096"
+const FRONTEND_RUNTIME_URL = "frontend-only://runtime"
 
 const getLocale = () => {
   if (typeof navigator !== "object") return "en" as const
@@ -56,11 +55,7 @@ const setStorage = (key: string, value: string | null) => {
 const readDefaultServerUrl = () => getStorage(DEFAULT_SERVER_URL_KEY)
 const writeDefaultServerUrl = (url: string | null) => setStorage(DEFAULT_SERVER_URL_KEY, url)
 
-const normalizeDevServerUrl = (url: string | null) => {
-  if (!import.meta.env.DEV || !url) return url
-  if (url === `http://localhost:${DEV_SERVER_PORT}`) return `http://${DEV_SERVER_HOST}:${DEV_SERVER_PORT}`
-  return url
-}
+const normalizeDevServerUrl = (url: string | null) => url
 
 const notify: Platform["notify"] = async (title, description, href) => {
   if (!("Notification" in window)) return
@@ -108,11 +103,7 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 }
 
 const getCurrentUrl = () => {
-  if (import.meta.env.VITE_OPENCODE_SERVER_URL) return import.meta.env.VITE_OPENCODE_SERVER_URL.replace(/\/+$/, "")
-  if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
-  if (import.meta.env.DEV)
-    return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? DEV_SERVER_HOST}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? DEV_SERVER_PORT}`
-  return location.origin
+  return FRONTEND_RUNTIME_URL
 }
 
 const getDefaultUrl = () => {

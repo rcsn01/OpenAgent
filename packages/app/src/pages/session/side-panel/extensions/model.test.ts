@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { ExperimentalExtensionsListResponse, McpStatus } from "@opencode-ai/sdk/v2/client"
+import type { ExperimentalExtensionsListResponse, McpStatus } from "@opencode-ai/ui/contracts"
 import { buildExtensionsPanelModel } from "./model"
 import type { ExtensionRegistryEntry } from "@/extensions/registry"
 

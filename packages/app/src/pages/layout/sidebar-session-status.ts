@@ -1,4 +1,4 @@
-import type { SessionStatus } from "@opencode-ai/sdk/v2/client"
+import type { SessionStatus } from "@opencode-ai/ui/contracts"
 
 export type SidebarSessionStatus = "running" | "done" | "pending" | "error" | undefined
 

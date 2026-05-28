@@ -11,7 +11,7 @@ import { useGlobalSync } from "@/context/global-sync"
 import { type LocalProject } from "@/context/layout"
 import { useModels } from "@/context/models"
 import { displayName, errorMessage } from "@/pages/layout/helpers"
-import type { AutomationListResponse } from "@opencode-ai/sdk/v2/client"
+import type { AutomationListResponse } from "@opencode-ai/ui/contracts"
 
 type Automation = AutomationListResponse[number]
 type Schedule = Automation["schedule"]

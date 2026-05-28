@@ -1,4 +1,4 @@
-import type { Session, SessionGraphsResponse } from "@opencode-ai/sdk/v2"
+import type { Session, SessionGraphsResponse } from "@opencode-ai/ui/contracts"
 
 export type SubagentSelection =
   | {

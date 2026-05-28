@@ -3,13 +3,13 @@ import {
   type SnapshotFileDiff,
   Message as MessageType,
   Part as PartType,
-} from "@opencode-ai/sdk/v2/client"
-import type { SessionStatus } from "@opencode-ai/sdk/v2"
+} from "@opencode-ai/ui/contracts"
+import type { SessionStatus } from "@opencode-ai/ui/contracts"
 import { useData } from "../context"
 import { useFileComponent } from "../context/file"
 
-import { Binary } from "@opencode-ai/core/util/binary"
-import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
+import { Binary } from "@opencode-ai/ui/utils/binary"
+import { getDirectory, getFilename } from "@opencode-ai/ui/utils/path"
 import { createEffect, createMemo, createSignal, For, on, ParentProps, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
@@ -244,8 +244,8 @@ export function SessionTurn(
     if (!files?.length) return emptyDiffs
 
     const seen = new Set<string>()
-    return files
-      .reduceRight<SummaryDiff[]>((result, diff) => {
+    return (files as any[])
+      .reduceRight<SummaryDiff[]>((result: SummaryDiff[], diff: any) => {
         if (!summaryDiff(diff)) return result
         if (seen.has(diff.file)) return result
         seen.add(diff.file)
@@ -289,14 +289,14 @@ export function SessionTurn(
     { equals: same },
   )
 
-  const interrupted = createMemo(() => assistantMessages().some((m) => m.error?.name === "MessageAbortedError"))
+  const interrupted = createMemo(() => (assistantMessages() as AssistantMessage[]).some((m) => m.error?.name === "MessageAbortedError"))
   const divider = createMemo(() => {
     if (compaction()) return i18n.t("ui.messagePart.compaction")
     if (interrupted()) return i18n.t("ui.message.interrupted")
     return ""
   })
   const error = createMemo(
-    () => assistantMessages().find((m) => m.error && m.error.name !== "MessageAbortedError")?.error,
+    () => (assistantMessages() as AssistantMessage[]).find((m) => m.error && m.error.name !== "MessageAbortedError")?.error,
   )
   const showAssistantCopyPartID = createMemo(() => {
     const messages = assistantMessages()
@@ -305,7 +305,7 @@ export function SessionTurn(
       const message = messages[i]
       if (!message) continue
 
-      const parts = list(data.store.part?.[message.id], emptyParts)
+      const parts = list(data.store.part?.[(message as AssistantMessage).id], emptyParts)
       for (let j = parts.length - 1; j >= 0; j--) {
         const part = parts[j]
         if (!part || part.type !== "text" || !part.text?.trim()) continue
@@ -340,7 +340,7 @@ export function SessionTurn(
     if (typeof start !== "number") return undefined
 
     const end = assistantMessages().reduce<number | undefined>((max, item) => {
-      const completed = item.time.completed
+      const completed = (item as AssistantMessage).time.completed
       if (typeof completed !== "number") return max
       if (max === undefined) return completed
       return Math.max(max, completed)
@@ -354,7 +354,7 @@ export function SessionTurn(
     let visible = 0
     let reason: string | undefined
     const show = showReasoningSummaries()
-    for (const message of assistantMessages()) {
+    for (const message of assistantMessages() as AssistantMessage[]) {
       for (const part of list(data.store.part?.[message.id], emptyParts)) {
         if (partState(part, show) === "visible") {
           visible++
@@ -412,7 +412,7 @@ export function SessionTurn(
               <Show when={assistantMessages().length > 0}>
                 <div data-slot="session-turn-assistant-content" aria-hidden={working()}>
                   <AssistantParts
-                    messages={assistantMessages()}
+                    messages={assistantMessages() as AssistantMessage[]}
                     showAssistantCopyPartID={assistantCopyPartID()}
                     turnDurationMs={turnDurationMs()}
                     working={working()}
@@ -435,7 +435,7 @@ export function SessionTurn(
                   </Show>
                 </div>
               </Show>
-              <SessionRetry status={status()} show={active()} />
+              <SessionRetry status={status() as any} show={active()} />
               <Show when={edited() > 0 && !working()}>
                 <div
                   data-slot="session-turn-diffs"

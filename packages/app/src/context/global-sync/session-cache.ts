@@ -6,7 +6,7 @@ import type {
   SessionStatus,
   SnapshotFileDiff,
   Todo,
-} from "@opencode-ai/sdk/v2/client"
+} from "@opencode-ai/ui/contracts"
 
 export const SESSION_CACHE_LIMIT = 40
 

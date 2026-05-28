@@ -48,7 +48,7 @@ export function Select<T>(props: SelectProps<T> & Omit<ButtonProps, "children">)
   }
 
   const stop = () => {
-    state.cleanup?.()
+    if (typeof state.cleanup === "function") state.cleanup()
     state.cleanup = undefined
     state.key = undefined
   }
@@ -64,7 +64,7 @@ export function Select<T>(props: SelectProps<T> & Omit<ButtonProps, "children">)
 
     const key = keyFor(item)
     if (state.key === key) return
-    state.cleanup?.()
+    if (typeof state.cleanup === "function") state.cleanup()
     state.cleanup = local.onHighlight(item)
     state.key = key
   }

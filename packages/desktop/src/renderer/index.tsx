@@ -209,7 +209,6 @@ const createPlatform = (): Platform => {
     },
 
     restart: async () => {
-      await window.api.killSidecar().catch(() => undefined)
       window.api.relaunch()
     },
 
@@ -326,9 +325,6 @@ render(() => {
 
   const [windowCount] = createResource(() => window.api.getWindowCount())
 
-  // Fetch the bundled sidecar credentials, or an external shared dev server URL.
-  const [serverData] = createResource(() => window.api.awaitInitialization(() => undefined))
-
   const [defaultServer] = createResource(() =>
     platform.getDefaultServer?.().then((url) => {
       if (url) return ServerConnection.key({ type: "http", http: { url } })
@@ -337,26 +333,11 @@ render(() => {
   const [locale] = createResource(loadLocale)
 
   const servers = () => {
-    const data = serverData()
-    if (!data) return []
-    if (!data.username && !data.password) {
-      const server: ServerConnection.Http = {
-        displayName: "Shared Dev Server",
-        type: "http",
-        http: {
-          url: data.url,
-        },
-      }
-      return [server] as ServerConnection.Any[]
-    }
-    const server: ServerConnection.Sidecar = {
-      displayName: "Local Server",
-      type: "sidecar",
-      variant: "base",
+    const server: ServerConnection.Http = {
+      displayName: "Frontend Shell",
+      type: "http",
       http: {
-        url: data.url,
-        username: data.username ?? undefined,
-        password: data.password ?? undefined,
+        url: "frontend-only://runtime",
       },
     }
     return [server] as ServerConnection.Any[]
@@ -401,7 +382,6 @@ render(() => {
         <Show
           when={
             !defaultServer.loading &&
-            !serverData.loading &&
             !windowConfig.loading &&
             !windowCount.loading &&
             !locale.loading
@@ -413,8 +393,9 @@ render(() => {
               defaultServer.latest ?? (availableServers[0] ? ServerConnection.key(availableServers[0]) : undefined)
             return (
               <AppInterface
-                defaultServer={defaultKey ?? ServerConnection.Key.make("sidecar")}
+                defaultServer={defaultKey ?? ServerConnection.Key.make("frontend-only://runtime")}
                 servers={availableServers}
+                disableHealthCheck
                 router={MemoryRouter}
               >
                 <Inner />

@@ -1,13 +1,10 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
-import { type Accessor, batch, createEffect, createMemo, onCleanup } from "solid-js"
+import { type Accessor, batch, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
-import { useCheckServerHealth } from "@/utils/server-health"
 
 type StoredProject = { worktree: string; expanded: boolean; pinned?: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
-const HEALTH_POLL_INTERVAL_MS = 10_000
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
@@ -50,7 +47,6 @@ export function serverName(conn?: ServerConnection.Any, ignoreDisplayName = fals
 
 function projectsKey(key: ServerConnection.Key) {
   if (!key) return ""
-  if (key === "sidecar") return "local"
   if (isLocalHost(key)) return "local"
   return key
 }
@@ -103,20 +99,6 @@ export namespace ServerConnection {
     authToken?: boolean
   } & Base
 
-  export type Sidecar = {
-    type: "sidecar"
-    http: HttpBase
-  } & (
-    | // Regular desktop server
-    { variant: "base" }
-    // WSL server (windows only)
-    | {
-        variant: "wsl"
-        distro: string
-      }
-  ) &
-    Base
-
   // Remote server desktop can SSH into
   export type Ssh = {
     type: "ssh"
@@ -125,19 +107,12 @@ export namespace ServerConnection {
     http: HttpBase
   } & Base
 
-  export type Any =
-    | Http
-    // All these are desktop-only
-    | (Sidecar | Ssh)
+  export type Any = Http | Ssh
 
   export const key = (conn: Any): Key => {
     switch (conn.type) {
       case "http":
         return Key.make(conn.http.url)
-      case "sidecar": {
-        if (conn.variant === "wsl") return Key.make(`wsl:${conn.distro}`)
-        return Key.make("sidecar")
-      }
       case "ssh":
         return Key.make(`ssh:${conn.host}`)
     }
@@ -154,8 +129,6 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     disableHealthCheck?: boolean
     servers?: Array<ServerConnection.Any>
   }) => {
-    const checkServerHealth = useCheckServerHealth()
-
     const [store, setStore, _, ready] = persisted(
       { ...Persist.global("server", ["server.v3"]), migrate: migrateServerState },
       createStore({
@@ -178,31 +151,6 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     })
 
     const healthy = () => state.healthy
-
-    function startHealthPolling(conn: ServerConnection.Any) {
-      let alive = true
-      let busy = false
-
-      const run = () => {
-        if (busy) return
-        busy = true
-        void check(conn)
-          .then((next) => {
-            if (!alive) return
-            setState("healthy", next)
-          })
-          .finally(() => {
-            busy = false
-          })
-      }
-
-      run()
-      const interval = setInterval(run, HEALTH_POLL_INTERVAL_MS)
-      return () => {
-        alive = false
-        clearInterval(interval)
-      }
-    }
 
     function setActive(input: ServerConnection.Key) {
       if (state.active !== input) setState("active", input)
@@ -237,19 +185,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
 
     const isReady = createMemo(() => ready() && !!state.active)
 
-    const check = (conn: ServerConnection.Any) => checkServerHealth(conn.http).then((x) => x.healthy)
-
-    createEffect(() => {
-      const current_ = current()
-      if (!current_) return
-
-      if (props.disableHealthCheck) {
-        setState("healthy", true)
-        return
-      }
-      setState("healthy", undefined)
-      onCleanup(startHealthPolling(current_))
-    })
+    setState("healthy", true)
 
     const origin = createMemo(() => projectsKey(state.active))
     const projectsList = createMemo(() => store.projects[origin()] ?? [])
@@ -258,7 +194,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     )
     const isLocal = createMemo(() => {
       const c = current()
-      return (c?.type === "sidecar" && c.variant === "base") || (c?.type === "http" && isLocalHost(c.http.url))
+      return c?.type === "http" && isLocalHost(c.http.url)
     })
 
     function upsertProjectPreference(directory: string, patch: Partial<StoredProject> = {}) {
