@@ -1,6 +1,6 @@
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { List } from "@opencode-ai/ui/list"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Dialog } from "@openagent-ai/ui/dialog"
+import { List } from "@openagent-ai/ui/list"
+import { useDialog } from "@openagent-ai/ui/context/dialog"
 import { createMemo } from "solid-js"
 import { useLocal } from "@/context/local"
 

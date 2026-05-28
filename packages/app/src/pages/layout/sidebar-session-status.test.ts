@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionStatus } from "@opencode-ai/sdk/v2/client"
-import { sidebarSessionStatus } from "./sidebar-session-status"
+import type { SessionStatus } from "@openagent-ai/sdk/v2/client"
+import { sidebarSessionGlow, sidebarSessionStatus } from "./sidebar-session-status"
 
 describe("sidebarSessionStatus", () => {
   test("treats explicit busy and retry statuses as running", () => {
@@ -37,5 +37,11 @@ describe("sidebarSessionStatus", () => {
         hasUnseenError: true,
       }),
     ).toBe("error")
+  })
+})
+
+describe("sidebarSessionGlow", () => {
+  test("maps running status to the shared working glow", () => {
+    expect(sidebarSessionGlow.running).toBe("working")
   })
 })

@@ -7,7 +7,7 @@ This project is based off of [opencode](https://github.com/sst/opencode). All na
 New work is limited to two surfaces:
 
 - **GUI side** — the Electron desktop app (`packages/desktop-electron/`) and the shared web UI (`packages/app/`)
-- **Assistant Agent** — the `assistant` primary agent (`packages/opencode/src/agent/agent.ts`)
+- **Assistant Agent** — the `assistant` primary agent (`packages/openagent/src/agent/agent.ts`)
 
 ## Agent Separation
 
@@ -19,9 +19,9 @@ Additional functionalities must be **assistant-only** and never exposed to `buil
 
 This is enforced through two layers:
 
-1. **Permission system** — agent permission rulesets deny orchestration tools for non-assistant agents (`packages/opencode/src/agent/agent.ts`)
-2. **Tool registry gating** — the `tools()` function in `packages/opencode/src/tool/registry.ts` filters tools per agent name
-3. **Caller-aware spawn filtering** — `packages/opencode/src/agent/spawnable.ts` keeps OpenAgent specialist subagents visible/spawnable only to `assistant`; `build` keeps its opencode-style blocking `task` access for default/custom coding subagents
+1. **Permission system** — agent permission rulesets deny orchestration tools for non-assistant agents (`packages/openagent/src/agent/agent.ts`)
+2. **Tool registry gating** — the `tools()` function in `packages/openagent/src/tool/registry.ts` filters tools per agent name
+3. **Caller-aware spawn filtering** — `packages/openagent/src/agent/spawnable.ts` keeps OpenAgent specialist subagents visible/spawnable only to `assistant`; `build` keeps its opencode-style blocking `task` access for default/custom coding subagents
 
 ## Goal
 

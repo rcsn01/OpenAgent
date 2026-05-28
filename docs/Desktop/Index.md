@@ -2,7 +2,7 @@
 
 How the Electron desktop application works, including the GUI chat experience.
 
-The desktop app wraps the shared web UI (`@opencode-ai/app`) and provides platform-specific glue: native dialogs, IPC, auto-update, speech capture, and sidecar server management.
+The desktop app wraps the shared web UI (`@openagent-ai/app`) and provides platform-specific glue: native dialogs, IPC, auto-update, speech capture, and sidecar server management.
 
 General chats are not truly directory-less. They are backed by hidden workspaces under app data, then routed through a special `/chat/:id` URL layer so the hidden path is not exposed in the GUI.
 
@@ -25,9 +25,9 @@ The native `chat` agent has been removed. Hidden general-chat workspaces now use
 | `packages/desktop-electron/src/preload/` | Electron preload: `window.api` bridge to renderer |
 | `packages/desktop-electron/src/renderer/` | Electron renderer: SolidJS entry point, platform glue |
 | `packages/app/src/` | Shared web UI imported by Electron and the local web target |
-| `packages/opencode/src/general-chat/general-chat.ts` | Allocates hidden chat workspaces and maps them to root sessions |
-| `packages/opencode/src/general-chat/shared.ts` | Chat root, draft workspace behavior, general-chat path detection |
-| `packages/opencode/src/general-chat/profile.ts` | Seeds and repairs the shared chat profile |
+| `packages/openagent/src/general-chat/general-chat.ts` | Allocates hidden chat workspaces and maps them to root sessions |
+| `packages/openagent/src/general-chat/shared.ts` | Chat root, draft workspace behavior, general-chat path detection |
+| `packages/openagent/src/general-chat/profile.ts` | Seeds and repairs the shared chat profile |
 | `packages/app/src/context/app-route.tsx` | Resolves `/chat/:id` to the hidden backing directory |
 | `packages/app/src/pages/session-route-host.tsx` | Persistent session shell mounted across route changes |
 | `packages/app/src/context/general-chat-route-cache.ts` | Caches chat-to-directory route metadata |

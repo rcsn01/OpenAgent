@@ -1,5 +1,5 @@
-import type { SessionStatus } from "@opencode-ai/sdk/v2"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import type { SessionStatus } from "@openagent-ai/sdk/v2"
+import { useDialog } from "@openagent-ai/ui/context/dialog"
 import { onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useSDK } from "@/context/sdk"

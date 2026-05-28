@@ -6,18 +6,18 @@
 
 ## Files That Are Checked
 
-The instruction loader (`packages/opencode/src/session/instruction.ts`) looks for these files:
+The instruction loader (`packages/openagent/src/session/instruction.ts`) looks for these files:
 
 1. Project-level (searched upward from current directory to worktree root):
    - `AGENTS.md`
-   - `CLAUDE.md` (unless `OPENCODE_DISABLE_CLAUDE_CODE_PROMPT` flag is set)
+   - `CLAUDE.md` (unless `OPENAGENT_DISABLE_CLAUDE_CODE_PROMPT` flag is set)
    - `CONTEXT.md` (deprecated)
 
 2. Global config:
    - `~/.config/opencode/AGENTS.md`
    - `~/.claude/CLAUDE.md` (fallback)
 
-3. Extra instruction files from `opencode.json`:
+3. Extra instruction files from `openagent.json`:
    - `config.instructions` — list of file paths or remote URLs
    - Remote URLs prefixed with `https://` or `http://` are fetched and cached
 

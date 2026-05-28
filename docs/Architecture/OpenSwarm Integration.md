@@ -180,19 +180,19 @@ Tool results should return structured metadata and file attachments where possib
 
 | File | Role |
 |------|------|
-| `packages/opencode/src/agent/agent.ts` | Registers native primary agents, specialist subagents, prompts, permissions, and defaults |
-| `packages/opencode/src/agent/communication.ts` | Defines default communication flows |
-| `packages/opencode/src/agent/spawnable.ts` | Blocks non-spawnable primary/removed coordinator names |
-| `packages/opencode/src/tool/registry.ts` | Gates build/assistant `task`, assistant-only orchestration, and specialist-owned tools |
-| `packages/opencode/src/tool/task.ts` | Synchronous/background subagent entry point |
-| `packages/opencode/src/session/task-execution.ts` | Shared child-session execution machinery |
-| `packages/opencode/src/tool/send_message.ts` | Bounded subagent/specialist delegation |
-| `packages/opencode/src/integration/auth.ts` | Per-user integration credential service |
-| `packages/opencode/src/server/routes/instance/integration.ts` | Integration OAuth/status APIs |
-| `packages/opencode/src/tool/openswarm/` | Shared OpenSwarm specialist artifact/tool helpers |
-| `packages/opencode/src/tool/openswarm/slides_html.ts` | HTML slide project generation and optional Playwright screenshot export |
-| `packages/opencode/src/tool/openswarm/slide_qa.ts` | Theme tokens, SVG slide previews, and overflow heuristics |
-| `packages/opencode/src/tool/openswarm_stub.ts` | Setup-aware specialist tool implementations |
+| `packages/openagent/src/agent/agent.ts` | Registers native primary agents, specialist subagents, prompts, permissions, and defaults |
+| `packages/openagent/src/agent/communication.ts` | Defines default communication flows |
+| `packages/openagent/src/agent/spawnable.ts` | Blocks non-spawnable primary/removed coordinator names |
+| `packages/openagent/src/tool/registry.ts` | Gates build/assistant `task`, assistant-only orchestration, and specialist-owned tools |
+| `packages/openagent/src/tool/task.ts` | Synchronous/background subagent entry point |
+| `packages/openagent/src/session/task-execution.ts` | Shared child-session execution machinery |
+| `packages/openagent/src/tool/send_message.ts` | Bounded subagent/specialist delegation |
+| `packages/openagent/src/integration/auth.ts` | Per-user integration credential service |
+| `packages/openagent/src/server/routes/instance/integration.ts` | Integration OAuth/status APIs |
+| `packages/openagent/src/tool/openswarm/` | Shared OpenSwarm specialist artifact/tool helpers |
+| `packages/openagent/src/tool/openswarm/slides_html.ts` | HTML slide project generation and optional Playwright screenshot export |
+| `packages/openagent/src/tool/openswarm/slide_qa.ts` | Theme tokens, SVG slide previews, and overflow heuristics |
+| `packages/openagent/src/tool/openswarm_stub.ts` | Setup-aware specialist tool implementations |
 
 ## Test Coverage
 
@@ -211,11 +211,11 @@ Core tests cover:
 Useful focused command:
 
 ```bash
-bun test --cwd packages/opencode test/agent/agent.test.ts test/tool/task.test.ts test/tool/openswarm-routing.test.ts test/tool/registry.test.ts
+bun test --cwd packages/openagent test/agent/agent.test.ts test/tool/task.test.ts test/tool/openswarm-routing.test.ts test/tool/registry.test.ts
 ```
 
 Pair it with:
 
 ```bash
-bun run --cwd packages/opencode typecheck
+bun run --cwd packages/openagent typecheck
 ```

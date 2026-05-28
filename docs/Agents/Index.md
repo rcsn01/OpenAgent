@@ -8,7 +8,7 @@ OpenAgent ships 14 native agents across 4 categories.
 |-------|------|------|--------|-----------------|----------------|
 | `build` | `primary` | Coding agent — code generation, editing, refactoring, debugging | allow | deny | deny |
 | `assistant` | `primary` | General-purpose non-coding agent — research, delegation, specialist routing, all new capabilities | allow | allow | allow |
-| `plan` | `primary` | Planning mode; edits denied except `.opencode/plans/*.md` | deny | deny | deny |
+| `plan` | `primary` | Planning mode; edits denied except `.openagent/plans/*.md` | deny | deny | deny |
 
 ## System Agents (Hidden)
 

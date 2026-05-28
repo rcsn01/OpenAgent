@@ -1,4 +1,4 @@
-import { DataProvider } from "@opencode-ai/ui/context"
+import { DataProvider } from "@openagent-ai/ui/context"
 import { useNavigate } from "@solidjs/router"
 import { type ParentProps, Show } from "solid-js"
 import { useAppRoute } from "@/context/app-route"

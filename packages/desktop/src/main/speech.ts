@@ -156,7 +156,7 @@ function getSpeechQuality(quality?: SpeechTranscriptionQuality) {
 }
 
 function nativeSpeechCaptureEnabled() {
-  return process.env.OPENCODE_ENABLE_NATIVE_SPEECH_CAPTURE === "1"
+  return process.env.OPENAGENT_ENABLE_NATIVE_SPEECH_CAPTURE === "1"
 }
 
 function fallbackParakeetCandidates(quality?: SpeechTranscriptionQuality) {

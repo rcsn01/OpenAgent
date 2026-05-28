@@ -1,7 +1,7 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { PluginV2 } from "@opencode-ai/core/plugin"
-import { VercelPlugin } from "@opencode-ai/core/plugin/provider/vercel"
+import { PluginV2 } from "@openagent-ai/core/plugin"
+import { VercelPlugin } from "@openagent-ai/core/plugin/provider/vercel"
 import { it, model, provider } from "./provider-helper"
 
 describe("VercelPlugin", () => {
@@ -21,8 +21,8 @@ describe("VercelPlugin", () => {
       )
       expect(result.provider.options.headers).toEqual({
         Existing: "1",
-        "http-referer": "https://opencode.ai/",
-        "x-title": "opencode",
+        "http-referer": "https://openagent.ai/",
+        "x-title": "openagent",
       })
     }),
   )

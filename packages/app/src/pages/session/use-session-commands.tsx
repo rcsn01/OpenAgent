@@ -1,8 +1,8 @@
 import { useNavigate } from "@solidjs/router"
-import { formatTranscript, type TranscriptOptions } from "@opencode-ai/sdk/transcript"
+import { formatTranscript, type TranscriptOptions } from "@openagent-ai/sdk/transcript"
 import { useCommand, type CommandOption } from "@/context/command"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
+import { useDialog } from "@openagent-ai/ui/context/dialog"
+import { previewSelectedLines } from "@openagent-ai/ui/pierre/selection-bridge"
 import { useFile, selectionFromLines, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -14,11 +14,11 @@ import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
-import { showToast } from "@opencode-ai/ui/toast"
-import { findLast } from "@opencode-ai/core/util/array"
+import { showToast } from "@openagent-ai/ui/toast"
+import { findLast } from "@openagent-ai/core/util/array"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { extractPromptFromParts } from "@/utils/prompt"
-import { UserMessage } from "@opencode-ai/sdk/v2"
+import { UserMessage } from "@openagent-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
 export type SessionCommandContext = {
@@ -73,7 +73,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const closableTab = tabState.closableTab
   const shown = () =>
     platform.platform !== "desktop" ||
-    import.meta.env.VITE_OPENCODE_CHANNEL !== "beta" ||
+    import.meta.env.VITE_OPENAGENT_CHANNEL !== "beta" ||
     settings.general.showFileTree()
 
   const messages = () => {

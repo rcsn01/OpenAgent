@@ -16,8 +16,8 @@ migration/explicit-instance-context
 
 The migration removes OpenAgent's dependency on:
 
-- `packages/opencode/src/project/instance.ts`
-- `packages/opencode/src/project/with-instance.ts`
+- `packages/openagent/src/project/instance.ts`
+- `packages/openagent/src/project/with-instance.ts`
 - fallback reads from `Instance.current`
 - fallback async context restoration through `Instance.restore`
 
@@ -39,35 +39,35 @@ OpenAgent kept the compatibility layer during the `v1.15.4` merge because server
 Production paths that still need attention:
 
 ```text
-packages/opencode/src/cli/bootstrap.ts
-packages/opencode/src/cli/effect-cmd.ts
-packages/opencode/src/command/index.ts
-packages/opencode/src/effect/bridge.ts
-packages/opencode/src/effect/instance-state.ts
-packages/opencode/src/effect/run-service.ts
-packages/opencode/src/format/formatter.ts
-packages/opencode/src/server/routes/instance/httpapi/handlers/experimental.ts
-packages/opencode/src/session/session.ts
-packages/opencode/src/tool/repo_overview.ts
+packages/openagent/src/cli/bootstrap.ts
+packages/openagent/src/cli/effect-cmd.ts
+packages/openagent/src/command/index.ts
+packages/openagent/src/effect/bridge.ts
+packages/openagent/src/effect/instance-state.ts
+packages/openagent/src/effect/run-service.ts
+packages/openagent/src/format/formatter.ts
+packages/openagent/src/server/routes/instance/httpapi/handlers/experimental.ts
+packages/openagent/src/session/session.ts
+packages/openagent/src/tool/repo_overview.ts
 ```
 
 Test and fixture paths with broad legacy usage:
 
 ```text
-packages/opencode/test/fixture/fixture.ts
-packages/opencode/test/config/config.test.ts
-packages/opencode/test/control-plane/workspace.test.ts
-packages/opencode/test/lsp/client.test.ts
-packages/opencode/test/provider/amazon-bedrock.test.ts
-packages/opencode/test/provider/provider.test.ts
-packages/opencode/test/session/llm.test.ts
+packages/openagent/test/fixture/fixture.ts
+packages/openagent/test/config/config.test.ts
+packages/openagent/test/control-plane/workspace.test.ts
+packages/openagent/test/lsp/client.test.ts
+packages/openagent/test/provider/amazon-bedrock.test.ts
+packages/openagent/test/provider/provider.test.ts
+packages/openagent/test/session/llm.test.ts
 ```
 
 Refresh the list before editing:
 
 ```bash
 rg -n "project/instance|project/with-instance|Instance\\.|WithInstance|Instance\\.restore|Instance\\.current" \
-  packages/opencode/src packages/opencode/test
+  packages/openagent/src packages/openagent/test
 ```
 
 ## Migration Rules
@@ -91,12 +91,12 @@ import type { InstanceContext } from "@/project/instance-context"
 Likely files:
 
 ```text
-packages/opencode/src/command/index.ts
-packages/opencode/src/format/formatter.ts
-packages/opencode/src/session/session.ts
-packages/opencode/src/effect/run-service.ts
-packages/opencode/src/effect/bridge.ts
-packages/opencode/src/effect/instance-state.ts
+packages/openagent/src/command/index.ts
+packages/openagent/src/format/formatter.ts
+packages/openagent/src/session/session.ts
+packages/openagent/src/effect/run-service.ts
+packages/openagent/src/effect/bridge.ts
+packages/openagent/src/effect/instance-state.ts
 ```
 
 Validate:
@@ -121,9 +121,9 @@ Instance.worktree  -> (yield* InstanceState.context).worktree
 Likely files:
 
 ```text
-packages/opencode/src/tool/repo_overview.ts
-packages/opencode/src/server/routes/instance/httpapi/handlers/experimental.ts
-packages/opencode/src/cli/bootstrap.ts
+packages/openagent/src/tool/repo_overview.ts
+packages/openagent/src/server/routes/instance/httpapi/handlers/experimental.ts
+packages/openagent/src/cli/bootstrap.ts
 ```
 
 When a function is not already an Effect, either move the context read to its Effect caller or pass the needed context in as an explicit parameter.
@@ -132,7 +132,7 @@ Validate:
 
 ```bash
 bun run typecheck
-bun test --timeout 30000 packages/opencode/test/tool/read.test.ts
+bun test --timeout 30000 packages/openagent/test/tool/read.test.ts
 ```
 
 ## Step 3: CLI and Bootstrap Boundaries
@@ -142,8 +142,8 @@ Update CLI/bootstrap paths so they load instance context through `InstanceStore`
 Targets:
 
 ```text
-packages/opencode/src/cli/bootstrap.ts
-packages/opencode/src/cli/effect-cmd.ts
+packages/openagent/src/cli/bootstrap.ts
+packages/openagent/src/cli/effect-cmd.ts
 ```
 
 Expected direction:
@@ -159,18 +159,18 @@ Validate:
 
 ```bash
 bun run typecheck
-bun test --timeout 30000 packages/opencode/test/project/instance-bootstrap.test.ts
-bun test --timeout 30000 packages/opencode/test/cli/effect-cmd-instance-als.test.ts
+bun test --timeout 30000 packages/openagent/test/project/instance-bootstrap.test.ts
+bun test --timeout 30000 packages/openagent/test/cli/effect-cmd-instance-als.test.ts
 ```
 
 ## Step 4: Replace the Async Callback Bridge
 
 This is the risky step.
 
-`packages/opencode/src/cli/effect-cmd.ts` currently uses `Instance.restore(ctx, ...)` so async callbacks that cross an `await` and then re-enter Effect can still find instance context. The regression coverage is:
+`packages/openagent/src/cli/effect-cmd.ts` currently uses `Instance.restore(ctx, ...)` so async callbacks that cross an `await` and then re-enter Effect can still find instance context. The regression coverage is:
 
 ```text
-packages/opencode/test/cli/effect-cmd-instance-als.test.ts
+packages/openagent/test/cli/effect-cmd-instance-als.test.ts
 ```
 
 Before deleting `Instance.restore`, introduce an explicit bridge that preserves context for these callback paths without ambient `Instance.current`.
@@ -184,9 +184,9 @@ The replacement must prove:
 Expected validation:
 
 ```bash
-bun test --timeout 30000 packages/opencode/test/cli/effect-cmd-instance-als.test.ts
-OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/opencode/test/server/httpapi-session.test.ts
-OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/opencode/test/server/httpapi-promptasync-context.test.ts
+bun test --timeout 30000 packages/openagent/test/cli/effect-cmd-instance-als.test.ts
+OPENAGENT_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/openagent/test/server/httpapi-session.test.ts
+OPENAGENT_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/openagent/test/server/httpapi-promptasync-context.test.ts
 ```
 
 After the new bridge is in place, update the regression test so it asserts the explicit-context behavior instead of checking for `Instance.restore(ctx` in source text.
@@ -196,9 +196,9 @@ After the new bridge is in place, update the regression test so it asserts the e
 Remove legacy fallbacks from:
 
 ```text
-packages/opencode/src/effect/bridge.ts
-packages/opencode/src/effect/run-service.ts
-packages/opencode/src/effect/instance-state.ts
+packages/openagent/src/effect/bridge.ts
+packages/openagent/src/effect/run-service.ts
+packages/openagent/src/effect/instance-state.ts
 ```
 
 Expected end state:
@@ -211,8 +211,8 @@ Validate:
 
 ```bash
 bun run typecheck
-bun test --timeout 30000 packages/opencode/test/effect/run-service.test.ts
-bun test --timeout 30000 packages/opencode/test/effect/instance-state.test.ts
+bun test --timeout 30000 packages/openagent/test/effect/run-service.test.ts
+bun test --timeout 30000 packages/openagent/test/effect/instance-state.test.ts
 ```
 
 ## Step 6: Test Fixtures
@@ -222,8 +222,8 @@ Migrate fixtures from `WithInstance.provide(...)` and `Instance.restore(...)` to
 Primary fixture files:
 
 ```text
-packages/opencode/test/fixture/fixture.ts
-packages/opencode/test/fixture/workspace.ts
+packages/openagent/test/fixture/fixture.ts
+packages/openagent/test/fixture/workspace.ts
 ```
 
 Desired fixture behavior:
@@ -236,12 +236,12 @@ Desired fixture behavior:
 After fixture migration, convert test files in batches:
 
 ```text
-packages/opencode/test/config/config.test.ts
-packages/opencode/test/control-plane/workspace.test.ts
-packages/opencode/test/lsp/client.test.ts
-packages/opencode/test/provider/amazon-bedrock.test.ts
-packages/opencode/test/provider/provider.test.ts
-packages/opencode/test/session/llm.test.ts
+packages/openagent/test/config/config.test.ts
+packages/openagent/test/control-plane/workspace.test.ts
+packages/openagent/test/lsp/client.test.ts
+packages/openagent/test/provider/amazon-bedrock.test.ts
+packages/openagent/test/provider/provider.test.ts
+packages/openagent/test/session/llm.test.ts
 ```
 
 Validate each batch independently.
@@ -251,15 +251,15 @@ Validate each batch independently.
 Only after `rg` shows no source or test dependency, delete:
 
 ```text
-packages/opencode/src/project/instance.ts
-packages/opencode/src/project/with-instance.ts
+packages/openagent/src/project/instance.ts
+packages/openagent/src/project/with-instance.ts
 ```
 
 Final check:
 
 ```bash
 rg -n "project/instance|project/with-instance|Instance\\.|WithInstance|Instance\\.restore|Instance\\.current" \
-  packages/opencode/src packages/opencode/test
+  packages/openagent/src packages/openagent/test
 ```
 
 Acceptable remaining matches should be documentation, migration notes, or tests specifically proving the old APIs are gone.
@@ -276,20 +276,20 @@ git diff --check
 Run focused tests:
 
 ```bash
-bun test --timeout 30000 packages/opencode/test/cli/effect-cmd-instance-als.test.ts
-bun test --timeout 30000 packages/opencode/test/effect/run-service.test.ts
-bun test --timeout 30000 packages/opencode/test/effect/instance-state.test.ts
-bun test --timeout 30000 packages/opencode/test/project/instance-bootstrap.test.ts
-OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/opencode/test/lsp/client.test.ts
-OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/opencode/test/server/httpapi-session.test.ts
-OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/opencode/test/server/httpapi-promptasync-context.test.ts
+bun test --timeout 30000 packages/openagent/test/cli/effect-cmd-instance-als.test.ts
+bun test --timeout 30000 packages/openagent/test/effect/run-service.test.ts
+bun test --timeout 30000 packages/openagent/test/effect/instance-state.test.ts
+bun test --timeout 30000 packages/openagent/test/project/instance-bootstrap.test.ts
+OPENAGENT_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/openagent/test/lsp/client.test.ts
+OPENAGENT_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/openagent/test/server/httpapi-session.test.ts
+OPENAGENT_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 packages/openagent/test/server/httpapi-promptasync-context.test.ts
 ```
 
 If time allows, run the broader opencode suite with file watching disabled:
 
 ```bash
-cd packages/opencode
-OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000
+cd packages/openagent
+OPENAGENT_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000
 ```
 
 ## Completion Criteria

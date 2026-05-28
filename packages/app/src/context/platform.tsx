@@ -1,4 +1,4 @@
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@openagent-ai/ui/context"
 import type { AsyncStorage, SyncStorage } from "@solid-primitives/storage"
 import type { Accessor } from "solid-js"
 import { ServerConnection } from "./server"
@@ -19,7 +19,7 @@ import type {
   SpeechTranscriptionSegment,
   SpeechTranscriptionToken,
   TitlebarTheme,
-} from "@opencode-ai/core/desktop"
+} from "@openagent-ai/core/desktop"
 
 type PickerPaths = string | string[] | null
 type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }

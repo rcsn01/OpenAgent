@@ -30,7 +30,7 @@ type SidecarMessage =
 
 export type SidecarListener = { stop: () => Promise<void> }
 
-const SIDECAR_SERVICE_NAME = "opencode server"
+const SIDECAR_SERVICE_NAME = "openagent server"
 const SIDECAR_START_STALL_TIMEOUT = 60_000
 const SIDECAR_STOP_TIMEOUT = 6_000
 
@@ -72,7 +72,7 @@ function stateHome() {
 
 async function readSharedServerMetadata(): Promise<SharedServerMetadata | undefined> {
   try {
-    const parsed = JSON.parse(await readFile(join(stateHome(), "opencode", "openagent-server", "server.json"), "utf8"))
+    const parsed = JSON.parse(await readFile(join(stateHome(), "openagent", "openagent-server", "server.json"), "utf8"))
     if (
       typeof parsed?.url !== "string" ||
       typeof parsed?.username !== "string" ||
@@ -89,7 +89,7 @@ async function readSharedServerMetadata(): Promise<SharedServerMetadata | undefi
 async function startSharedServerFromCli(): Promise<SharedServerMetadata | undefined> {
   const candidates = [
     process.env.OPENAGENT_BIN_PATH,
-    process.env.OPENCODE_BIN_PATH,
+    process.env.OPENAGENT_BIN_PATH,
     process.env.PATH ? "openagent" : undefined,
   ].filter((item): item is string => Boolean(item))
 
@@ -136,9 +136,9 @@ export function preferAppEnv(userDataPath: string) {
   const shell = process.platform === "win32" ? null : getUserShell()
   Object.assign(process.env, {
     ...(shell ? loadShellEnv(shell) : null),
-    OPENCODE_EXPERIMENTAL_ICON_DISCOVERY: "true",
-    OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
-    OPENCODE_CLIENT: "desktop",
+    OPENAGENT_EXPERIMENTAL_ICON_DISCOVERY: "true",
+    OPENAGENT_EXPERIMENTAL_FILEWATCHER: "true",
+    OPENAGENT_CLIENT: "desktop",
   })
 }
 
@@ -277,7 +277,7 @@ export async function spawnLocalServer(
   }
 }
 
-export async function checkHealth(url: string, password?: string | null, username = "opencode"): Promise<boolean> {
+export async function checkHealth(url: string, password?: string | null, username = "openagent"): Promise<boolean> {
   let healthUrl: URL
   try {
     healthUrl = new URL("/global/health", url)

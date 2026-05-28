@@ -97,7 +97,7 @@ OpenAgent's instruction discovery is in `src/session/instruction.ts`.
 **Current behavior (system-wide):**
 
 - Discover `AGENTS.md`, `CLAUDE.md`, `CONTEXT.md`.
-- **Global files**: `~/.opencode/AGENTS.md` and `~/.claude/CLAUDE.md`.
+- **Global files**: `~/.openagent/AGENTS.md` and `~/.claude/CLAUDE.md`.
 - **Project-level**: `findUp` from CWD to worktree — but the **first match wins**. It does **not** gather all matches along the path.
 - Also supports remote URLs in `config.instructions`.
 
@@ -127,7 +127,7 @@ OpenAgent passes tool outputs back into the history as-is. There is no normaliza
 | **Base instruction source** | Config → History → Model default | Provider prompt per model | OpenAgent has no model-specific default prompt chain |
 | **Project instruction discovery** | Walk all ancestors from CWD to root, concatenate all `AGENTS.md` | Walk up CWD to worktree, first match wins | OpenAgent misses nested project docs. Could adopt Codex's all-matches behavior |
 | **Instruction concatenation** | `\n\n--- project-doc ---\n\n` | Appended directly to system | Codex separator is clearer; could be adopted |
-| **Global instructions** | Global `AGENTS.md` discovery | `~/.opencode/AGENTS.md`, `~/.claude/CLAUDE.md` | Equivalent |
+| **Global instructions** | Global `AGENTS.md` discovery | `~/.openagent/AGENTS.md`, `~/.claude/CLAUDE.md` | Equivalent |
 | **Per-message resolution** | N/A (system-level only) | `resolve()` attaches nearby docs per read tool call | OpenAgent is more sophisticated here |
 | **Remote instructions** | Unknown | Supports HTTP(S) URLs in config | OpenAgent is more flexible |
 | **History persistence** | Base instructions stored in thread metadata | N/A for base instruction chain | OpenAgent could persist instructions per-history |
@@ -295,10 +295,10 @@ The adoption should be **incremental and backward-compatible** — Codex CLI's p
 - `codex-rs/core/src/client.rs:746-765` — API request payload construction.
 
 ### OpenAgent
-- `packages/opencode/src/session/instruction.ts` — Instruction discovery, loading, per-message resolution.
-- `packages/opencode/src/session/system.ts` — Provider prompt selection, environment info, skills.
-- `packages/opencode/src/session/prompt.ts` — Session loop, tool orchestration, plan/build mode switching.
-- `packages/opencode/src/session/llm.ts` — Prompt assembly, streaming.
+- `packages/openagent/src/session/instruction.ts` — Instruction discovery, loading, per-message resolution.
+- `packages/openagent/src/session/system.ts` — Provider prompt selection, environment info, skills.
+- `packages/openagent/src/session/prompt.ts` — Session loop, tool orchestration, plan/build mode switching.
+- `packages/openagent/src/session/llm.ts` — Prompt assembly, streaming.
 - `docs/Prompt System/Prompt Assembly Flow.md` — Full system prompt stack.
 - `docs/Agents/Primary Agents.md` — Build agent definition and role.
 - `docs/Prompt System/Codex CLI Prompt Architecture.md` — Prior Codex CLI analysis.

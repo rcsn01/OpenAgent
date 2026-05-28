@@ -1,4 +1,4 @@
-import type { UserMessage } from "@opencode-ai/sdk/v2"
+import type { UserMessage } from "@openagent-ai/sdk/v2"
 
 export type MessageTimelineRow =
   | {

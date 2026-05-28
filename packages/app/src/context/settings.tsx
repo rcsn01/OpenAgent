@@ -1,6 +1,6 @@
 import { createStore, reconcile } from "solid-js/store"
 import { createEffect, createMemo } from "solid-js"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@openagent-ai/ui/context"
 import { persisted } from "@/utils/persist"
 import type { SpeechModelID, SpeechTranscriptionQuality } from "./platform"
 

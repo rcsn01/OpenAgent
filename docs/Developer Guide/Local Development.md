@@ -4,7 +4,7 @@ OpenAgent is a personal fork of the upstream AI coding agent workspace with the 
 
 ## What Remains
 
-- `packages/opencode`: main CLI and TUI runtime
+- `packages/openagent`: main CLI and TUI runtime
 - `packages/app`: local web UI used by desktop shells
 - `packages/desktop-electron`: Electron desktop wrapper
 - `packages/core`, `packages/ui`, `packages/plugin`, `packages/sdk`, and related shared libraries
@@ -20,8 +20,8 @@ bun dev
 Core validation commands:
 
 ```bash
-bun run --cwd packages/opencode test
-bun run --cwd packages/opencode typecheck
+bun run --cwd packages/openagent test
+bun run --cwd packages/openagent typecheck
 ```
 
 Additional local entry points:

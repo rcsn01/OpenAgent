@@ -36,9 +36,9 @@ OpenAgent already supports background subagent execution, but the current runtim
 
 The relevant runtime today is centered on background subagent sessions:
 
-- `packages/opencode/src/tool/task.ts` — launches child subagent sessions for each `background_task` call and forks execution
-- `packages/opencode/src/session/background-task.ts` — stores per-parent task state in InstanceState, tracks running/completed/failed tasks, flushes finished results into the parent session when idle
-- `packages/opencode/src/tool/background_task_manage.ts` — exposes list, get, and cancel tools assuming a flat task model
+- `packages/openagent/src/tool/task.ts` — launches child subagent sessions for each `background_task` call and forks execution
+- `packages/openagent/src/session/background-task.ts` — stores per-parent task state in InstanceState, tracks running/completed/failed tasks, flushes finished results into the parent session when idle
+- `packages/openagent/src/tool/background_task_manage.ts` — exposes list, get, and cancel tools assuming a flat task model
 
 Key limitations:
 - No notion of a pending node that exists before launch
@@ -91,7 +91,7 @@ The work should land in this order:
 
 ### Workstream 1: Extract Shared Subagent Execution
 
-Move the child-session creation and execution logic out of `task.ts` into a new `TaskExecution` service (`packages/opencode/src/session/task-execution.ts`).
+Move the child-session creation and execution logic out of `task.ts` into a new `TaskExecution` service (`packages/openagent/src/session/task-execution.ts`).
 
 The service owns:
 - Resolving the target subagent from `subagent_type`
@@ -104,7 +104,7 @@ The service owns:
 
 ### Workstream 2: Add SessionTaskGraph
 
-Introduce a dedicated graph scheduler service (`packages/opencode/src/session/task-graph.ts`) that owns all background subagent state.
+Introduce a dedicated graph scheduler service (`packages/openagent/src/session/task-graph.ts`) that owns all background subagent state.
 
 Responsibilities:
 - Registering whole graphs at once
@@ -167,12 +167,12 @@ After delivery: mark delivered reports so they aren't repeated, remove the graph
 
 ### Test Files
 
-- `packages/opencode/test/session/task-graph.test.ts` — graph validation and scheduler behavior
-- `packages/opencode/test/tool/background_task_manage.test.ts` — compatibility views over graph-backed tasks
-- `packages/opencode/test/tool/background_task_graph.test.ts` — submit, list, get, cancel behavior
-- `packages/opencode/test/tool/task.test.ts` — TaskExecution extraction behavior preservation
-- `packages/opencode/test/tool/registry.test.ts` — new tool registration
-- `packages/opencode/test/session/prompt.test.ts` — idle-gated delivery
+- `packages/openagent/test/session/task-graph.test.ts` — graph validation and scheduler behavior
+- `packages/openagent/test/tool/background_task_manage.test.ts` — compatibility views over graph-backed tasks
+- `packages/openagent/test/tool/background_task_graph.test.ts` — submit, list, get, cancel behavior
+- `packages/openagent/test/tool/task.test.ts` — TaskExecution extraction behavior preservation
+- `packages/openagent/test/tool/registry.test.ts` — new tool registration
+- `packages/openagent/test/session/prompt.test.ts` — idle-gated delivery
 
 ### Minimum Test Cases
 

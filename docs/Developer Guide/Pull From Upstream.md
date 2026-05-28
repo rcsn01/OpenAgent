@@ -102,15 +102,15 @@ Use these to understand the size, affected areas, and changed files in upstream.
 
 After listing the upstream-only commits and files, group the changes into the areas that matter for OpenAgent:
 
-- Backend: `packages/opencode/src`, `packages/opencode/test`, `packages/sdk`, server, sync, tools, config, runtime, LSP, and storage changes
-- TUI: `packages/opencode/src/cli/cmd/tui`, `packages/opencode/test/cli/cmd/tui`, and terminal UI dependencies
+- Backend: `packages/openagent/src`, `packages/openagent/test`, `packages/sdk`, server, sync, tools, config, runtime, LSP, and storage changes
+- TUI: `packages/openagent/src/cli/cmd/tui`, `packages/openagent/test/cli/cmd/tui`, and terminal UI dependencies
 - Desktop app: `packages/app` and `packages/desktop`
 
 Useful commands:
 
 ```bash
-git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/opencode/src packages/opencode/test packages/sdk
-git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/opencode/src/cli/cmd/tui packages/opencode/test/cli/cmd/tui
+git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/openagent/src packages/openagent/test packages/sdk
+git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/openagent/src/cli/cmd/tui packages/openagent/test/cli/cmd/tui
 git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/app packages/desktop
 ```
 
@@ -159,18 +159,18 @@ TUI code should stay close to upstream. Once the upstream TUI file list is known
 TUI paths usually include:
 
 ```text
-packages/opencode/src/cli/cmd/tui
-packages/opencode/test/cli/cmd/tui
-packages/opencode/src/cli/cmd/prompt-display.ts
+packages/openagent/src/cli/cmd/tui
+packages/openagent/test/cli/cmd/tui
+packages/openagent/src/cli/cmd/prompt-display.ts
 ```
 
 Example:
 
 ```bash
 git restore --source="$LATEST_TAG" -- \
-  packages/opencode/src/cli/cmd/prompt-display.ts \
-  packages/opencode/src/cli/cmd/tui \
-  packages/opencode/test/cli/cmd/tui
+  packages/openagent/src/cli/cmd/prompt-display.ts \
+  packages/openagent/src/cli/cmd/tui \
+  packages/openagent/test/cli/cmd/tui
 ```
 
 If upstream added new TUI files, make sure they appear as untracked files and are included later.
@@ -191,8 +191,8 @@ For backend/server files, first list the upstream changes:
 
 ```bash
 git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- \
-  packages/opencode/src \
-  packages/opencode/test \
+  packages/openagent/src \
+  packages/openagent/test \
   packages/sdk
 ```
 
@@ -200,8 +200,8 @@ Then compare that list with local OpenAgent changes:
 
 ```bash
 git diff --name-status "$LAST_UPSTREAM"..HEAD -- \
-  packages/opencode/src \
-  packages/opencode/test \
+  packages/openagent/src \
+  packages/openagent/test \
   packages/sdk
 ```
 
@@ -228,7 +228,7 @@ Useful reference commands:
 ```bash
 git diff "$LAST_UPSTREAM" "$LATEST_TAG" -- path/to/file.ts
 git diff "$LAST_UPSTREAM"..HEAD -- path/to/file.ts
-rg -n "symbolOrImportName" packages/opencode/src packages/opencode/test
+rg -n "symbolOrImportName" packages/openagent/src packages/openagent/test
 ```
 
 ## 14. Backend Patterns From the v1.15.4 Merge
@@ -252,13 +252,13 @@ Run typecheck from the repo root:
 bun run typecheck
 ```
 
-Run focused tests for the changed areas from `packages/opencode`. Example set from the `v1.15.4` merge:
+Run focused tests for the changed areas from `packages/openagent`. Example set from the `v1.15.4` merge:
 
 ```bash
-cd packages/opencode
+cd packages/openagent
 bun test --timeout 30000 test/cli/cmd/tui/aggregate-failures.test.ts test/cli/cmd/tui/prompt-history.test.ts
 bun test --timeout 30000 test/sync/index.test.ts
-OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 test/lsp/client.test.ts
+OPENAGENT_EXPERIMENTAL_DISABLE_FILEWATCHER=1 bun test --timeout 30000 test/lsp/client.test.ts
 cd ../..
 ```
 
@@ -297,8 +297,8 @@ git show -s --format='%H %s' "$LATEST_TAG"
 git rev-list --count "$LAST_UPSTREAM..$LATEST_TAG"
 git log --oneline --no-merges "$LAST_UPSTREAM..$LATEST_TAG"
 git diff --shortstat "$LAST_UPSTREAM" "$LATEST_TAG"
-git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/opencode/src packages/opencode/test packages/sdk
-git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/opencode/src/cli/cmd/tui packages/opencode/test/cli/cmd/tui
+git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/openagent/src packages/openagent/test packages/sdk
+git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/openagent/src/cli/cmd/tui packages/openagent/test/cli/cmd/tui
 git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/app packages/desktop
 ```
 
@@ -309,14 +309,14 @@ git switch dev
 git switch -c "merge/upstream-${LATEST_TAG}-tui-backend"
 
 git restore --source="$LATEST_TAG" -- \
-  packages/opencode/src/cli/cmd/prompt-display.ts \
-  packages/opencode/src/cli/cmd/tui \
-  packages/opencode/test/cli/cmd/tui
+  packages/openagent/src/cli/cmd/prompt-display.ts \
+  packages/openagent/src/cli/cmd/tui \
+  packages/openagent/test/cli/cmd/tui
 
 bun install
 
-git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/opencode/src packages/opencode/test packages/sdk
-git diff --name-status "$LAST_UPSTREAM"..HEAD -- packages/opencode/src packages/opencode/test packages/sdk
+git diff --name-status "$LAST_UPSTREAM" "$LATEST_TAG" -- packages/openagent/src packages/openagent/test packages/sdk
+git diff --name-status "$LAST_UPSTREAM"..HEAD -- packages/openagent/src packages/openagent/test packages/sdk
 
 bun run typecheck
 git diff --check

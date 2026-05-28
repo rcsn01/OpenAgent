@@ -9,7 +9,7 @@ export type TitlebarHistory = {
 }
 
 export function normalizeTitlebarPath(input: string) {
-  const url = new URL(input, "http://opencode.local")
+  const url = new URL(input, "http://openagent.local")
   const path = url.pathname.replace(/\/+$/, "") || "/"
   const segments = path.split("/").filter(Boolean)
 

@@ -1,6 +1,6 @@
 import { Suspense, createEffect, createMemo, onCleanup, type JSX } from "solid-js"
-import type { SnapshotFileDiff, VcsFileDiff } from "@opencode-ai/sdk/v2"
-import { Icon } from "@opencode-ai/ui/icon"
+import type { SnapshotFileDiff, VcsFileDiff } from "@openagent-ai/sdk/v2"
+import { Icon } from "@openagent-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useWorkspacePanels, type WorkspaceRightPanelKind } from "@/context/workspace-panels"

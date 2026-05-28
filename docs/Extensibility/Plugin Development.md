@@ -22,8 +22,8 @@ There are three main placement options.
 
 Use:
 
-- `.opencode/plugins/`
-- project `opencode.json`
+- `.openagent/plugins/`
+- project `openagent.json`
 
 This is best for repo-specific behavior.
 
@@ -32,7 +32,7 @@ This is best for repo-specific behavior.
 Use:
 
 - `~/.config/opencode/plugins/`
-- global `opencode.json`
+- global `openagent.json`
 
 This is best for machine-wide behavior.
 
@@ -41,7 +41,7 @@ This is best for machine-wide behavior.
 Use:
 
 - `Global.Path.config/chat/plugins/`
-- `Global.Path.config/chat/opencode.json`
+- `Global.Path.config/chat/openagent.json`
 
 This is best when the feature should apply to **all GUI general chats** but not necessarily to repo-bound sessions.
 
@@ -64,7 +64,7 @@ This is the easiest way to prototype.
 
 ### Config-declared plugin package
 
-Add a plugin spec to `opencode.json`:
+Add a plugin spec to `openagent.json`:
 
 ```json
 {
@@ -80,7 +80,7 @@ If a local plugin or custom tool needs npm dependencies, put a `package.json` in
 
 Examples:
 
-- `.opencode/package.json`
+- `.openagent/package.json`
 - `~/.config/opencode/package.json`
 - `~/.config/opencode/chat/package.json`
 
@@ -172,7 +172,7 @@ If you are just customizing your own setup, edit the shared chat directory direc
 If you want the capability to ship as a built-in default for managed chat profiles, edit:
 
 ```text
-packages/opencode/src/general-chat/profile.ts
+packages/openagent/src/general-chat/profile.ts
 ```
 
 That is where the default shared chat files are seeded.

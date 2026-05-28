@@ -1,14 +1,14 @@
 import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
-import { Tabs } from "@opencode-ai/ui/tabs"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { TooltipKeybind } from "@opencode-ai/ui/tooltip"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
-import { Mark } from "@opencode-ai/ui/logo"
+import { Tabs } from "@openagent-ai/ui/tabs"
+import { IconButton } from "@openagent-ai/ui/icon-button"
+import { TooltipKeybind } from "@openagent-ai/ui/tooltip"
+import { ResizeHandle } from "@openagent-ai/ui/resize-handle"
+import { Mark } from "@openagent-ai/ui/logo"
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
-import type { SnapshotFileDiff, VcsFileDiff } from "@opencode-ai/sdk/v2"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import type { SnapshotFileDiff, VcsFileDiff } from "@openagent-ai/sdk/v2"
+import { useDialog } from "@openagent-ai/ui/context/dialog"
 import { ConstrainDragYAxis, getDraggableId } from "@/utils/solid-dnd"
 
 import FileTree from "@/components/file-tree"
@@ -49,7 +49,7 @@ export function SessionReviewPanel(props: {
   const shown = createMemo(
     () =>
       platform.platform !== "desktop" ||
-      import.meta.env.VITE_OPENCODE_CHANNEL !== "beta" ||
+      import.meta.env.VITE_OPENAGENT_CHANNEL !== "beta" ||
       settings.general.showFileTree(),
   )
   const reviewOpen = createMemo(() => view().reviewPanel.opened())

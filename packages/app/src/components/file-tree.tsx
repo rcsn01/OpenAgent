@@ -1,8 +1,8 @@
 import { useFile } from "@/context/file"
 import { encodeFilePath } from "@/context/file/path"
-import { Collapsible } from "@opencode-ai/ui/collapsible"
-import { FileIcon } from "@opencode-ai/ui/file-icon"
-import { Icon } from "@opencode-ai/ui/icon"
+import { Collapsible } from "@openagent-ai/ui/collapsible"
+import { FileIcon } from "@openagent-ai/ui/file-icon"
+import { Icon } from "@openagent-ai/ui/icon"
 import {
   createEffect,
   createMemo,
@@ -17,7 +17,7 @@ import {
   type ParentProps,
 } from "solid-js"
 import { Dynamic } from "solid-js/web"
-import type { FileNode } from "@opencode-ai/sdk/v2"
+import type { FileNode } from "@openagent-ai/sdk/v2"
 
 const MAX_DEPTH = 128
 

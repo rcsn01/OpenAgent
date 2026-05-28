@@ -29,8 +29,8 @@ chats/
 
 Source:
 
-- `packages/opencode/src/general-chat/general-chat.ts`
-- `packages/opencode/src/general-chat/shared.ts`
+- `packages/openagent/src/general-chat/general-chat.ts`
+- `packages/openagent/src/general-chat/shared.ts`
 
 The important nuance is that this is per **root chat tree**, not per every child session.
 
@@ -154,7 +154,7 @@ Also yes. Config agent loading scans:
 inside config directories. So a hidden chat workspace could carry agent definitions like:
 
 ```text
-.opencode/agents/chat-specialist.md
+.openagent/agents/chat-specialist.md
 agents/chat-specialist.md
 ```
 
@@ -185,14 +185,14 @@ Global.Path.config/chat
 
 In code this comes from:
 
-- `packages/opencode/src/config/paths.ts`
-- `packages/opencode/src/general-chat/profile.ts`
+- `packages/openagent/src/config/paths.ts`
+- `packages/openagent/src/general-chat/profile.ts`
 
 When the current directory is a general-chat workspace:
 
 - `ConfigPaths.directories()` includes the shared `chat/` directory in config discovery
 - `Instruction.systemPaths()` adds `Global.Path.config/chat/AGENTS.md` to system instructions
-- normal config scanning then picks up shared chat `skills/`, `tools/`, `plugins/`, and `opencode.json`
+- normal config scanning then picks up shared chat `skills/`, `tools/`, `plugins/`, and `openagent.json`
 
 So there are **two layers** now:
 
@@ -209,7 +209,7 @@ The shared chat directory can be either:
 The marker file is:
 
 ```text
-.opencode-chat-profile.json
+.openagent-chat-profile.json
 ```
 
 This lets the app ship default chat behavior while still allowing power users to take full ownership of the shared chat config area.

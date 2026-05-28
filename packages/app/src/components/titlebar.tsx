@@ -1,10 +1,10 @@
 import { createEffect, createMemo, Show, untrack, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Button } from "@opencode-ai/ui/button"
-import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
-import { useTheme } from "@opencode-ai/ui/theme/context"
+import { Icon } from "@openagent-ai/ui/icon"
+import { Button } from "@openagent-ai/ui/button"
+import { Tooltip, TooltipKeybind } from "@openagent-ai/ui/tooltip"
+import { useTheme } from "@openagent-ai/ui/theme/context"
 
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
@@ -246,7 +246,7 @@ export function TitlebarLeadingControls(props: {
   const canBack = createMemo(() => history.index > 0)
   const canForward = createMemo(() => history.index < history.stack.length - 1)
   const hasProjects = createMemo(() => layout.projects.list().length > 0)
-  const nav = createMemo(() => import.meta.env.VITE_OPENCODE_CHANNEL !== "beta" || settings.general.showNavigation())
+  const nav = createMemo(() => import.meta.env.VITE_OPENAGENT_CHANNEL !== "beta" || settings.general.showNavigation())
 
   const back = () => {
     const next = backPath(history)
@@ -333,9 +333,9 @@ export function TitlebarLeadingControls(props: {
                 </Tooltip>
               </div>
             </Show>
-            {showChannelBadge() && ["beta", "dev"].includes(import.meta.env.VITE_OPENCODE_CHANNEL) && (
+            {showChannelBadge() && ["beta", "dev"].includes(import.meta.env.VITE_OPENAGENT_CHANNEL) && (
               <div class="ml-2 bg-icon-interactive-base text-[#FFF] font-medium px-2 rounded-sm uppercase font-mono">
-                {import.meta.env.VITE_OPENCODE_CHANNEL.toUpperCase()}
+                {import.meta.env.VITE_OPENAGENT_CHANNEL.toUpperCase()}
               </div>
             )}
           </div>

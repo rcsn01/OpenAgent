@@ -1,5 +1,5 @@
-import type { Project, UserMessage } from "@opencode-ai/sdk/v2"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import type { Project, UserMessage } from "@openagent-ai/sdk/v2"
+import { useDialog } from "@openagent-ai/ui/context/dialog"
 import { createQuery, skipToken, useMutation, useQueryClient } from "@tanstack/solid-query"
 import {
   batch,
@@ -19,13 +19,13 @@ import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLocal } from "@/context/local"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { createStore } from "solid-js/store"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
-import { Select } from "@opencode-ai/ui/select"
-import { createAutoScroll } from "@opencode-ai/ui/hooks"
-import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
-import { Button } from "@opencode-ai/ui/button"
-import { showToast } from "@opencode-ai/ui/toast"
-import { checksum } from "@opencode-ai/core/util/encode"
+import { ResizeHandle } from "@openagent-ai/ui/resize-handle"
+import { Select } from "@openagent-ai/ui/select"
+import { createAutoScroll } from "@openagent-ai/ui/hooks"
+import { previewSelectedLines } from "@openagent-ai/ui/pierre/selection-bridge"
+import { Button } from "@openagent-ai/ui/button"
+import { showToast } from "@openagent-ai/ui/toast"
+import { checksum } from "@openagent-ai/core/util/encode"
 import { useNavigate, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
 import { useComments } from "@/context/comments"
@@ -164,7 +164,7 @@ export default function Page() {
     extensionsOpened: () => view().extensions.opened(),
     contextOpened: () => view().context.opened(),
     platform: () => platform.platform,
-    channel: () => import.meta.env.VITE_OPENCODE_CHANNEL,
+    channel: () => import.meta.env.VITE_OPENAGENT_CHANNEL,
     showFileTreeSetting: settings.general.showFileTree,
     fileTreeOpened: layout.fileTree.opened,
     fileTreeWidth: layout.fileTree.width,

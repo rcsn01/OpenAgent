@@ -1,11 +1,11 @@
-import { AppIcon } from "@opencode-ai/ui/app-icon"
-import { Button } from "@opencode-ai/ui/button"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Spinner } from "@opencode-ai/ui/spinner"
-import { showToast } from "@opencode-ai/ui/toast"
-import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
+import { AppIcon } from "@openagent-ai/ui/app-icon"
+import { Button } from "@openagent-ai/ui/button"
+import { DropdownMenu } from "@openagent-ai/ui/dropdown-menu"
+import { Icon } from "@openagent-ai/ui/icon"
+import { IconButton } from "@openagent-ai/ui/icon-button"
+import { Spinner } from "@openagent-ai/ui/spinner"
+import { showToast } from "@openagent-ai/ui/toast"
+import { Tooltip, TooltipKeybind } from "@openagent-ai/ui/tooltip"
 import { createEffect, createMemo, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useAppRoute } from "@/context/app-route"
@@ -142,7 +142,7 @@ function SessionHeaderTrailingControls() {
 
   const projectDirectory = createMemo(() => (route.isChat() ? "" : decode64(params.dir) ?? ""))
   const os = createMemo(() => detectOS(platform))
-  const isDesktopBeta = platform.platform === "desktop" && import.meta.env.VITE_OPENCODE_CHANNEL === "beta"
+  const isDesktopBeta = platform.platform === "desktop" && import.meta.env.VITE_OPENAGENT_CHANNEL === "beta"
   const term = createMemo(() => !isDesktopBeta || settings.general.showTerminal())
   const status = createMemo(() => !isDesktopBeta || settings.general.showStatus())
 

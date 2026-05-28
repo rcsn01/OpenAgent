@@ -4,7 +4,7 @@
 
 Native capture is only used when:
 
-1. `OPENCODE_ENABLE_NATIVE_SPEECH_CAPTURE=1` is set in environment
+1. `OPENAGENT_ENABLE_NATIVE_SPEECH_CAPTURE=1` is set in environment
 2. Platform is macOS
 3. Desktop app is running (electron API available)
 4. `startSpeechCaptureSession` succeeds with the Swift helper
@@ -143,7 +143,7 @@ const outputLength = Math.max(1, Math.round(samples.length / ratio))
 ## Environment Toggle
 
 ```bash
-OPENCODE_ENABLE_NATIVE_SPEECH_CAPTURE=1 opencode desktop
+OPENAGENT_ENABLE_NATIVE_SPEECH_CAPTURE=1 opencode desktop
 ```
 
 Without this flag, native capture is not attempted and the browser path is used even in the desktop app.

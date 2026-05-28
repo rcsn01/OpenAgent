@@ -3,7 +3,7 @@ const server = Bun.spawn({
     "bun",
     "run",
     "--cwd",
-    "packages/opencode",
+    "packages/openagent",
     "--conditions=browser",
     "src/index.ts",
     "server",
@@ -29,13 +29,13 @@ const vite = Bun.spawn({
   stderr: "inherit",
   env: {
     ...process.env,
-    VITE_OPENCODE_SERVER_URL: process.env.VITE_OPENCODE_SERVER_URL || metadata.url,
-    ...(process.env.VITE_OPENCODE_AUTH_TOKEN || !authToken
+    VITE_OPENAGENT_SERVER_URL: process.env.VITE_OPENAGENT_SERVER_URL || metadata.url,
+    ...(process.env.VITE_OPENAGENT_AUTH_TOKEN || !authToken
       ? {}
       : {
-          VITE_OPENCODE_AUTH_TOKEN: authToken,
+          VITE_OPENAGENT_AUTH_TOKEN: authToken,
         }),
-    VITE_OPENCODE_SERVER_HOST: process.env.VITE_OPENCODE_SERVER_HOST || "127.0.0.1",
+    VITE_OPENAGENT_SERVER_HOST: process.env.VITE_OPENAGENT_SERVER_HOST || "127.0.0.1",
   },
 })
 

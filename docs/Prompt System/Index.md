@@ -30,12 +30,12 @@ For agent definitions and tool access rules, see [[Agents/Index]].
 
 | File | Role |
 |------|------|
-| `packages/opencode/src/session/llm.ts` | Prompt assembly and streaming |
-| `packages/opencode/src/session/prompt.ts` | Session loop, tool resolution, shell prompting |
-| `packages/opencode/src/session/system.ts` | Provider prompt selection + environment + skills |
-| `packages/opencode/src/session/instruction.ts` | AGENTS.md discovery, loading, dynamic rules |
-| `packages/opencode/src/agent/agent.ts` | Agent registry: built-in + config + markdown agents |
-| `packages/opencode/src/skill/index.ts` | Skill discovery, loading, and formatting |
+| `packages/openagent/src/session/llm.ts` | Prompt assembly and streaming |
+| `packages/openagent/src/session/prompt.ts` | Session loop, tool resolution, shell prompting |
+| `packages/openagent/src/session/system.ts` | Provider prompt selection + environment + skills |
+| `packages/openagent/src/session/instruction.ts` | AGENTS.md discovery, loading, dynamic rules |
+| `packages/openagent/src/agent/agent.ts` | Agent registry: built-in + config + markdown agents |
+| `packages/openagent/src/skill/index.ts` | Skill discovery, loading, and formatting |
 
 ## Related
 
