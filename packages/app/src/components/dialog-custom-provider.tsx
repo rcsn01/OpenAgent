@@ -11,6 +11,7 @@ import { createStore, produce } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
+import { normalizeProviderList } from "@/context/global-sync/utils"
 import { useLanguage } from "@/context/language"
 import { type FormState, headerRow, modelRow, validateCustomProvider } from "./dialog-custom-provider-form"
 import { DialogSelectProvider } from "./dialog-select-provider"
@@ -135,6 +136,8 @@ export function DialogCustomProvider(props: Props) {
         provider: { [result.providerID]: result.config },
         disabled_providers: nextDisabled,
       })
+      const refreshed = await globalSDK.client.provider.list().catch(() => undefined)
+      if (refreshed?.data) globalSync.set("provider", normalizeProviderList(refreshed.data))
       return result
     },
     onSuccess: (result) => {

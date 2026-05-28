@@ -16,7 +16,7 @@
     "test": "echo 'run package-specific tests' && exit 1"
   },
   "workspaces": {
-    "packages": ["packages/app", "packages/desktop", "packages/ui"],
+    "packages": ["packages/app", "packages/desktop", "packages/server", "packages/ui"],
     "catalog": {
       "@kobalte/core": "0.13.11",
       "@pierre/diffs": "1.1.0-beta.18",

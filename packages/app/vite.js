@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite"
 import { fileURLToPath } from "url"
 
 const theme = fileURLToPath(new URL("./public/oc-theme-preload.js", import.meta.url))
+const virtuaSolid = fileURLToPath(new URL("./node_modules/virtua/lib/solid/index.js", import.meta.url))
 
 /**
  * @type {import("vite").PluginOption}
@@ -16,6 +17,7 @@ export default [
         resolve: {
           alias: {
             "@": fileURLToPath(new URL("./src", import.meta.url)),
+            "virtua/solid": virtuaSolid,
           },
         },
         worker: {

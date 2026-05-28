@@ -8,8 +8,10 @@ type Provider = {
 
 type Model = {
   name?: string
-  limit: {
-    context: number
+  context?: number
+  contextWindow?: number
+  limit?: {
+    context?: number
   }
 }
 
@@ -47,6 +49,8 @@ const tokenTotal = (msg: AssistantMessage) => {
   return tokens.input + tokens.output + tokens.reasoning + tokens.cacheRead + tokens.cacheWrite
 }
 
+const modelContextLimit = (model: Model | undefined) => model?.limit?.context ?? model?.contextWindow ?? model?.context
+
 const lastAssistantWithTokens = (messages: Message[]) => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i]
@@ -54,6 +58,7 @@ const lastAssistantWithTokens = (messages: Message[]) => {
     if (tokenTotal(msg) <= 0) continue
     return msg
   }
+  return undefined
 }
 
 const build = (messages: Message[] = [], providers: Provider[] = []): Metrics => {
@@ -63,7 +68,7 @@ const build = (messages: Message[] = [], providers: Provider[] = []): Metrics =>
 
   const provider = providers.find((item) => item.id === message.providerID)
   const model = provider?.models[message.modelID]
-  const limit = model?.limit.context
+  const limit = modelContextLimit(model)
   const tokens = safeTokens(message)
   const total = tokenTotal(message)
 

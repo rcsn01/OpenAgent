@@ -40,6 +40,11 @@ const getBase = (): Configuration => ({
       to: "speech/",
       filter: ["**/*"],
     },
+    {
+      from: "../server/dist/",
+      to: "openagent-server/",
+      filter: ["openagent-server*"],
+    },
   ],
   mac: {
     category: "public.app-category.developer-tools",

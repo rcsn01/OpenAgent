@@ -1,6 +1,7 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
+import { attachOrStartServer, type RuntimeEndpoint } from "@openagent/server/launcher"
 import type { Event } from "electron"
 import { app, BrowserWindow } from "electron"
 import contextMenu from "electron-context-menu"
@@ -30,7 +31,10 @@ const APP_IDS: Record<string, string> = {
 let logger: ReturnType<typeof initLogging>
 let mainWindow: BrowserWindow | null = null
 const pendingDeepLinks: string[] = []
-const stopRuntime = async () => undefined
+let runtimeEndpoint: RuntimeEndpoint | undefined
+const stopRuntime = async () => {
+  runtimeEndpoint?.process?.kill()
+}
 
 function emitDeepLinks(urls: string[]) {
   if (urls.length === 0) return
@@ -74,7 +78,7 @@ async function main() {
   logger.log("app starting", {
     version: app.getVersion(),
     packaged: app.isPackaged,
-    mode: "frontend-only",
+    mode: "openagent-server",
   })
 
   if (!app.requestSingleInstanceLock()) {
@@ -83,6 +87,7 @@ async function main() {
   }
 
   preferAppEnv(app.getPath("userData"))
+  runtimeEndpoint = await attachOrStartServer()
 
   app.on("second-instance", (_event: Event, argv: string[]) => {
     const urls = argv.filter((arg: string) => arg.startsWith("opencode://"))
@@ -101,6 +106,14 @@ async function main() {
   })
 
   registerIpcHandlers({
+    getRuntimeServer: async () => {
+      if (!runtimeEndpoint) runtimeEndpoint = await attachOrStartServer()
+      return {
+        url: runtimeEndpoint.url,
+        token: runtimeEndpoint.token,
+        authToken: runtimeEndpoint.authToken,
+      }
+    },
     getWindowConfig: () => ({ updaterEnabled: UPDATER_ENABLED }),
     consumeInitialDeepLinks: () => pendingDeepLinks.splice(0),
     getDefaultServerUrl: () => getDefaultServerUrl(),

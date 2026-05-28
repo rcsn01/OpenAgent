@@ -3,6 +3,7 @@ import type { ElectronAPI } from "./types"
 
 const api: ElectronAPI = {
   installCli: () => ipcRenderer.invoke("install-cli"),
+  getRuntimeServer: () => ipcRenderer.invoke("get-runtime-server"),
   getWindowConfig: () => ipcRenderer.invoke("get-window-config"),
   consumeInitialDeepLinks: () => ipcRenderer.invoke("consume-initial-deep-links"),
   getDefaultServerUrl: () => ipcRenderer.invoke("get-default-server-url"),

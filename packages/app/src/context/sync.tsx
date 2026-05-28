@@ -35,10 +35,18 @@ const keyFor = (directory: string, id: string) => `${directory}\n${id}`
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
-function merge<T extends { id: string }>(a: readonly T[], b: readonly T[]) {
+function messageTime(message: Message) {
+  return message.time?.created ?? 0
+}
+
+function messageCmp(a: Message, b: Message) {
+  return messageTime(a) - messageTime(b) || cmp(a.id, b.id)
+}
+
+function mergeMessages(a: readonly Message[], b: readonly Message[]) {
   const map = new Map(a.map((item) => [item.id, item] as const))
   for (const item of b) map.set(item.id, item)
-  return [...map.values()].sort((x, y) => cmp(x.id, y.id))
+  return [...map.values()].sort(messageCmp)
 }
 
 type OptimisticStore = {
@@ -96,9 +104,9 @@ export function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) 
   const confirmed: string[] = []
 
   for (const item of items) {
-    const result = Binary.search(session, item.message.id, (message) => message.id)
-    const found = result.found
-    if (!found) session.splice(result.index, 0, item.message)
+    const result = session.findIndex((message) => message.id === item.message.id)
+    const found = result !== -1
+    if (!found) session.push(item.message)
 
     const current = part.get(item.message.id)
     if (found && hasParts(current, item.parts)) {
@@ -112,7 +120,7 @@ export function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) 
   return {
     cursor: page.cursor,
     complete: page.complete,
-    session,
+    session: session.sort(messageCmp),
     part: [...part.entries()].sort((a, b) => cmp(a[0], b[0])).map(([id, part]) => ({ id, part })),
     confirmed,
   }
@@ -121,8 +129,10 @@ export function mergeOptimisticPage(page: MessagePage, items: OptimisticItem[]) 
 export function applyOptimisticAdd(draft: OptimisticStore, input: OptimisticAddInput) {
   const messages = draft.message[input.sessionID]
   if (messages) {
-    const result = Binary.search(messages, input.message.id, (m) => m.id)
-    messages.splice(result.index, 0, input.message)
+    const result = messages.findIndex((m) => m.id === input.message.id)
+    if (result === -1) messages.push(input.message)
+    else messages[result] = input.message
+    messages.sort(messageCmp)
   } else {
     draft.message[input.sessionID] = [input.message]
   }
@@ -132,8 +142,8 @@ export function applyOptimisticAdd(draft: OptimisticStore, input: OptimisticAddI
 export function applyOptimisticRemove(draft: OptimisticStore, input: OptimisticRemoveInput) {
   const messages = draft.message[input.sessionID]
   if (messages) {
-    const result = Binary.search(messages, input.messageID, (m) => m.id)
-    if (result.found) messages.splice(result.index, 1)
+    const result = messages.findIndex((m) => m.id === input.messageID)
+    if (result !== -1) messages.splice(result, 1)
   }
   delete draft.part[input.messageID]
 }
@@ -141,10 +151,11 @@ export function applyOptimisticRemove(draft: OptimisticStore, input: OptimisticR
 function setOptimisticAdd(setStore: (...args: unknown[]) => void, input: OptimisticAddInput) {
   setStore("message", input.sessionID, (messages: Message[] | undefined) => {
     if (!messages) return [input.message]
-    const result = Binary.search(messages, input.message.id, (m) => m.id)
     const next = [...messages]
-    next.splice(result.index, 0, input.message)
-    return next
+    const result = next.findIndex((m) => m.id === input.message.id)
+    if (result === -1) next.push(input.message)
+    else next[result] = input.message
+    return next.sort(messageCmp)
   })
   setStore("part", input.message.id, sortParts(input.parts))
 }
@@ -152,10 +163,10 @@ function setOptimisticAdd(setStore: (...args: unknown[]) => void, input: Optimis
 function setOptimisticRemove(setStore: (...args: unknown[]) => void, input: OptimisticRemoveInput) {
   setStore("message", input.sessionID, (messages: Message[] | undefined) => {
     if (!messages) return messages
-    const result = Binary.search(messages, input.messageID, (m) => m.id)
-    if (!result.found) return messages
+    const result = messages.findIndex((m) => m.id === input.messageID)
+    if (result === -1) return messages
     const next = [...messages]
-    next.splice(result.index, 1)
+    next.splice(result, 1)
     return next
   })
   setStore("part", (part: Record<string, Part[] | undefined>) => {
@@ -302,7 +313,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         input.client.session.messages({ sessionID: input.sessionID, limit: input.limit, before: input.before }),
       )
       const items = (messages.data ?? []).filter((x) => !!x?.info?.id)
-      const session = items.map((x) => clean(x.info)).sort((a, b) => cmp(a.id, b.id))
+      const session = items.map((x) => clean(x.info)).sort(messageCmp)
       const part = items.map((message) => ({ id: message.info.id, part: sortParts(message.parts) }))
       const cursor = messages.response.headers.get("x-next-cursor") ?? undefined
       return {
@@ -323,9 +334,10 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       limit: number
       before?: string
       mode?: "replace" | "prepend"
+      force?: boolean
     }) => {
       const key = keyFor(input.directory, input.sessionID)
-      if (meta.loading[key]) return
+      if (meta.loading[key] && !input.force) return
 
       setMeta("loading", key, true)
       await fetchMessages(input)
@@ -337,7 +349,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           }
           const [store] = globalSync.child(input.directory, { bootstrap: false })
           const cached = input.mode === "prepend" ? (store.message[input.sessionID] ?? []) : []
-          const message = input.mode === "prepend" ? merge(cached, next.session) : next.session
+          const message = input.mode === "prepend" ? mergeMessages(cached, next.session) : next.session
           batch(() => {
             input.setStore("message", input.sessionID, reconcile(message, { key: "id" }))
             for (const p of next.part) {
@@ -446,6 +458,10 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             })
           }
 
+          if (opts?.force) {
+            await inflight.get(key)?.catch(() => undefined)
+          }
+
           return runInflight(inflight, key, async () => {
             const pending = getSessionPrefetchPromise(directory, sessionID)
             if (pending && opts?.awaitPrefetch) {
@@ -495,6 +511,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
                     setStore,
                     sessionID,
                     limit,
+                    force: opts?.force,
                   })
 
             await Promise.all([sessionReq, messagesReq])

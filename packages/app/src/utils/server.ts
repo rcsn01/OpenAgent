@@ -11,6 +11,7 @@ export class NotConnectedError extends Error {
 type RuntimeResult<T = unknown> = {
   data?: T
   error?: unknown
+  response?: Response
 }
 
 const notConnected = () => new NotConnectedError()
@@ -89,6 +90,21 @@ export function createNullRuntimeClient() {
   return makeRuntimeNode() as any
 }
 
+function runtimeError(error: unknown) {
+  if (error instanceof Error) return error
+  if (error && typeof error === "object" && "message" in error) {
+    const err = new Error(String((error as { message?: unknown }).message))
+    Object.assign(err, error)
+    return err
+  }
+  return new Error(String(error))
+}
+
+function headersToRecord(headers: HeadersInit | undefined) {
+  if (!headers) return undefined
+  return Object.fromEntries(new Headers(headers).entries())
+}
+
 export function authTokenFromCredentials(input: { username?: string; password: string }) {
   return btoa(`${input.username ?? "opencode"}:${input.password}`)
 }
@@ -105,8 +121,12 @@ export function authFromToken(token: string | null) {
 }
 
 export function createSdkForServer({
-  server: _server,
-  ..._config
+  server,
+  directory,
+  throwOnError,
+  signal,
+  fetch: fetcher = globalThis.fetch,
+  headers,
 }: {
   server: ServerConnection.HttpBase
   directory?: string
@@ -116,5 +136,50 @@ export function createSdkForServer({
   fetch?: typeof globalThis.fetch
   headers?: HeadersInit
 }) {
-  return createNullRuntimeClient()
+  if (server.url.startsWith("frontend-only://")) return createNullRuntimeClient()
+
+  const auth =
+    server.password !== undefined
+      ? {
+          authorization: `Basic ${authTokenFromCredentials({
+            username: server.username || "openagent",
+            password: server.password,
+          })}`,
+        }
+      : undefined
+  const extraHeaders = headersToRecord(headers)
+
+  const call = async (method: string, input: unknown): Promise<RuntimeResult> => {
+    const response = await fetcher(`${server.url.replace(/\/+$/, "")}/rpc/${encodeURIComponent(method)}`, {
+      method: "POST",
+      signal,
+      headers: {
+        "content-type": "application/json",
+        ...(directory ? { "x-openagent-directory": directory } : null),
+        ...auth,
+        ...extraHeaders,
+      },
+      body: JSON.stringify(input ?? {}),
+    })
+    const payload = (await response.json().catch(() => ({}))) as RuntimeResult
+    const result = { ...payload, response }
+    if ((!response.ok || result.error) && throwOnError) throw runtimeError(result.error ?? response.statusText)
+    return result
+  }
+
+  function makeNode(path: string[] = []): any {
+    const fn = (input?: unknown) => call(path.join("."), input)
+    return new Proxy(fn, {
+      get(_target, prop) {
+        if (prop === "then") return undefined
+        if (prop === Symbol.toStringTag) return "OpenAgentRuntimeClient"
+        return makeNode([...path, String(prop)])
+      },
+      apply(_target, _thisArg, args) {
+        return fn(args[0])
+      },
+    })
+  }
+
+  return makeNode() as any
 }

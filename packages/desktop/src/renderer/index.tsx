@@ -324,20 +324,26 @@ render(() => {
   }
 
   const [windowCount] = createResource(() => window.api.getWindowCount())
+  const [runtimeServer] = createResource(() => window.api.getRuntimeServer())
 
   const [defaultServer] = createResource(() =>
-    platform.getDefaultServer?.().then((url) => {
+    platform.getDefaultServer?.().then(async (url) => {
       if (url) return ServerConnection.key({ type: "http", http: { url } })
+      const runtime = await window.api.getRuntimeServer().catch(() => undefined)
+      if (runtime) return ServerConnection.key({ type: "http", http: { url: runtime.url } })
     }),
   )
   const [locale] = createResource(loadLocale)
 
   const servers = () => {
+    const runtime = runtimeServer.latest
     const server: ServerConnection.Http = {
-      displayName: "Frontend Shell",
+      displayName: runtime ? "OpenAgent Local" : "Frontend Shell",
       type: "http",
+      authToken: !!runtime,
       http: {
-        url: "frontend-only://runtime",
+        url: runtime?.url ?? "frontend-only://runtime",
+        ...(runtime ? { username: "openagent", password: runtime.token } : null),
       },
     }
     return [server] as ServerConnection.Any[]
@@ -382,6 +388,7 @@ render(() => {
         <Show
           when={
             !defaultServer.loading &&
+            !runtimeServer.loading &&
             !windowConfig.loading &&
             !windowCount.loading &&
             !locale.loading

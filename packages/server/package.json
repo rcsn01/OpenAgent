@@ -1,0 +1,31 @@
+{
+  "name": "@openagent/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "openagent-server": "./src/index.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./launcher": "./src/launcher.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "dev": "bun src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "bun build --compile src/index.ts --outfile dist/openagent-server",
+    "typecheck": "tsgo --noEmit",
+    "test": "bun test test src/**/*.test.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.75.4",
+    "@earendil-works/pi-ai": "0.75.4"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "typescript": "catalog:"
+  }
+}

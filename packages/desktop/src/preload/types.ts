@@ -38,6 +38,7 @@ export type {
 
 export type ElectronAPI = {
   installCli: () => Promise<string>
+  getRuntimeServer: () => Promise<{ url: string; token: string; authToken: string }>
   getWindowConfig: () => Promise<WindowConfig>
   consumeInitialDeepLinks: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>

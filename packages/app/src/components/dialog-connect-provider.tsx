@@ -9,11 +9,12 @@ import { ProviderIcon } from "@opencode-ai/ui/provider-icon"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { TextField } from "@opencode-ai/ui/text-field"
 import { showToast } from "@opencode-ai/ui/toast"
-import { createEffect, createMemo, createResource, Match, onCleanup, onMount, Switch } from "solid-js"
+import { createEffect, createMemo, createResource, Match, onCleanup, onMount, Show, Switch } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
+import { normalizeProviderList } from "@/context/global-sync/utils"
 import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
 
@@ -333,6 +334,8 @@ export function DialogConnectProvider(props: { provider: string }) {
 
   async function complete() {
     await globalSDK.client.global.dispose()
+    const refreshed = await globalSDK.client.provider.list().catch(() => undefined)
+    if (refreshed?.data) globalSync.set("provider", normalizeProviderList(refreshed.data))
     dialog.close()
     showToast({
       variant: "success",
@@ -396,8 +399,27 @@ export function DialogConnectProvider(props: { provider: string }) {
       error: undefined as string | undefined,
     })
 
+    async function connectLocalOllama() {
+      setFormStore("error", undefined)
+      const refreshed = await globalSDK.client.provider.list().catch((error: unknown) => ({ error }))
+      if (refreshed?.data) globalSync.set("provider", normalizeProviderList(refreshed.data))
+      const list = refreshed?.data
+      const item = list?.all.find((provider) => provider.id === "ollama")
+      const connected = !!list?.connected.includes("ollama") && !!item && Object.keys(item.models ?? {}).length > 0
+      if (!connected) {
+        setFormStore("error", "Ollama is not running or has no pulled models. Start Ollama, pull a model, then try again.")
+        return
+      }
+      await complete()
+    }
+
     async function handleSubmit(e: SubmitEvent) {
       e.preventDefault()
+
+      if (props.provider === "ollama") {
+        await connectLocalOllama()
+        return
+      }
 
       const form = e.currentTarget as HTMLFormElement
       const formData = new FormData(form)
@@ -422,6 +444,21 @@ export function DialogConnectProvider(props: { provider: string }) {
     return (
       <div class="flex flex-col gap-6">
         <Switch>
+          <Match when={provider().id === "ollama"}>
+            <div class="flex flex-col gap-4">
+              <div class="text-14-regular text-text-base">
+                Connect to Ollama running locally at http://localhost:11434.
+              </div>
+              <form onSubmit={handleSubmit} class="flex flex-col items-start gap-4">
+                <Button class="w-auto" type="submit" size="large" variant="primary">
+                  {language.t("common.continue")}
+                </Button>
+                <Show when={formStore.error}>
+                  {(error) => <div class="text-14-regular text-text-critical-base">{error()}</div>}
+                </Show>
+              </form>
+            </div>
+          </Match>
           <Match when={provider().id === "opencode"}>
             <div class="flex flex-col gap-4">
               <div class="text-14-regular text-text-base">{language.t("provider.connect.opencodeZen.line1")}</div>
@@ -435,28 +472,30 @@ export function DialogConnectProvider(props: { provider: string }) {
               </div>
             </div>
           </Match>
-          <Match when={true}>
+          <Match when={provider().id !== "ollama"}>
             <div class="text-14-regular text-text-base">
               {language.t("provider.connect.apiKey.description", { provider: provider().name })}
             </div>
           </Match>
         </Switch>
-        <form onSubmit={handleSubmit} class="flex flex-col items-start gap-4">
-          <TextField
-            autofocus
-            type="text"
-            label={language.t("provider.connect.apiKey.label", { provider: provider().name })}
-            placeholder={language.t("provider.connect.apiKey.placeholder")}
-            name="apiKey"
-            value={formStore.value}
-            onChange={(v) => setFormStore("value", v)}
-            validationState={formStore.error ? "invalid" : undefined}
-            error={formStore.error}
-          />
-          <Button class="w-auto" type="submit" size="large" variant="primary">
-            {language.t("common.continue")}
-          </Button>
-        </form>
+        <Show when={provider().id !== "ollama"}>
+          <form onSubmit={handleSubmit} class="flex flex-col items-start gap-4">
+            <TextField
+              autofocus
+              type="text"
+              label={language.t("provider.connect.apiKey.label", { provider: provider().name })}
+              placeholder={language.t("provider.connect.apiKey.placeholder")}
+              name="apiKey"
+              value={formStore.value}
+              onChange={(v) => setFormStore("value", v)}
+              validationState={formStore.error ? "invalid" : undefined}
+              error={formStore.error}
+            />
+            <Button class="w-auto" type="submit" size="large" variant="primary">
+              {language.t("common.continue")}
+            </Button>
+          </form>
+        </Show>
       </div>
     )
   }

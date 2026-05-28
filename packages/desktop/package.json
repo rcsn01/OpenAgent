@@ -32,6 +32,7 @@
     "marked": "^15"
   },
   "devDependencies": {
+    "@openagent/server": "workspace:*",
     "@opencode-ai/app": "workspace:*",
     "@opencode-ai/ui": "workspace:*",
     "@sentry/solid": "catalog:",
