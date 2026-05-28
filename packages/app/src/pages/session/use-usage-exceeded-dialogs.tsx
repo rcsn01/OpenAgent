@@ -1,4 +1,4 @@
-import type { SessionStatus } from "@opencode-ai/sdk/v2"
+import type { SessionStatus } from "@opencode-ai/ui/contracts"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"

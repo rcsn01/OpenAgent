@@ -1,4 +1,4 @@
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { base64Encode } from "@opencode-ai/ui/utils/encode"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { useNavigate } from "@solidjs/router"

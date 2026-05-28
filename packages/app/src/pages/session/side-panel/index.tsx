@@ -1,5 +1,5 @@
 import { Suspense, createEffect, createMemo, onCleanup, type JSX } from "solid-js"
-import type { SnapshotFileDiff, VcsFileDiff } from "@opencode-ai/sdk/v2"
+import type { SnapshotFileDiff, VcsFileDiff } from "@opencode-ai/ui/contracts"
 import { Icon } from "@opencode-ai/ui/icon"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"

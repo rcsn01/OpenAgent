@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Session } from "@opencode-ai/sdk/v2/client"
+import type { Session } from "@opencode-ai/ui/contracts"
 import { canDisposeDirectory, pickDirectoriesToEvict } from "./global-sync/eviction"
 import {
   estimateRootSessionTotal,

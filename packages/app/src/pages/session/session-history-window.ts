@@ -1,6 +1,6 @@
 import { createMemo, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
-import type { UserMessage } from "@opencode-ai/sdk/v2"
+import type { UserMessage } from "@opencode-ai/ui/contracts"
 import { same } from "@/utils/same"
 
 const emptyUserMessages: UserMessage[] = []

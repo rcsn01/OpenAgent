@@ -1,4 +1,4 @@
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { base64Encode } from "@opencode-ai/ui/utils/encode"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
 import { createEffect, createMemo } from "solid-js"

@@ -19,7 +19,7 @@ import type {
   SpeechTranscriptionSegment,
   SpeechTranscriptionToken,
   TitlebarTheme,
-} from "@opencode-ai/core/desktop"
+} from "@opencode-ai/app/desktop-types"
 
 type PickerPaths = string | string[] | null
 type OpenDirectoryPickerOptions = { title?: string; multiple?: boolean }

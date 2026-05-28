@@ -1,5 +1,5 @@
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
-import type { Message as MessageType, Part } from "@opencode-ai/sdk/v2"
+import type { Message as MessageType, Part } from "@opencode-ai/ui/contracts"
 import { Button } from "@opencode-ai/ui/button"
 import { Dialog } from "@opencode-ai/ui/dialog"
 import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"

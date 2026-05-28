@@ -29,7 +29,7 @@ import {
   Todo,
   QuestionAnswer,
   QuestionInfo,
-} from "@opencode-ai/sdk/v2"
+} from "@opencode-ai/ui/contracts"
 import { useData } from "../context"
 import { useFileComponent } from "../context/file"
 import { useDialog } from "../context/dialog"
@@ -45,8 +45,8 @@ import { Checkbox } from "./checkbox"
 import { DiffChanges } from "./diff-changes"
 import { Markdown } from "./markdown"
 import { ImagePreview } from "./image-preview"
-import { getDirectory as _getDirectory, getFilename } from "@opencode-ai/core/util/path"
-import { checksum } from "@opencode-ai/core/util/encode"
+import { getDirectory as _getDirectory, getFilename } from "@opencode-ai/ui/utils/path"
+import { checksum } from "@opencode-ai/ui/utils/encode"
 import { Tooltip } from "./tooltip"
 import { IconButton } from "./icon-button"
 import { Spinner } from "./spinner"
@@ -658,7 +658,7 @@ export function AssistantParts(props: {
 
                 return (
                   <Show when={parts().length > 0}>
-                    <ContextToolGroup parts={parts()} busy={busy()} />
+                    <ContextToolGroup parts={parts() as ToolPart[]} busy={busy()} />
                   </Show>
                 )
               })()}
@@ -698,7 +698,7 @@ export function AssistantParts(props: {
   )
 }
 
-function isContextGroupTool(part: PartType): part is ToolPart {
+function isContextGroupTool(part: PartType): boolean {
   return part.type === "tool" && CONTEXT_GROUP_TOOLS.has(part.tool)
 }
 
@@ -873,7 +873,7 @@ export function AssistantMessageDisplay(props: {
 
                 return (
                   <Show when={parts().length > 0}>
-                    <ContextToolGroup parts={parts()} />
+                    <ContextToolGroup parts={parts() as ToolPart[]} />
                   </Show>
                 )
               })()}
@@ -1031,7 +1031,7 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
     const providerID = props.message.model?.providerID
     const modelID = props.message.model?.modelID
     if (!providerID || !modelID) return ""
-    const match = data.store.provider?.all?.find((p) => p.id === providerID)
+    const match = (data.store.provider?.all as any[] | undefined)?.find((p) => p.id === providerID)
     return match?.models?.[modelID]?.name ?? modelID
   })
   const timefmt = createMemo(() => new Intl.DateTimeFormat(i18n.locale(), { timeStyle: "short" }))
@@ -1322,7 +1322,6 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   const emptyMetadata: Record<string, any> = {}
 
   const input = () => part().state?.input ?? emptyInput
-  // @ts-expect-error
   const partMetadata = () => part().state?.metadata ?? emptyMetadata
   const taskId = createMemo(() => {
     if (part().tool !== "task") return
@@ -1377,7 +1376,6 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
               tool={part().tool}
               sessionID={part().sessionID}
               metadata={partMetadata()}
-              // @ts-expect-error
               output={part().state.output}
               status={part().state.status}
               hideDetails={props.hideDetails}
@@ -1422,7 +1420,7 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
   const model = createMemo(() => {
     if (props.message.role !== "assistant") return ""
     const message = props.message as AssistantMessage
-    const match = data.store.provider?.all?.find((p) => p.id === message.providerID)
+    const match = (data.store.provider?.all as any[] | undefined)?.find((p) => p.id === message.providerID)
     return match?.models?.[message.modelID]?.name ?? message.modelID
   })
 

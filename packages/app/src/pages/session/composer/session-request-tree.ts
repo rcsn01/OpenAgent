@@ -1,4 +1,4 @@
-import type { PermissionRequest, QuestionRequest, Session } from "@opencode-ai/sdk/v2/client"
+import type { PermissionRequest, QuestionRequest, Session } from "@opencode-ai/ui/contracts"
 
 function sessionTreeRequest<T>(
   session: Session[],

@@ -1,7 +1,5 @@
 import type {
-  InitStep,
   LinuxDisplayBackend,
-  ServerReadyData,
   SpeechCaptureChunkInput,
   SpeechCaptureLevelEvent,
   SpeechCaptureSamplesInput,
@@ -14,16 +12,13 @@ import type {
   SpeechTranscription,
   SpeechTranscriptionInput,
   SpeechTranscriptionQuality,
-  SqliteMigrationProgress,
   TitlebarTheme,
   WindowConfig,
   WslConfig,
-} from "@opencode-ai/core/desktop"
+} from "@opencode-ai/app/desktop-types"
 
 export type {
-  InitStep,
   LinuxDisplayBackend,
-  ServerReadyData,
   SpeechCaptureChunkInput,
   SpeechCaptureLevelEvent,
   SpeechCaptureSamplesInput,
@@ -36,16 +31,13 @@ export type {
   SpeechTranscription,
   SpeechTranscriptionInput,
   SpeechTranscriptionQuality,
-  SqliteMigrationProgress,
   TitlebarTheme,
   WindowConfig,
   WslConfig,
 }
 
 export type ElectronAPI = {
-  killSidecar: () => Promise<void>
   installCli: () => Promise<string>
-  awaitInitialization: (onStep: (step: InitStep) => void) => Promise<ServerReadyData>
   getWindowConfig: () => Promise<WindowConfig>
   consumeInitialDeepLinks: () => Promise<string[]>
   getDefaultServerUrl: () => Promise<string | null>
@@ -66,7 +58,6 @@ export type ElectronAPI = {
   storeLength: (name: string) => Promise<number>
 
   getWindowCount: () => Promise<number>
-  onSqliteMigrationProgress: (cb: (progress: SqliteMigrationProgress) => void) => () => void
   onMenuCommand: (cb: (id: string) => void) => () => void
   onDeepLink: (cb: (urls: string[]) => void) => () => void
 
@@ -96,7 +87,6 @@ export type ElectronAPI = {
   getZoomFactor: () => Promise<number>
   setZoomFactor: (factor: number) => Promise<void>
   setTitlebar: (theme: TitlebarTheme) => Promise<void>
-  loadingWindowComplete: () => void
   runUpdater: (alertOnFail: boolean) => Promise<void>
   checkUpdate: () => Promise<{ updateAvailable: boolean; version?: string }>
   installUpdate: () => Promise<void>

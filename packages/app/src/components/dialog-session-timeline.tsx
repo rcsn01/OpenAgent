@@ -3,7 +3,7 @@ import { List } from "@opencode-ai/ui/list"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createMemo } from "solid-js"
 import { useSync } from "@/context/sync"
-import type { TextPart, UserMessage } from "@opencode-ai/sdk/v2/client"
+import type { TextPart, UserMessage } from "@opencode-ai/ui/contracts"
 
 type TimelineItem = {
   id: string

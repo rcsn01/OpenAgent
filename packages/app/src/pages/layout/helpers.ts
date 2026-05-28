@@ -1,5 +1,5 @@
-import { getFilename } from "@opencode-ai/core/util/path"
-import { type Session } from "@opencode-ai/sdk/v2/client"
+import { getFilename } from "@opencode-ai/ui/utils/path"
+import { type Session } from "@opencode-ai/ui/contracts"
 import { pathKey } from "@/utils/path-key"
 
 type SessionStore = {

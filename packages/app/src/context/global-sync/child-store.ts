@@ -1,7 +1,7 @@
 import { createRoot, getOwner, onCleanup, runWithOwner, type Owner } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
-import type { ProviderListResponse, VcsInfo } from "@opencode-ai/sdk/v2/client"
+import type { ProviderListResponse, VcsInfo } from "@opencode-ai/ui/contracts"
 import {
   DIR_IDLE_TTL_MS,
   MAX_DIR_STORES,
@@ -217,7 +217,7 @@ export function createChildStoreManager(input: {
             sessionTotal: 0,
             session_status: {},
             session_working(id: string) {
-              const type = this.session_status[id]?.type
+              const type = this.session_status?.[id]?.type
               return (type ?? "idle") !== "idle"
             },
             session_diff: {},

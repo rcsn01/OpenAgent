@@ -90,7 +90,6 @@ export function getWorkspaceTerminalCacheKey(dir: string, scope?: string) {
 
 export function getTerminalServerScope(conn: ServerConnection.Any | undefined, key: ServerConnection.Key) {
   if (!conn) return
-  if (conn.type === "sidecar" && conn.variant === "base") return
   if (conn.type === "http") {
     try {
       const url = new URL(conn.http.url)

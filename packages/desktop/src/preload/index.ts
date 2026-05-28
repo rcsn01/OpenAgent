@@ -1,16 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { ElectronAPI, InitStep, SqliteMigrationProgress } from "./types"
+import type { ElectronAPI } from "./types"
 
 const api: ElectronAPI = {
-  killSidecar: () => ipcRenderer.invoke("kill-sidecar"),
   installCli: () => ipcRenderer.invoke("install-cli"),
-  awaitInitialization: (onStep) => {
-    const handler = (_: unknown, step: InitStep) => onStep(step)
-    ipcRenderer.on("init-step", handler)
-    return ipcRenderer.invoke("await-initialization").finally(() => {
-      ipcRenderer.removeListener("init-step", handler)
-    })
-  },
   getWindowConfig: () => ipcRenderer.invoke("get-window-config"),
   consumeInitialDeepLinks: () => ipcRenderer.invoke("consume-initial-deep-links"),
   getDefaultServerUrl: () => ipcRenderer.invoke("get-default-server-url"),
@@ -31,11 +23,6 @@ const api: ElectronAPI = {
   storeLength: (name) => ipcRenderer.invoke("store-length", name),
 
   getWindowCount: () => ipcRenderer.invoke("get-window-count"),
-  onSqliteMigrationProgress: (cb) => {
-    const handler = (_: unknown, progress: SqliteMigrationProgress) => cb(progress)
-    ipcRenderer.on("sqlite-migration-progress", handler)
-    return () => ipcRenderer.removeListener("sqlite-migration-progress", handler)
-  },
   onMenuCommand: (cb) => {
     const handler = (_: unknown, id: string) => cb(id)
     ipcRenderer.on("menu-command", handler)
@@ -63,7 +50,6 @@ const api: ElectronAPI = {
   getZoomFactor: () => ipcRenderer.invoke("get-zoom-factor"),
   setZoomFactor: (factor) => ipcRenderer.invoke("set-zoom-factor", factor),
   setTitlebar: (theme) => ipcRenderer.invoke("set-titlebar", theme),
-  loadingWindowComplete: () => ipcRenderer.send("loading-window-complete"),
   runUpdater: (alertOnFail) => ipcRenderer.invoke("run-updater", alertOnFail),
   checkUpdate: () => ipcRenderer.invoke("check-update"),
   installUpdate: () => ipcRenderer.invoke("install-update"),

@@ -3,13 +3,9 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import { promisify } from "node:util"
 import type { Page, TestInfo } from "@playwright/test"
-import { createOpencodeClient, type Session } from "@opencode-ai/sdk/v2/client"
+import type { Session } from "@opencode-ai/ui/contracts"
 
 const execFileAsync = promisify(execFile)
-const serverHost = process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"
-const serverPort = process.env.PLAYWRIGHT_SERVER_PORT ?? "4197"
-const serverBaseURL = process.env.PLAYWRIGHT_SERVER_BASE_URL ?? `http://${serverHost}:${serverPort}`
-
 const defaultProjectAgent = "build"
 const defaultChatAgent = "chat"
 const defaultModel = {
@@ -30,10 +26,7 @@ export function base64Url(value: string) {
 }
 
 export function sdk(directory?: string) {
-  return createOpencodeClient({
-    baseUrl: serverBaseURL,
-    ...(directory ? { directory } : {}),
-  })
+  throw new Error(`E2E SDK helpers require a runtime service (${directory ?? "global"})`)
 }
 
 export async function createGitProject(
