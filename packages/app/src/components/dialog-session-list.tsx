@@ -1,7 +1,7 @@
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { List } from "@opencode-ai/ui/list"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { type Session } from "@opencode-ai/sdk/v2/client"
+import { Dialog } from "@openagent-ai/ui/dialog"
+import { List } from "@openagent-ai/ui/list"
+import { useDialog } from "@openagent-ai/ui/context/dialog"
+import { type Session } from "@openagent-ai/sdk/v2/client"
 import { createMemo } from "solid-js"
 
 const updatedAt = (session: Session) => session.time.updated ?? session.time.created

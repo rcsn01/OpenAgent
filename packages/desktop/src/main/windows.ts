@@ -2,7 +2,7 @@ import windowState from "electron-window-state"
 import { app, BrowserWindow, net, nativeImage, nativeTheme, protocol } from "electron"
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import type { TitlebarTheme } from "@opencode-ai/core/desktop"
+import type { TitlebarTheme } from "@openagent-ai/core/desktop"
 
 const root = dirname(fileURLToPath(import.meta.url))
 const rendererRoot = join(root, "../renderer")

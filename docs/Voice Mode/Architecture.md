@@ -62,7 +62,7 @@ The voice pipeline runs across two Electron processes:
 | Path | Trigger | Data Flow |
 |------|---------|-----------|
 | Browser `getUserMedia` | Always available | Float32 samples → renderer analyser → renderer chunking → WAV → IPC |
-| Native macOS (`voice-capture-macos.swift`) | `OPENCODE_ENABLE_NATIVE_SPEECH_CAPTURE=1` + macOS | Native samples → stdout → main process ring buffer → take chunk → WAV → transcription |
+| Native macOS (`voice-capture-macos.swift`) | `OPENAGENT_ENABLE_NATIVE_SPEECH_CAPTURE=1` + macOS | Native samples → stdout → main process ring buffer → take chunk → WAV → transcription |
 
 ## When Capture Path Is Chosen
 

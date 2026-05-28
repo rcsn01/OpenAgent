@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs"
 import path from "node:path"
 import { promisify } from "node:util"
 import type { Page, TestInfo } from "@playwright/test"
-import { createOpencodeClient, type Session } from "@opencode-ai/sdk/v2/client"
+import { createOpenAgentClient, type Session } from "@openagent-ai/sdk/v2/client"
 
 const execFileAsync = promisify(execFile)
 const serverHost = process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"
@@ -30,7 +30,7 @@ export function base64Url(value: string) {
 }
 
 export function sdk(directory?: string) {
-  return createOpencodeClient({
+  return createOpenAgentClient({
     baseUrl: serverBaseURL,
     ...(directory ? { directory } : {}),
   })

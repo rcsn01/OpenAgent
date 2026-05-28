@@ -18,9 +18,9 @@ In practice that is the app config directory plus a `chat/` subfolder.
 
 The key code paths are:
 
-- `packages/opencode/src/general-chat/profile.ts`
-- `packages/opencode/src/config/paths.ts`
-- `packages/opencode/src/session/instruction.ts`
+- `packages/openagent/src/general-chat/profile.ts`
+- `packages/openagent/src/config/paths.ts`
+- `packages/openagent/src/session/instruction.ts`
 
 ## When It Applies
 
@@ -41,7 +41,7 @@ The shared chat profile can contribute all the usual extension layers:
 - `skills/*/SKILL.md` — reusable chat workflows
 - `tools/*.ts` or `tools/*.js` — custom callable tools
 - `plugins/*.ts` or `plugins/*.js` — local auto-discovered plugins
-- `opencode.json` or `opencode.jsonc` — config, permissions, plugin package list
+- `openagent.json` or `openagent.jsonc` — config, permissions, plugin package list
 - `package.json` — dependencies for local tools and plugins
 
 This means the shared chat profile is effectively a dedicated “chat feature bundle”.
@@ -57,7 +57,7 @@ The directory supports two modes.
 If the profile contains:
 
 ```text
-.opencode-chat-profile.json
+.openagent-chat-profile.json
 ```
 
 then `GeneralChatProfile.ensureWith()` treats it as app-managed and seeds any missing default files.
@@ -103,7 +103,7 @@ Typical workflow:
 
 Use the shared chat directory for local or power-user customization.
 
-Edit `packages/opencode/src/general-chat/profile.ts` when you want the capability to become a built-in default that new managed chat profiles receive automatically.
+Edit `packages/openagent/src/general-chat/profile.ts` when you want the capability to become a built-in default that new managed chat profiles receive automatically.
 
 That is the path to ship a chat feature in the product itself.
 

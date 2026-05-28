@@ -21,16 +21,16 @@ This section is about the practical extension mechanisms:
 
 | File | Role |
 |------|------|
-| `packages/opencode/src/config/paths.ts` | Determines which config directories apply, including the shared chat profile |
-| `packages/opencode/src/general-chat/profile.ts` | Seeds the managed shared chat profile |
-| `packages/opencode/src/skill/index.ts` | Discovers and filters skills |
-| `packages/opencode/src/tool/registry.ts` | Discovers custom tools and plugin tools |
-| `packages/opencode/src/config/plugin.ts` | Auto-discovers local plugin files |
-| `packages/opencode/src/plugin/index.ts` | Loads plugins and waits for their dependencies |
-| `packages/opencode/src/extension/index.ts` | Installs, removes, lists, and live-reloads project-scoped extensions |
+| `packages/openagent/src/config/paths.ts` | Determines which config directories apply, including the shared chat profile |
+| `packages/openagent/src/general-chat/profile.ts` | Seeds the managed shared chat profile |
+| `packages/openagent/src/skill/index.ts` | Discovers and filters skills |
+| `packages/openagent/src/tool/registry.ts` | Discovers custom tools and plugin tools |
+| `packages/openagent/src/config/plugin.ts` | Auto-discovers local plugin files |
+| `packages/openagent/src/plugin/index.ts` | Loads plugins and waits for their dependencies |
+| `packages/openagent/src/extension/index.ts` | Installs, removes, lists, and live-reloads project-scoped extensions |
 | `packages/app/src/extensions/registry.ts` | Bundles official extension marketplace entries in the app |
 | `packages/app/src/pages/session/side-panel/extensions/index.tsx` | Renders the project-scoped Extensions side panel |
-| `packages/opencode/src/config/config.ts` | Installs dependencies for config directories and merges their config |
-| `packages/opencode/src/session/instruction.ts` | Injects `AGENTS.md` and the shared chat profile instructions |
-| `packages/opencode/src/integration/auth.ts` | Stores per-user integration credentials for specialist tools |
-| `packages/opencode/src/server/routes/instance/integration.ts` | Exposes integration OAuth/status APIs |
+| `packages/openagent/src/config/config.ts` | Installs dependencies for config directories and merges their config |
+| `packages/openagent/src/session/instruction.ts` | Injects `AGENTS.md` and the shared chat profile instructions |
+| `packages/openagent/src/integration/auth.ts` | Stores per-user integration credentials for specialist tools |
+| `packages/openagent/src/server/routes/instance/integration.ts` | Exposes integration OAuth/status APIs |

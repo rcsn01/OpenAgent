@@ -1,6 +1,14 @@
-import type { SessionStatus } from "@opencode-ai/sdk/v2/client"
+import type { SessionStatus } from "@openagent-ai/sdk/v2/client"
 
 export type SidebarSessionStatus = "running" | "done" | "pending" | "error" | undefined
+export type SidebarGlow = "working" | "done" | "needs-input" | "failed"
+
+export const sidebarSessionGlow = {
+  running: "working",
+  done: "done",
+  pending: "needs-input",
+  error: "failed",
+} as const satisfies Record<Exclude<SidebarSessionStatus, undefined>, SidebarGlow>
 
 export function sidebarSessionStatus(input: {
   status?: SessionStatus

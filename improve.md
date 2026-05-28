@@ -43,7 +43,7 @@ When Codex auto-continues a turn because the goal is still active, it injects th
 
 ## How OpenAgent Works Today
 
-OpenAgent's `todowrite` has a **rich tool description** (`packages/opencode/src/tool/todowrite.txt`):
+OpenAgent's `todowrite` has a **rich tool description** (`packages/openagent/src/tool/todowrite.txt`):
 
 ```markdown
 ## When to use
@@ -68,7 +68,7 @@ Use proactively when:
 
 ### Option A: Add a standing system prompt instruction (recommended)
 
-In `packages/opencode/src/session/prompt.ts` or `packages/opencode/src/session/system.ts`, append a concise reminder to the system prompt stack:
+In `packages/openagent/src/session/prompt.ts` or `packages/openagent/src/session/system.ts`, append a concise reminder to the system prompt stack:
 
 ```markdown
 ## Task tracking
@@ -124,6 +124,6 @@ Codex CLI gets reliable plan updates **without** needing a goal runtime. The goa
 - `codex-rs/core/src/tools/handlers/plan.rs:79-82` — `update_plan` handler explicitly labeled "TODO/checklist tool".
 
 ### OpenAgent
-- `packages/opencode/src/tool/todowrite.txt` — Current tool description.
-- `packages/opencode/src/session/prompt.ts` — Session loop where system prompt reminders are injected.
-- `packages/opencode/src/session/system.ts` — System prompt assembly.
+- `packages/openagent/src/tool/todowrite.txt` — Current tool description.
+- `packages/openagent/src/session/prompt.ts` — Session loop where system prompt reminders are injected.
+- `packages/openagent/src/session/system.ts` — System prompt assembly.

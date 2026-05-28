@@ -13,7 +13,7 @@ beforeAll(async () => {
     useLocation: () => ({ pathname: "/", search: "", hash: "", query: {}, state: undefined, key: "test" }),
     useParams: () => ({}),
   }))
-  mock.module("@opencode-ai/ui/context", () => ({
+  mock.module("@openagent-ai/ui/context", () => ({
     createSimpleContext: () => ({
       use: () => undefined,
       provider: () => undefined,

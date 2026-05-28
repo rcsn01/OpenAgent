@@ -1,5 +1,5 @@
 import { createSignal, onCleanup } from "solid-js"
-import type { Session } from "@opencode-ai/sdk/v2/client"
+import type { Session } from "@openagent-ai/sdk/v2/client"
 
 export type CachedGeneralChatInfo = {
   session: Session

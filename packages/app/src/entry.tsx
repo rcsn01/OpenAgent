@@ -11,7 +11,7 @@ import { authFromToken } from "@/utils/server"
 import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
 
-const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
+const DEFAULT_SERVER_URL_KEY = "openagent.settings.dat:defaultServerUrl"
 const DEV_SERVER_HOST = "127.0.0.1"
 const DEV_SERVER_PORT = "4096"
 
@@ -77,7 +77,7 @@ const notify: Platform["notify"] = async (title, description, href) => {
 
   const notification = new Notification(title, {
     body: description ?? "",
-    icon: "https://opencode.ai/favicon-96x96-v3.png",
+    icon: "https://openagent.ai/favicon-96x96.png",
   })
 
   notification.onclick = () => {
@@ -108,10 +108,10 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 }
 
 const getCurrentUrl = () => {
-  if (import.meta.env.VITE_OPENCODE_SERVER_URL) return import.meta.env.VITE_OPENCODE_SERVER_URL.replace(/\/+$/, "")
-  if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
+  if (import.meta.env.VITE_OPENAGENT_SERVER_URL) return import.meta.env.VITE_OPENAGENT_SERVER_URL.replace(/\/+$/, "")
+  if (location.hostname.includes("openagent.ai")) return "http://localhost:4096"
   if (import.meta.env.DEV)
-    return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? DEV_SERVER_HOST}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? DEV_SERVER_PORT}`
+    return `http://${import.meta.env.VITE_OPENAGENT_SERVER_HOST ?? DEV_SERVER_HOST}:${import.meta.env.VITE_OPENAGENT_SERVER_PORT ?? DEV_SERVER_PORT}`
   return location.origin
 }
 
@@ -158,14 +158,14 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     integrations: (integrations) => {
       return integrations.filter(
         (i) =>
-          i.name !== "Breadcrumbs" && !(import.meta.env.OPENCODE_CHANNEL === "prod" && i.name === "GlobalHandlers"),
+          i.name !== "Breadcrumbs" && !(import.meta.env.OPENAGENT_CHANNEL === "prod" && i.name === "GlobalHandlers"),
       )
     },
   })
 }
 
 if (root instanceof HTMLElement) {
-  const auth = authFromToken(new URLSearchParams(location.search).get("auth_token") ?? import.meta.env.VITE_OPENCODE_AUTH_TOKEN)
+  const auth = authFromToken(new URLSearchParams(location.search).get("auth_token") ?? import.meta.env.VITE_OPENAGENT_AUTH_TOKEN)
   clearAuthToken()
   const server: ServerConnection.Http = {
     type: "http",

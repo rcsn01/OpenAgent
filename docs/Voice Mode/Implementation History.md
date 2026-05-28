@@ -61,7 +61,7 @@ What was implemented:
 - Swift helper compiled on first use with `swiftc`
 - Binary data protocol: JSON header + raw `Float32` samples
 - Main process resampling to `16 kHz`, gain application, RMS computation
-- Opt-in via `OPENCODE_ENABLE_NATIVE_SPEECH_CAPTURE=1`
+- Opt-in via `OPENAGENT_ENABLE_NATIVE_SPEECH_CAPTURE=1`
 
 **Key source files**:
 - `packages/desktop-electron/native/voice-capture-macos.swift`

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionStatus } from "@opencode-ai/sdk/v2"
+import type { SessionStatus } from "@openagent-ai/sdk/v2"
 import {
   shouldShowUsageExceededDialog,
   usageExceededAction,

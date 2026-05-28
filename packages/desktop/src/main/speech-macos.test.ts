@@ -15,7 +15,7 @@ function findInternalSpeechAsset() {
 }
 
 function renderQuietSpeechFixture(volume: number) {
-  const directory = mkdtempSync(join(tmpdir(), "opencode-speech-macos-test-"))
+  const directory = mkdtempSync(join(tmpdir(), "openagent-speech-macos-test-"))
   const output = join(directory, `fixture-${String(volume).replaceAll(".", "p")}.wav`)
   execFileSync("ffmpeg", ["-y", "-i", findInternalSpeechAsset(), "-af", `volume=${volume}`, "-ac", "1", "-ar", "16000", output], {
     stdio: "ignore",

@@ -90,9 +90,9 @@ export const dict = {
   "dialog.provider.group.popular": "Populaire",
   "dialog.provider.group.other": "Autre",
   "dialog.provider.tag.recommended": "Recommandé",
-  "dialog.provider.opencode.note": "Modèles sélectionnés incluant Claude, GPT, Gemini et plus",
-  "dialog.provider.opencode.tagline": "Modèles optimisés et fiables",
-  "dialog.provider.opencodeGo.tagline": "Abonnement abordable pour tous",
+  "dialog.provider.openagent.note": "Modèles sélectionnés incluant Claude, GPT, Gemini et plus",
+  "dialog.provider.openagent.tagline": "Modèles optimisés et fiables",
+  "dialog.provider.openagentGo.tagline": "Abonnement abordable pour tous",
   "dialog.provider.anthropic.note": "Connectez-vous avec Claude Pro/Max ou une clé API",
   "dialog.provider.copilot.note": "Connectez-vous avec Copilot ou une clé API",
   "dialog.provider.openai.note": "Connectez-vous avec ChatGPT Pro/Plus ou une clé API",
@@ -120,13 +120,13 @@ export const dict = {
   "provider.connect.apiKey.label": "Clé API {{provider}}",
   "provider.connect.apiKey.placeholder": "Clé API",
   "provider.connect.apiKey.required": "La clé API est requise",
-  "provider.connect.opencodeZen.line1":
+  "provider.connect.openagentZen.line1":
     "OpenAgent Zen vous donne accès à un ensemble sélectionné de modèles fiables et optimisés pour les agents de codage.",
-  "provider.connect.opencodeZen.line2":
+  "provider.connect.openagentZen.line2":
     "Avec une seule clé API, vous aurez accès à des modèles tels que Claude, GPT, Gemini, GLM et plus encore.",
-  "provider.connect.opencodeZen.visit.prefix": "Visitez ",
-  "provider.connect.opencodeZen.visit.link": "OpenAgent Zen",
-  "provider.connect.opencodeZen.visit.suffix": " pour récupérer votre clé API.",
+  "provider.connect.openagentZen.visit.prefix": "Visitez ",
+  "provider.connect.openagentZen.visit.link": "OpenAgent Zen",
+  "provider.connect.openagentZen.visit.suffix": " pour récupérer votre clé API.",
   "provider.connect.oauth.code.visit.prefix": "Visitez ",
   "provider.connect.oauth.code.visit.link": "ce lien",
   "provider.connect.oauth.code.visit.suffix":
@@ -273,7 +273,7 @@ export const dict = {
   "dialog.mcp.description": "{{enabled}} sur {{total}} activés",
   "dialog.mcp.empty": "Aucun MCP configuré",
   "dialog.lsp.empty": "LSPs détectés automatiquement par type de fichier",
-  "dialog.plugins.empty": "Plugins configurés dans opencode.json",
+  "dialog.plugins.empty": "Plugins configurés dans openagent.json",
   "mcp.status.connected": "connecté",
   "mcp.status.failed": "échoué",
   "mcp.status.needs_auth": "nécessite auth",
@@ -428,7 +428,7 @@ export const dict = {
   "error.chain.responseBody": "Corps de la réponse :\n{{body}}",
   "error.chain.didYouMean": "Vouliez-vous dire : {{suggestions}}",
   "error.chain.modelNotFound": "Modèle introuvable : {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Vérifiez votre configuration (opencode.json) pour les noms de fournisseur/modèle",
+  "error.chain.checkConfig": "Vérifiez votre configuration (openagent.json) pour les noms de fournisseur/modèle",
   "error.chain.mcpFailed":
     "Le serveur MCP \"{{name}}\" a échoué. Notez qu'OpenAgent ne supporte pas encore l'authentification MCP.",
   "error.chain.providerAuthFailed": "Échec de l'authentification du fournisseur ({{provider}}) : {{message}}",

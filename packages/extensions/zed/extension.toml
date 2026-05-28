@@ -8,7 +8,7 @@ repository = "https://github.com/rcsn01/OpenAgent"
 
 [agent_servers.openagent]
 name = "OpenAgent"
-icon = "./icons/opencode.svg"
+icon = "./icons/openagent.svg"
 
 [agent_servers.openagent.targets.darwin-aarch64]
 archive = "https://github.com/rcsn01/OpenAgent/releases/download/v1.15.0/openagent-darwin-arm64.zip"

@@ -30,11 +30,11 @@ OpenAgent needs to support multiple providers (OpenAI, Anthropic, Google, Kimi, 
 
 | Layer | Source | Can Override? |
 |-------|--------|---------------|
-| 1. Provider Prompt | `packages/opencode/src/session/prompt/*.txt` | No (selected by model) |
+| 1. Provider Prompt | `packages/openagent/src/session/prompt/*.txt` | No (selected by model) |
 | 2. Agent Prompt | Agent definition in config or markdown | No (selected by runtime) |
 | 3. Instructions | `AGENTS.md`, `CLAUDE.md`, remote URLs | Appends only |
-| 4. Environment | `packages/opencode/src/session/system.ts` | Appends only |
-| 5. Skills | `packages/opencode/src/skill/index.ts` | Appends only |
+| 4. Environment | `packages/openagent/src/session/system.ts` | Appends only |
+| 5. Skills | `packages/openagent/src/skill/index.ts` | Appends only |
 | 6. Per-Message | `user.system` on message | Appends only |
 
 If neither an agent prompt nor an instruction file is sufficient, permissions provide hard guarantees at the tool-call level.
@@ -43,13 +43,13 @@ If neither an agent prompt nor an instruction file is sufficient, permissions pr
 
 | File | Responsibility |
 |------|--------------|
-| `packages/opencode/src/session/llm.ts` | Prompt assembly, streaming |
-| `packages/opencode/src/session/prompt.ts` | Session loop, compaction, shell |
-| `packages/opencode/src/session/system.ts` | Provider prompt selection, environment, skills |
-| `packages/opencode/src/session/instruction.ts` | Instruction discovery, loading |
-| `packages/opencode/src/agent/agent.ts` | Agent registry |
-| `packages/opencode/src/skill/index.ts` | Skill discovery, formatting |
-| `packages/opencode/src/permission/index.ts` | Permission evaluation |
+| `packages/openagent/src/session/llm.ts` | Prompt assembly, streaming |
+| `packages/openagent/src/session/prompt.ts` | Session loop, compaction, shell |
+| `packages/openagent/src/session/system.ts` | Provider prompt selection, environment, skills |
+| `packages/openagent/src/session/instruction.ts` | Instruction discovery, loading |
+| `packages/openagent/src/agent/agent.ts` | Agent registry |
+| `packages/openagent/src/skill/index.ts` | Skill discovery, formatting |
+| `packages/openagent/src/permission/index.ts` | Permission evaluation |
 
 ## Related Notes
 

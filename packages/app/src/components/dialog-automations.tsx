@@ -1,25 +1,32 @@
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { Button } from "@opencode-ai/ui/button"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Popover } from "@opencode-ai/ui/popover"
-import { showToast } from "@opencode-ai/ui/toast"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Dialog } from "@openagent-ai/ui/dialog"
+import { Button } from "@openagent-ai/ui/button"
+import { FilterDropdown, type FilterDropdownOption } from "@openagent-ai/ui/filter-dropdown"
+import { Icon } from "@openagent-ai/ui/icon"
+import { Popover } from "@openagent-ai/ui/popover"
+import { showToast } from "@openagent-ai/ui/toast"
+import { useDialog } from "@openagent-ai/ui/context/dialog"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { type LocalProject } from "@/context/layout"
 import { useModels } from "@/context/models"
 import { displayName, errorMessage } from "@/pages/layout/helpers"
-import type { AutomationListResponse } from "@opencode-ai/sdk/v2/client"
+import type { AutomationListResponse } from "@openagent-ai/sdk/v2/client"
 
 type Automation = AutomationListResponse[number]
 type Schedule = Automation["schedule"]
 type ScheduleKind = "minute" | "hourly" | "daily" | "weekday" | "weekly"
 type AutomationModel = NonNullable<Automation["model"]>
+type AutomationStatusFilter = "current" | "active" | "paused"
 const DEFAULT_AUTOMATION_PARALLEL_LIMIT = 10
 const MIN_AUTOMATION_PARALLEL_LIMIT = 1
 const MAX_AUTOMATION_PARALLEL_LIMIT = 20
+const AUTOMATION_STATUS_FILTER_OPTIONS: FilterDropdownOption<AutomationStatusFilter>[] = [
+  { value: "current", label: "Current" },
+  { value: "active", label: "Active" },
+  { value: "paused", label: "Paused" },
+]
 
 type SaveSnapshot = {
   requestID: number
@@ -107,6 +114,7 @@ export function DialogAutomations(props: {
   const [model, setModel] = createSignal<Automation["model"]>()
   const [variant, setVariant] = createSignal<string | undefined>()
   const [settingsOpen, setSettingsOpen] = createSignal(false)
+  const [automationStatusFilter, setAutomationStatusFilter] = createSignal<AutomationStatusFilter>("current")
   const [parallelLimitDraft, setParallelLimitDraft] = createSignal(String(DEFAULT_AUTOMATION_PARALLEL_LIMIT))
   let saveRequestID = 0
   let queuedSave = false
@@ -139,6 +147,12 @@ export function DialogAutomations(props: {
 
   const automationParallelLimit = () =>
     finiteNumber(sync.data.config.automation?.parallel) ?? DEFAULT_AUTOMATION_PARALLEL_LIMIT
+  const filteredAutomations = createMemo(() => {
+    const filter = automationStatusFilter()
+    const items = automations.data ?? []
+    if (filter === "current") return items
+    return items.filter((item) => item.status === filter)
+  })
 
   const normalizeParallelLimit = (value: string) => {
     const parsed = Number(value)
@@ -489,17 +503,30 @@ export function DialogAutomations(props: {
             </header>
 
             <section>
-              <h3 class="mb-3 text-17-medium text-text-strong">Current</h3>
+              <FilterDropdown
+                value={automationStatusFilter()}
+                options={AUTOMATION_STATUS_FILTER_OPTIONS}
+                onChange={setAutomationStatusFilter}
+                aria-label="Automation status filter"
+                class="mb-3 flex items-center gap-1 rounded-md text-17-medium text-text-strong transition-colors hover:text-text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-border-strong"
+              >
+                {AUTOMATION_STATUS_FILTER_OPTIONS.find((option) => option.value === automationStatusFilter())?.label ?? "Current"}
+                <Icon name="chevron-down" size="small" class="text-icon-base" />
+              </FilterDropdown>
               <div class="border-t border-border-weaker-base pt-2">
                 <Show
-                  when={(automations.data ?? []).length > 0}
+                  when={filteredAutomations().length > 0}
                   fallback={
                     <div class="py-4 text-14-regular text-text-weak">
-                      {automations.isLoading ? "Loading automations..." : "No automations yet."}
+                      {automations.isLoading
+                        ? "Loading automations..."
+                        : automationStatusFilter() === "current"
+                          ? "No automations yet."
+                          : "No automations found."}
                     </div>
                   }
                 >
-                  <For each={automations.data ?? []}>
+                  <For each={filteredAutomations()}>
                     {(item) => (
                       <div
                         role="button"

@@ -10,13 +10,13 @@ async function signWindows(_configuration: { path: string }) {
 }
 
 const channel = (() => {
-  const raw = process.env.OPENCODE_CHANNEL
+  const raw = process.env.OPENAGENT_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
   return "dev"
 })()
 
 const getBase = (): Configuration => ({
-  artifactName: "opencode-desktop-${os}-${arch}.${ext}",
+  artifactName: "openagent-desktop-${os}-${arch}.${ext}",
   directories: {
     output: "dist",
     buildResources: "resources",
@@ -61,7 +61,7 @@ const getBase = (): Configuration => ({
   },
   protocols: {
     name: "OpenAgent",
-    schemes: ["opencode"],
+    schemes: ["openagent"],
   },
   win: {
     icon: `resources/icons/icon.ico`,
@@ -91,29 +91,29 @@ function getConfig() {
     case "dev": {
       return {
         ...base,
-        appId: "ai.opencode.desktop.dev",
+        appId: "ai.openagent.desktop.dev",
         productName: "OpenAgent Dev",
-        rpm: { packageName: "opencode-dev" },
+        rpm: { packageName: "openagent-dev" },
       }
     }
     case "beta": {
       return {
         ...base,
-        appId: "ai.opencode.desktop.beta",
+        appId: "ai.openagent.desktop.beta",
         productName: "OpenAgent Beta",
-        protocols: { name: "OpenAgent Beta", schemes: ["opencode"] },
+        protocols: { name: "OpenAgent Beta", schemes: ["openagent"] },
         publish: { provider: "github", owner: "rcsn01", repo: "OpenAgent", channel: "latest" },
-        rpm: { packageName: "opencode-beta" },
+        rpm: { packageName: "openagent-beta" },
       }
     }
     case "prod": {
       return {
         ...base,
-        appId: "ai.opencode.desktop",
+        appId: "ai.openagent.desktop",
         productName: "OpenAgent",
-        protocols: { name: "OpenAgent", schemes: ["opencode"] },
+        protocols: { name: "OpenAgent", schemes: ["openagent"] },
         publish: { provider: "github", owner: "rcsn01", repo: "OpenAgent", channel: "latest" },
-        rpm: { packageName: "opencode" },
+        rpm: { packageName: "openagent" },
       }
     }
   }

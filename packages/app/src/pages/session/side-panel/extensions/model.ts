@@ -1,4 +1,4 @@
-import type { ExperimentalExtensionsListResponse, McpStatus } from "@opencode-ai/sdk/v2/client"
+import type { ExperimentalExtensionsListResponse, McpStatus } from "@openagent-ai/sdk/v2/client"
 import type { ExtensionBundle, ExtensionRegistryEntry, ExtensionSetup } from "@/extensions/registry"
 
 export type InstalledExtension = ExperimentalExtensionsListResponse["extensions"][number]

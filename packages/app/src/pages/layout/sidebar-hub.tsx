@@ -1,12 +1,14 @@
-import { base64Encode } from "@opencode-ai/core/util/encode"
-import { getFilename } from "@opencode-ai/core/util/path"
-import { type Session } from "@opencode-ai/sdk/v2/client"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { base64Encode } from "@openagent-ai/core/util/encode"
+import { getFilename } from "@openagent-ai/core/util/path"
+import { type Session } from "@openagent-ai/sdk/v2/client"
+import { useQuery } from "@tanstack/solid-query"
+import { DropdownMenu } from "@openagent-ai/ui/dropdown-menu"
+import { Icon } from "@openagent-ai/ui/icon"
+import { IconButton } from "@openagent-ai/ui/icon-button"
+import { Tooltip } from "@openagent-ai/ui/tooltip"
 import { createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useLanguage } from "@/context/language"
 import { type LocalProject } from "@/context/layout"
@@ -17,7 +19,7 @@ import { sessionTitle } from "@/utils/session-title"
 import { sessionPermissionRequest } from "../session/composer/session-request-tree"
 import { displayName } from "./helpers"
 import { ProjectActionsMenu } from "./project-actions-menu"
-import { sidebarSessionStatus } from "./sidebar-session-status"
+import { sidebarSessionGlow, sidebarSessionStatus, type SidebarGlow } from "./sidebar-session-status"
 
 type InlineEditorComponent = (props: {
   id: string
@@ -56,13 +58,6 @@ const compactRelativeTime = (value: number) => {
 
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
-
-const sessionGlow = {
-  running: "working",
-  done: "done",
-  pending: "needs-input",
-  error: "failed",
-} as const
 
 const SessionMenuItem = (props: {
   icon: Parameters<typeof Icon>[0]["name"]
@@ -104,13 +99,13 @@ const ProjectSessionButton = (props: {
       hasUnseenError: hasError(),
       unseenCount: unseenCount(),
     })
-    return status ? sessionGlow[status] : undefined
+    return status ? sidebarSessionGlow[status] : undefined
   })
 
   return (
     <div
       data-component="sidebar-session-row"
-      data-session-glow={glow()}
+      data-sidebar-glow={glow()}
       class="group/session flex w-full items-center gap-1 rounded-xl py-1.5 pl-10 pr-1.5 text-left transition-colors hover:bg-surface-base-hover focus-within:bg-surface-base-hover"
       classList={{
         "bg-surface-base-active": props.active() && glow() !== "working",
@@ -158,10 +153,14 @@ const SidebarAction = (props: {
   icon: "new-session" | "magnifying-glass" | "providers" | "checklist" | "settings-gear"
   label: string
   onClick: () => void
+  glow?: SidebarGlow
 }) => (
   <button
     type="button"
+    data-component="sidebar-action-row"
+    data-sidebar-glow={props.glow}
     class="flex w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-left transition-colors hover:bg-surface-base-hover active:bg-surface-base-active"
+    classList={{ "hover:bg-transparent": props.glow === "working" }}
     onClick={props.onClick}
   >
     <span class="flex size-5 shrink-0 items-center justify-center text-icon-base">
@@ -400,6 +399,7 @@ export const SidebarHub = (props: {
   InlineEditor: InlineEditorComponent
 }) => {
   const language = useLanguage()
+  const globalSDK = useGlobalSDK()
   const [view, setView] = createStore({
     organize: "project" as ProjectOrganizeMode,
     sort: "updated" as ProjectSortMode,
@@ -435,6 +435,23 @@ export const SidebarHub = (props: {
   )
   const pinnedProjects = createMemo(() => visibleProjects().filter((project) => !!project.pinned))
   const otherProjects = createMemo(() => visibleProjects().filter((project) => !project.pinned))
+  const automationStatusDirectory = createMemo(() => props.currentDir() || props.projects()[0]?.worktree || "")
+  const automationStatus = useQuery(() => ({
+    queryKey: ["automation", "running", automationStatusDirectory()],
+    queryFn: async () => {
+      const directory = automationStatusDirectory()
+      if (!directory) return { running: false, count: 0 }
+      return (
+        (await globalSDK.createClient({ directory, throwOnError: true }).automation.running({ directory })).data ?? {
+          running: false,
+          count: 0,
+        }
+      )
+    },
+    enabled: !!automationStatusDirectory(),
+    refetchInterval: 2_000,
+  }))
+  const automationRunning = createMemo(() => automationStatus.data?.running ?? false)
 
   return (
     <div class="flex flex-1 min-h-0 w-full min-w-0 flex-col bg-background-base px-2 pb-3 pt-2">
@@ -442,7 +459,12 @@ export const SidebarHub = (props: {
         <SidebarAction icon="new-session" label="New session" onClick={props.onNewChat} />
         <SidebarAction icon="magnifying-glass" label="Search" onClick={props.onSearch} />
         <SidebarAction icon="providers" label="Plugins" onClick={props.onPlugins} />
-        <SidebarAction icon="checklist" label="Automations" onClick={props.onAutomations} />
+        <SidebarAction
+          icon="checklist"
+          label="Automations"
+          onClick={props.onAutomations}
+          glow={automationRunning() ? "working" : undefined}
+        />
       </div>
 
       <div class="mt-1 flex-1 min-h-0 overflow-y-auto pr-1 no-scrollbar">

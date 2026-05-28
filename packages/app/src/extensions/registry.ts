@@ -1,4 +1,4 @@
-import type { ExperimentalExtensionsInstallData } from "@opencode-ai/sdk/v2/client"
+import type { ExperimentalExtensionsInstallData } from "@openagent-ai/sdk/v2/client"
 
 export type ExtensionBundle = NonNullable<ExperimentalExtensionsInstallData["body"]>
 

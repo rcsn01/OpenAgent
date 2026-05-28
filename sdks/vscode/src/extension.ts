@@ -56,7 +56,7 @@ export function activate(context: vscode.ExtensionContext) {
       },
       env: {
         _EXTENSION_OPENAGENT_PORT: port.toString(),
-        OPENCODE_CALLER: "vscode",
+        OPENAGENT_CALLER: "vscode",
       },
     })
 

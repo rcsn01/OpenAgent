@@ -62,7 +62,7 @@ Rule-based substitutions applied before dictionary normalization.
 Format:
 ```
 codax => Codex
-open code => OpenCode
+open code => OpenAgent
 sonnet => Sonnet
 ```
 

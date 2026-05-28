@@ -1,10 +1,10 @@
-import type { Session } from "@opencode-ai/sdk/v2/client"
-import { Avatar } from "@opencode-ai/ui/avatar"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Spinner } from "@opencode-ai/ui/spinner"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { getFilename } from "@opencode-ai/core/util/path"
+import type { Session } from "@openagent-ai/sdk/v2/client"
+import { Avatar } from "@openagent-ai/ui/avatar"
+import { Icon } from "@openagent-ai/ui/icon"
+import { IconButton } from "@openagent-ai/ui/icon-button"
+import { Spinner } from "@openagent-ai/ui/spinner"
+import { Tooltip } from "@openagent-ai/ui/tooltip"
+import { getFilename } from "@openagent-ai/core/util/path"
 import { A, useParams } from "@solidjs/router"
 import { type Accessor, createMemo, For, type JSX, Match, Show, Switch } from "solid-js"
 import { useGlobalSync } from "@/context/global-sync"
@@ -18,10 +18,10 @@ import { sessionPermissionRequest } from "../session/composer/session-request-tr
 import { childSessionOnPath, hasProjectPermissions } from "./helpers"
 import { sidebarSessionStatus } from "./sidebar-session-status"
 
-const OPENCODE_PROJECT_ID = "4b0ea68d7af9a6031a7ffda7ad66e0cb83315750"
+const OPENAGENT_PROJECT_ID = "4b0ea68d7af9a6031a7ffda7ad66e0cb83315750"
 
 export function getProjectAvatarSource(id?: string, icon?: { color?: string; url?: string; override?: string }) {
-  if (id === OPENCODE_PROJECT_ID) return "https://opencode.ai/favicon.svg"
+  if (id === OPENAGENT_PROJECT_ID) return "https://openagent.ai/favicon.svg"
   if (icon?.override) return icon?.override
   if (icon?.color) return undefined
   return icon?.url

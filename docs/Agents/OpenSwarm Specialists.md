@@ -1,6 +1,6 @@
 # OpenSwarm Specialists
 
-The OpenSwarm-style specialist team is registered as native subagents in `packages/opencode/src/agent/agent.ts`. Each specialist gets a generated prompt via `specialistPrompt()` with shared OpenSwarm guidance plus role-specific instructions.
+The OpenSwarm-style specialist team is registered as native subagents in `packages/openagent/src/agent/agent.ts`. Each specialist gets a generated prompt via `specialistPrompt()` with shared OpenSwarm guidance plus role-specific instructions.
 
 All specialists explicitly cannot call delegation, background task, or `send_message` tools.
 

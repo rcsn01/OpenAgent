@@ -1,6 +1,6 @@
 import type {
   Config,
-  OpencodeClient,
+  OpenAgentClient,
   Path,
   PermissionRequest,
   Project,
@@ -9,10 +9,10 @@ import type {
   QuestionRequest,
   Session,
   Todo,
-} from "@opencode-ai/sdk/v2/client"
-import { showToast } from "@opencode-ai/ui/toast"
-import { getFilename } from "@opencode-ai/core/util/path"
-import { retry } from "@opencode-ai/core/util/retry"
+} from "@openagent-ai/sdk/v2/client"
+import { showToast } from "@openagent-ai/ui/toast"
+import { getFilename } from "@openagent-ai/core/util/path"
+import { retry } from "@openagent-ai/core/util/retry"
 import { batch } from "solid-js"
 import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type { State, VcsCache } from "./types"
@@ -84,13 +84,13 @@ function showErrors(input: {
   })
 }
 
-export const loadGlobalConfigQuery = (sdk: OpencodeClient) =>
+export const loadGlobalConfigQuery = (sdk: OpenAgentClient) =>
   queryOptions({
     queryKey: ["config"],
     queryFn: () => retry(() => sdk.global.config.get().then((x) => x.data!)),
   })
 
-export const loadProjectsQuery = (sdk: OpencodeClient) =>
+export const loadProjectsQuery = (sdk: OpenAgentClient) =>
   queryOptions({
     queryKey: ["project"],
     queryFn: () =>
@@ -105,7 +105,7 @@ export const loadProjectsQuery = (sdk: OpencodeClient) =>
       ),
   })
 
-export const loadOpenProjectsQuery = (sdk: OpencodeClient) =>
+export const loadOpenProjectsQuery = (sdk: OpenAgentClient) =>
   queryOptions({
     queryKey: ["project", "open"],
     queryFn: () =>
@@ -119,7 +119,7 @@ export const loadOpenProjectsQuery = (sdk: OpencodeClient) =>
   })
 
 export async function bootstrapGlobal(input: {
-  globalSDK: OpencodeClient
+  globalSDK: OpenAgentClient
   requestFailedTitle: string
   translate: (key: string, vars?: Record<string, string | number>) => string
   formatMoreCount: (count: number) => string
@@ -180,7 +180,7 @@ function warmSessions(input: {
   ids: string[]
   store: Store<State>
   setStore: SetStoreFunction<State>
-  sdk: OpencodeClient
+  sdk: OpenAgentClient
 }) {
   const known = new Set(input.store.session.map((item) => item.id))
   const ids = [...new Set(input.ids)].filter((id) => !!id && !known.has(id))
@@ -196,19 +196,19 @@ function warmSessions(input: {
   ).then(() => undefined)
 }
 
-export const loadProvidersQuery = (directory: string | null, sdk: OpencodeClient) =>
+export const loadProvidersQuery = (directory: string | null, sdk: OpenAgentClient) =>
   queryOptions({
     queryKey: [directory, "providers"],
     queryFn: () => retry(() => sdk.provider.list().then((x) => normalizeProviderList(x.data!))),
   })
 
-export const loadAgentsQuery = (directory: string | null, sdk: OpencodeClient) =>
+export const loadAgentsQuery = (directory: string | null, sdk: OpenAgentClient) =>
   queryOptions({
     queryKey: [directory, "agents"],
     queryFn: () => retry(() => sdk.app.agents().then((x) => normalizeAgentList(x.data))),
   })
 
-export const loadPathQuery = (directory: string | null, sdk: OpencodeClient) =>
+export const loadPathQuery = (directory: string | null, sdk: OpenAgentClient) =>
   queryOptions<Path>({
     queryKey: [directory, "path"],
     queryFn: () => retry(() => sdk.path.get().then((x) => x.data!)),
@@ -216,7 +216,7 @@ export const loadPathQuery = (directory: string | null, sdk: OpencodeClient) =>
 
 export async function bootstrapDirectory(input: {
   directory: string
-  sdk: OpencodeClient
+  sdk: OpenAgentClient
   store: Store<State>
   setStore: SetStoreFunction<State>
   vcsCache: VcsCache

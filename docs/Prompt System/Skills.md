@@ -6,10 +6,10 @@ Skills are another instruction layer that provides specialized instructions and 
 
 ## Discovery
 
-Skills are discovered in `packages/opencode/src/skill/index.ts` from multiple sources:
+Skills are discovered in `packages/openagent/src/skill/index.ts` from multiple sources:
 
 1. **Global external skills** (unless disabled):
-   - `~/.claude/skills/**/SKILL.md` (if `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` is off)
+   - `~/.claude/skills/**/SKILL.md` (if `OPENAGENT_DISABLE_CLAUDE_CODE_SKILLS` is off)
    - `~/.agents/skills/**/SKILL.md`
 
 2. **Project external skills** (searched upward from directory to worktree):
@@ -19,7 +19,7 @@ Skills are discovered in `packages/opencode/src/skill/index.ts` from multiple so
 3. **Config directories**:
    - `skill/**/SKILL.md` and `skills/**/SKILL.md` inside each configured directory
 
-4. **Explicit paths** (from `opencode.json`):
+4. **Explicit paths** (from `openagent.json`):
    - `skills.paths` — directories to scan for `**/SKILL.md`
    - `skills.urls` — remote URLs that get pulled and scanned
 
@@ -41,7 +41,7 @@ The model gets a summary of available skills in system context, then decides whe
 
 ## Formatting
 
-The skill summary is formatted in `packages/opencode/src/skill/index.ts`:
+The skill summary is formatted in `packages/openagent/src/skill/index.ts`:
 
 - **Verbose** (in the system prompt): XML-style `<available_skills>` with `<skill>` blocks containing name, description, and file location
 - **Brief** (in tool description): Markdown list with `**name**: description`
@@ -58,5 +58,5 @@ list.filter((skill) =>
 
 ## Related Files
 
-- `packages/opencode/src/skill/index.ts` — discovery, loading, formatting
-- `packages/opencode/src/tool/skill.ts` — runtime skill invocation
+- `packages/openagent/src/skill/index.ts` — discovery, loading, formatting
+- `packages/openagent/src/tool/skill.ts` — runtime skill invocation

@@ -19,10 +19,10 @@ bun install
 bun dev
 
 # Run tests
-bun run --cwd packages/opencode test
+bun run --cwd packages/openagent test
 
 # Type check
-bun run --cwd packages/opencode typecheck
+bun run --cwd packages/openagent typecheck
 
 # App dev server
 bun --cwd packages/app dev

@@ -46,10 +46,10 @@ const defaults = Permission.fromConfig({
 
 ## Evaluation
 
-The `evaluate` function in `packages/opencode/src/permission/evaluate.ts` checks a permission request against all applicable rulesets in priority order. The ruleset order is:
+The `evaluate` function in `packages/openagent/src/permission/evaluate.ts` checks a permission request against all applicable rulesets in priority order. The ruleset order is:
 
 1. Agent-specific merged rules
-2. User-configured rules (`opencode.json` `permission` field)
+2. User-configured rules (`openagent.json` `permission` field)
 3. Session-level approvals (user-clicked "always allow")
 
 ## Permission Events
@@ -77,7 +77,7 @@ OpenAgent ships 14 native agents. Below is every agent, its mode, and which tool
 |-------|------|--------|------------------------|
 | `build` | `primary` | Provider prompt only | Coding agent — all tools allowed; `question`, `plan_enter` allowed; **`task` allowed only for non-OpenAgent/default/custom subagents**; background/swarm orchestration **denied** |
 | `assistant` | `primary` | Provider prompt + `assistant.txt` + OpenSwarm routing guidance | General-purpose non-coding agent — all tools allowed; `question`, `plan_enter` allowed; **`task` allowed**; **background task/graph, `send_message`, and `composio` allowed** |
-| `plan` | `primary` | Provider prompt only (plan reminders injected by `session/prompt.ts`) | `edit: deny` except `.opencode/plans/*.md`; `question`, `plan_exit` allowed; **`task` denied**; background/swarm orchestration **denied** |
+| `plan` | `primary` | Provider prompt only (plan reminders injected by `session/prompt.ts`) | `edit: deny` except `.openagent/plans/*.md`; `question`, `plan_exit` allowed; **`task` denied**; background/swarm orchestration **denied** |
 
 ### Internal System Agents (Hidden)
 
@@ -107,13 +107,13 @@ OpenAgent ships 14 native agents. Below is every agent, its mode, and which tool
 
 ## Tool Access Gates
 
-Three layers of registry gating control which agents receive which tools (`packages/opencode/src/tool/registry.ts`):
+Three layers of registry gating control which agents receive which tools (`packages/openagent/src/tool/registry.ts`):
 
 ### 1. Blocking `task` — available to `build` and `assistant`
 
 Only agents in `taskToolAgents` = `{"assistant", "build"}` receive the `task` tool. This lets them spawn subagent child sessions and wait for results.
 
-Caller-aware spawn filtering in `packages/opencode/src/agent/spawnable.ts` keeps OpenAgent feature specialists assistant-only:
+Caller-aware spawn filtering in `packages/openagent/src/agent/spawnable.ts` keeps OpenAgent feature specialists assistant-only:
 
 - `assistant` can see and spawn OpenAgent specialists such as `slides-agent`, `docs-agent`, and `deep-research`.
 - `build` can see and spawn only non-OpenAgent/default/custom subagents such as `general`, `explore`, or project-defined coding/review agents.
@@ -153,13 +153,13 @@ No other agent receives these tools, regardless of permission config.
 
 ### 4. Communication recipient filtering
 
-`send_message` is additionally gated by configured communication flows (`packages/opencode/src/agent/communication.ts`). The tool only appears if at least one configured recipient exists for that agent+mode combination.
+`send_message` is additionally gated by configured communication flows (`packages/openagent/src/agent/communication.ts`). The tool only appears if at least one configured recipient exists for that agent+mode combination.
 
 Default `send_message` recipients: `general`, `deep-research`, `data-analyst`, `slides-agent`, `docs-agent`, `image-generation-agent`, `video-generation-agent`.
 
 ## Blocked Spawn Names
 
-The runtime refuses to spawn these names as subagents (`packages/opencode/src/agent/spawnable.ts`):
+The runtime refuses to spawn these names as subagents (`packages/openagent/src/agent/spawnable.ts`):
 
 - `build`, `plan`, `assistant`, `chat`, `orchestrator`
 

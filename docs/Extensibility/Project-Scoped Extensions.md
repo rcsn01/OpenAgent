@@ -21,7 +21,7 @@ Install writes project-local state:
 
 - MCP entries go into `config.mcp`
 - extension metadata goes into `config.extensions.installed`
-- managed skills are copied under `.opencode/skills/extensions/<extension-id>/`
+- managed skills are copied under `.openagent/skills/extensions/<extension-id>/`
 
 At runtime, managed extension skills are normal skills. MCP tools are normal MCP tools, namespaced by MCP server key.
 
@@ -34,18 +34,18 @@ At runtime, managed extension skills are normal skills. MCP tools are normal MCP
 | `packages/app/src/pages/session/side-panel/extensions/index.tsx` | Session right-side Extensions panel |
 | `packages/app/src/pages/session/side-panel/extensions/model.ts` | Merges registry, installed state, and live MCP state |
 | `packages/app/src/pages/session/side-panel/extensions/install.ts` | Install follow-up orchestration: install, auth/connect, refresh |
-| `packages/opencode/src/extension/index.ts` | Server-side install/remove/list/live-reload module |
-| `packages/opencode/src/config/extension.ts` | `Config.Info.extensions` schema |
-| `packages/opencode/src/mcp/index.ts` | MCP runtime, local HTTP spawning, OAuth handling, status/tools |
-| `packages/opencode/src/mcp/auth.ts` | Stored MCP OAuth credentials and local signing key metadata |
-| `packages/opencode/src/mcp/oauth-callback.ts` | Local OAuth callback server and pending state tracking |
-| `packages/opencode/test/server/httpapi-experimental.test.ts` | Extension route and install regression tests |
-| `packages/opencode/test/mcp/oauth-browser.test.ts` | Browser/OAuth runtime tests |
-| `packages/opencode/test/mcp/lifecycle.test.ts` | MCP lifecycle and cleanup tests |
+| `packages/openagent/src/extension/index.ts` | Server-side install/remove/list/live-reload module |
+| `packages/openagent/src/config/extension.ts` | `Config.Info.extensions` schema |
+| `packages/openagent/src/mcp/index.ts` | MCP runtime, local HTTP spawning, OAuth handling, status/tools |
+| `packages/openagent/src/mcp/auth.ts` | Stored MCP OAuth credentials and local signing key metadata |
+| `packages/openagent/src/mcp/oauth-callback.ts` | Local OAuth callback server and pending state tracking |
+| `packages/openagent/test/server/httpapi-experimental.test.ts` | Extension route and install regression tests |
+| `packages/openagent/test/mcp/oauth-browser.test.ts` | Browser/OAuth runtime tests |
+| `packages/openagent/test/mcp/lifecycle.test.ts` | MCP lifecycle and cleanup tests |
 
 ## Bundle Shape
 
-The server-side install payload is defined by `ExtensionBundle` in `packages/opencode/src/extension/index.ts`.
+The server-side install payload is defined by `ExtensionBundle` in `packages/openagent/src/extension/index.ts`.
 
 The app registry entry extends that bundle with UI metadata:
 
@@ -94,7 +94,7 @@ Install and reinstall should be idempotent:
 Managed skills are copied into:
 
 ```text
-.opencode/skills/extensions/<extension-id>/...
+.openagent/skills/extensions/<extension-id>/...
 ```
 
 Skill frontmatter names should be globally unique. For official bundles, use:
@@ -348,8 +348,8 @@ MCP runtime tests:
 After implementation:
 
 1. Install the extension into a project
-2. Confirm project `opencode.json` has the managed MCP entry
-3. Confirm managed skills exist under `.opencode/skills/extensions/<extension-id>/`
+2. Confirm project `openagent.json` has the managed MCP entry
+3. Confirm managed skills exist under `.openagent/skills/extensions/<extension-id>/`
 4. Confirm install opens the native browser if OAuth-capable
 5. Complete OAuth
 6. Confirm Extensions panel shows the server as `connected`
@@ -375,7 +375,7 @@ bun typecheck
 ```
 
 ```sh
-cd packages/opencode
+cd packages/openagent
 bun test test/server/httpapi-experimental.test.ts test/mcp/oauth-browser.test.ts test/mcp/lifecycle.test.ts
 bun typecheck
 ```

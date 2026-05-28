@@ -98,9 +98,9 @@ export const dict = {
   "dialog.provider.group.popular": "Populære",
   "dialog.provider.group.other": "Andre",
   "dialog.provider.tag.recommended": "Anbefalet",
-  "dialog.provider.opencode.note": "Udvalgte modeller inklusive Claude, GPT, Gemini og flere",
-  "dialog.provider.opencode.tagline": "Pålidelige optimerede modeller",
-  "dialog.provider.opencodeGo.tagline": "Billigt abonnement for alle",
+  "dialog.provider.openagent.note": "Udvalgte modeller inklusive Claude, GPT, Gemini og flere",
+  "dialog.provider.openagent.tagline": "Pålidelige optimerede modeller",
+  "dialog.provider.openagentGo.tagline": "Billigt abonnement for alle",
   "dialog.provider.anthropic.note": "Direkte adgang til Claude-modeller, inklusive Pro og Max",
   "dialog.provider.copilot.note": "AI-modeller til kodningsassistance via GitHub Copilot",
   "dialog.provider.openai.note": "GPT-modeller til hurtige, kompetente generelle AI-opgaver",
@@ -132,13 +132,13 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API-nøgle",
   "provider.connect.apiKey.placeholder": "API-nøgle",
   "provider.connect.apiKey.required": "API-nøgle er påkrævet",
-  "provider.connect.opencodeZen.line1":
+  "provider.connect.openagentZen.line1":
     "OpenAgent Zen giver dig adgang til et udvalg af pålidelige optimerede modeller til kodningsagenter.",
-  "provider.connect.opencodeZen.line2":
+  "provider.connect.openagentZen.line2":
     "Med en enkelt API-nøgle får du adgang til modeller som Claude, GPT, Gemini, GLM og flere.",
-  "provider.connect.opencodeZen.visit.prefix": "Besøg ",
-  "provider.connect.opencodeZen.visit.link": "OpenAgent Zen",
-  "provider.connect.opencodeZen.visit.suffix": " for at hente din API-nøgle.",
+  "provider.connect.openagentZen.visit.prefix": "Besøg ",
+  "provider.connect.openagentZen.visit.link": "OpenAgent Zen",
+  "provider.connect.openagentZen.visit.suffix": " for at hente din API-nøgle.",
   "provider.connect.oauth.code.visit.prefix": "Besøg ",
   "provider.connect.oauth.code.visit.link": "dette link",
   "provider.connect.oauth.code.visit.suffix":
@@ -293,7 +293,7 @@ export const dict = {
   "dialog.mcp.empty": "Ingen MCP'er konfigureret",
 
   "dialog.lsp.empty": "LSP'er registreret automatisk fra filtyper",
-  "dialog.plugins.empty": "Plugins konfigureret i opencode.json",
+  "dialog.plugins.empty": "Plugins konfigureret i openagent.json",
 
   "mcp.status.connected": "forbundet",
   "mcp.status.failed": "mislykkedes",
@@ -470,7 +470,7 @@ export const dict = {
   "error.chain.responseBody": "Svarindhold:\n{{body}}",
   "error.chain.didYouMean": "Mente du: {{suggestions}}",
   "error.chain.modelNotFound": "Model ikke fundet: {{provider}}/{{model}}",
-  "error.chain.checkConfig": "Tjek dine konfigurations (opencode.json) udbyder/modelnavne",
+  "error.chain.checkConfig": "Tjek dine konfigurations (openagent.json) udbyder/modelnavne",
   "error.chain.mcpFailed": 'MCP-server "{{name}}" fejlede. Bemærk, OpenAgent understøtter ikke MCP-godkendelse endnu.',
   "error.chain.providerAuthFailed": "Udbydergodkendelse mislykkedes ({{provider}}): {{message}}",
   "error.chain.providerInitFailed":

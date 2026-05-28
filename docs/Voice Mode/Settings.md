@@ -96,7 +96,7 @@ TypeScript
 Example:
 ```
 codax => Codex
-open code => OpenCode
+open code => OpenAgent
 sonnet => Sonnet
 ```
 

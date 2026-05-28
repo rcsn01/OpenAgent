@@ -1,4 +1,4 @@
-import type { Session } from "@opencode-ai/sdk/v2/client"
+import type { Session } from "@openagent-ai/sdk/v2/client"
 import type { RootLoadArgs } from "./types"
 import { cmp, isAutomationSession } from "./utils"
 

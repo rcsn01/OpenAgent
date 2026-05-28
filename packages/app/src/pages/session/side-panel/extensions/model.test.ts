@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { ExperimentalExtensionsListResponse, McpStatus } from "@opencode-ai/sdk/v2/client"
+import type { ExperimentalExtensionsListResponse, McpStatus } from "@openagent-ai/sdk/v2/client"
 import { buildExtensionsPanelModel } from "./model"
 import type { ExtensionRegistryEntry } from "@/extensions/registry"
 
@@ -27,7 +27,7 @@ const installedEntry = (
     installed: true,
     active: input.active ?? false,
     installed_at: input.installed_at ?? 1,
-    config_path: input.config_path ?? "/repo/.opencode/opencode.json",
+    config_path: input.config_path ?? "/repo/.openagent/openagent.json",
     skill_roots: input.skill_roots ?? [],
     servers: input.servers ?? [],
     skills: input.skills ?? [],

@@ -1427,6 +1427,11 @@ export type Automation = {
   }
 }
 
+export type AutomationRunning = {
+  running: boolean
+  count: number | "NaN" | "Infinity" | "-Infinity" | "Infinity" | "-Infinity" | "NaN"
+}
+
 export type AutomationRun = {
   id: string
   automationID: string
@@ -4297,6 +4302,25 @@ export type AutomationCreateResponses = {
 }
 
 export type AutomationCreateResponse = AutomationCreateResponses[keyof AutomationCreateResponses]
+
+export type AutomationRunningData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/automation/running"
+}
+
+export type AutomationRunningResponses = {
+  /**
+   * Automation running status
+   */
+  200: AutomationRunning
+}
+
+export type AutomationRunningResponse = AutomationRunningResponses[keyof AutomationRunningResponses]
 
 export type AutomationDeleteData = {
   body?: never
