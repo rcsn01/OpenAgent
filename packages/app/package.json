@@ -12,7 +12,7 @@
   "scripts": {
     "typecheck": "tsgo -b",
     "start": "vite",
-    "dev": "vite",
+    "dev": "bun scripts/dev.ts",
     "build": "vite build",
     "serve": "vite preview",
     "test": "bun run test:unit",
@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@kobalte/core": "catalog:",
+    "@openagent/server": "workspace:*",
     "@sentry/solid": "catalog:",
     "@opencode-ai/ui": "workspace:*",
     "@shikijs/transformers": "3.9.2",

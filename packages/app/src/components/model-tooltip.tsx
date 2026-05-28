@@ -18,8 +18,10 @@ type ModelInfo = {
     input: Array<string>
   }
   reasoning?: boolean
-  limit: {
-    context: number
+  context?: number
+  contextWindow?: number
+  limit?: {
+    context?: number
   }
 }
 
@@ -59,7 +61,7 @@ export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?
       return entries.length ? entries.join(", ") : undefined
     }
     const raw = props.model.modalities?.input
-    if (!raw) return
+    if (!raw) return undefined
     const entries = raw.map((value) => inputLabel(value))
     return entries.length ? entries.join(", ") : undefined
   }
@@ -72,7 +74,12 @@ export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?
       ? language.t("model.tooltip.reasoning.allowed")
       : language.t("model.tooltip.reasoning.none")
   }
-  const context = () => language.t("model.tooltip.context", { limit: props.model.limit.context.toLocaleString() })
+  const contextLimit = () => props.model.limit?.context ?? props.model.contextWindow ?? props.model.context
+  const context = () => {
+    const limit = contextLimit()
+    if (typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) return undefined
+    return language.t("model.tooltip.context", { limit: limit.toLocaleString() })
+  }
 
   return (
     <div class="flex flex-col gap-1 py-1">
@@ -85,7 +92,7 @@ export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?
         )}
       </Show>
       <div class="text-12-regular text-text-invert-base">{reasoning()}</div>
-      <div class="text-12-regular text-text-invert-base">{context()}</div>
+      <Show when={context()}>{(value) => <div class="text-12-regular text-text-invert-base">{value()}</div>}</Show>
     </div>
   )
 }

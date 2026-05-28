@@ -19,6 +19,12 @@ import { isAutomationSession } from "./utils"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+
+function messageCmp(a: Message, b: Message) {
+  return (a.time?.created ?? 0) - (b.time?.created ?? 0) || cmp(a.id, b.id)
+}
+
 export function applyGlobalEvent(input: {
   event: { type: string; properties?: unknown }
   project: Project[]
@@ -203,16 +209,17 @@ export function applyDirectoryEvent(input: {
         input.setStore("message", info.sessionID, [info])
         break
       }
-      const result = Binary.search(messages, info.id, (m) => m.id)
-      if (result.found) {
-        input.setStore("message", info.sessionID, result.index, reconcile(info))
+      const result = messages.findIndex((m) => m.id === info.id)
+      if (result !== -1) {
+        input.setStore("message", info.sessionID, result, reconcile(info))
         break
       }
       input.setStore(
         "message",
         info.sessionID,
         produce((draft) => {
-          draft.splice(result.index, 0, info)
+          draft.push(info)
+          draft.sort(messageCmp)
         }),
       )
       break
@@ -223,8 +230,8 @@ export function applyDirectoryEvent(input: {
         produce((draft) => {
           const messages = draft.message[props.sessionID]
           if (messages) {
-            const result = Binary.search(messages, props.messageID, (m) => m.id)
-            if (result.found) messages.splice(result.index, 1)
+            const result = messages.findIndex((m) => m.id === props.messageID)
+            if (result !== -1) messages.splice(result, 1)
           }
           const parts = draft.part[props.messageID]
           if (parts) {

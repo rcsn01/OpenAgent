@@ -1,4 +1,4 @@
-import type { Message, Session } from "@opencode-ai/ui/contracts"
+import type { Message, Part, Session } from "@opencode-ai/ui/contracts"
 import { showToast } from "@opencode-ai/ui/toast"
 import { base64Encode } from "@opencode-ai/ui/utils/encode"
 import { Binary } from "@opencode-ai/ui/utils/binary"
@@ -52,10 +52,53 @@ const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? 
 
 const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttachmentPart => part.type === "image")
 
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+
+function messageCmp(a: Message, b: Message) {
+  return (a.time?.created ?? 0) - (b.time?.created ?? 0) || cmp(a.id, b.id)
+}
+
+function partCmp(a: Part, b: Part) {
+  return cmp(a.id, b.id)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function isMessage(value: unknown): value is Message {
+  return isRecord(value) && typeof value.id === "string" && typeof value.sessionID === "string"
+}
+
+function isPart(value: unknown): value is Part {
+  return isRecord(value) && typeof value.id === "string" && typeof value.messageID === "string"
+}
+
+function upsertSorted<T extends { id: string }>(items: T[] | undefined, item: T, compare: (a: T, b: T) => number) {
+  if (!items) return [item]
+  const next = [...items]
+  const index = next.findIndex((existing) => existing.id === item.id)
+  if (index === -1) next.push(item)
+  else next[index] = item
+  return next.sort(compare)
+}
+
 export async function sendFollowupDraft(input: FollowupSendInput) {
   const text = draftText(input.draft.prompt)
   const images = draftImages(input.draft.prompt)
   const [, setStore] = input.globalSync.child(input.draft.sessionDirectory)
+
+  const applyPromptResult = (data: unknown) => {
+    if (!isRecord(data)) return
+    const messages = Array.isArray(data.messages) ? data.messages.filter(isMessage) : []
+    const parts = Array.isArray(data.parts) ? data.parts.filter(isPart) : []
+    for (const message of messages) {
+      setStore("message", message.sessionID, (items: Message[] | undefined) => upsertSorted(items, message, messageCmp))
+    }
+    for (const part of parts) {
+      setStore("part", part.messageID, (items: Part[] | undefined) => upsertSorted(items, part, partCmp))
+    }
+  }
 
   const setBusy = () => {
     if (!input.optimisticBusy) return
@@ -68,6 +111,13 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   }
 
   const afterSuccess = () => Promise.resolve(input.afterSuccess?.()).catch(() => undefined)
+  const settleSuccess = (data?: unknown) => {
+    applyPromptResult(data)
+    setIdle()
+    const syncPromise = input.sync.session.sync?.(input.draft.sessionID, { force: true })
+    void syncPromise?.catch(() => undefined)
+    void afterSuccess()
+  }
 
   const wait = async () => {
     const ok = await input.before?.()
@@ -85,7 +135,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
         return false
       }
 
-      await input.client.session.command({
+      const response = await input.client.session.command({
         sessionID: input.draft.sessionID,
         command: cmd,
         arguments: tail.join(" "),
@@ -100,7 +150,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
           filename: attachment.filename,
         })),
       })
-      void afterSuccess()
+      settleSuccess(response.data)
       return true
     } catch (err) {
       setIdle()
@@ -157,7 +207,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       return false
     }
 
-    await input.client.session.promptAsync({
+    const response = await input.client.session.promptAsync({
       sessionID: input.draft.sessionID,
       agent: input.draft.agent,
       model: input.draft.model,
@@ -165,7 +215,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       parts: requestParts,
       variant: input.draft.variant,
     })
-    void afterSuccess()
+    settleSuccess(response.data)
     return true
   } catch (err) {
     batch(() => {

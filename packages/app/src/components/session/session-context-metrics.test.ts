@@ -79,6 +79,26 @@ describe("getSessionContextMetrics", () => {
     expect(metrics.context?.usage).toBeNull()
   })
 
+  test("uses contextWindow fallback when model limit metadata is missing", () => {
+    const messages = [assistant("a1", { input: 300, output: 100, reasoning: 0, read: 0, write: 0 }, 0.1, "p-1", "m-1")]
+    const providers = [
+      {
+        id: "p-1",
+        models: {
+          "m-1": {
+            name: "Model 1",
+            contextWindow: 1000,
+          },
+        },
+      },
+    ]
+
+    const metrics = getSessionContextMetrics(messages, providers)
+
+    expect(metrics.context?.limit).toBe(1000)
+    expect(metrics.context?.usage).toBe(40)
+  })
+
   test("recomputes when message array is mutated in place", () => {
     const messages = [assistant("a1", { input: 10, output: 10, reasoning: 10, read: 10, write: 10 }, 0.25)]
     const providers = [{ id: "openai", models: {} }]

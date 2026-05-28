@@ -1,5 +1,7 @@
 interface ImportMetaEnv {
   readonly VITE_OPENCODE_AUTH_TOKEN?: string
+  readonly VITE_OPENAGENT_AUTH_TOKEN?: string
+  readonly VITE_OPENAGENT_RUNTIME_URL?: string
   readonly VITE_OPENCODE_CHANNEL?: "dev" | "beta" | "prod"
 
   readonly VITE_SENTRY_DSN?: string

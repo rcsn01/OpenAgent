@@ -39,6 +39,7 @@ const pickerFilters = (ext?: string[]) => {
 }
 
 type Deps = {
+  getRuntimeServer: () => Promise<{ url: string; token: string; authToken: string }>
   getWindowConfig: () => Promise<WindowConfig> | WindowConfig
   consumeInitialDeepLinks: () => Promise<string[]> | string[]
   getDefaultServerUrl: () => Promise<string | null> | string | null
@@ -58,6 +59,7 @@ type Deps = {
 }
 
 export function registerIpcHandlers(deps: Deps) {
+  ipcMain.handle("get-runtime-server", () => deps.getRuntimeServer())
   ipcMain.handle("get-window-config", () => deps.getWindowConfig())
   ipcMain.handle("consume-initial-deep-links", () => deps.consumeInitialDeepLinks())
   ipcMain.handle("get-default-server-url", () => deps.getDefaultServerUrl())

@@ -103,10 +103,14 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 }
 
 const getCurrentUrl = () => {
+  if (import.meta.env.VITE_OPENAGENT_RUNTIME_URL) return import.meta.env.VITE_OPENAGENT_RUNTIME_URL
   return FRONTEND_RUNTIME_URL
 }
 
+const hasRuntimeOverride = () => !!import.meta.env.VITE_OPENAGENT_RUNTIME_URL
+
 const getDefaultUrl = () => {
+  if (hasRuntimeOverride()) return getCurrentUrl()
   const lsDefault = normalizeDevServerUrl(readDefaultServerUrl())
   if (lsDefault !== readDefaultServerUrl()) writeDefaultServerUrl(lsDefault)
   if (lsDefault) return lsDefault
@@ -156,7 +160,11 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 }
 
 if (root instanceof HTMLElement) {
-  const auth = authFromToken(new URLSearchParams(location.search).get("auth_token") ?? import.meta.env.VITE_OPENCODE_AUTH_TOKEN)
+  const auth = authFromToken(
+    new URLSearchParams(location.search).get("auth_token") ??
+      import.meta.env.VITE_OPENAGENT_AUTH_TOKEN ??
+      import.meta.env.VITE_OPENCODE_AUTH_TOKEN,
+  )
   clearAuthToken()
   const server: ServerConnection.Http = {
     type: "http",
