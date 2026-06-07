@@ -20,12 +20,12 @@ import { useAppRoute } from "@/context/app-route"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
 import { Persist, persisted } from "@/utils/persist"
-import { base64Encode } from "@opencode-ai/core/util/encode"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
-import { Button } from "@opencode-ai/ui/button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { base64Encode } from "@openagent/core/util/encode"
+import { ResizeHandle } from "@openagent/ui/resize-handle"
+import { Button } from "@openagent/ui/button"
+import { Tooltip } from "@openagent/ui/tooltip"
+import { Dialog } from "@openagent/ui/dialog"
+import { getFilename } from "@openagent/core/util/path"
 import { Session, type Message } from "@opencode-ai/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
@@ -33,7 +33,7 @@ import { createStore, produce, reconcile } from "solid-js/store"
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { useProviders } from "@/hooks/use-providers"
-import { showToast, Toast, toaster } from "@opencode-ai/ui/toast"
+import { showToast, Toast, toaster } from "@openagent/ui/toast"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { clearWorkspaceTerminals, getTerminalServerScope } from "@/context/terminal"
 import { dropSessionCaches, pickSessionCacheEvictions } from "@/context/global-sync/session-cache"
@@ -48,19 +48,18 @@ import {
 } from "@/context/global-sync/session-prefetch"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
-import { Binary } from "@opencode-ai/core/util/binary"
-import { retry } from "@opencode-ai/core/util/retry"
+import { Binary } from "@openagent/core/util/binary"
+import { retry } from "@openagent/core/util/retry"
 import { playSoundById } from "@/utils/sound"
 import { setNavigate } from "@/utils/notification-click"
 import { Worktree as WorktreeState } from "@/utils/worktree"
 
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
+import { useDialog } from "@openagent/ui/context/dialog"
+import { useTheme, type ColorScheme } from "@openagent/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
 import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
 import { PanelHeader, TitlebarLeadingControls, TitlebarThemeSync } from "@/components/titlebar"
-import { DialogAutomations } from "@/components/dialog-automations"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
 import { pathKey } from "@/utils/path-key"
@@ -147,12 +146,6 @@ export default function Layout(props: ParentProps) {
   })
   const currentDir = createMemo(() => appRoute.directory())
   const currentSessionID = createMemo(() => appRoute.sessionID())
-  const currentConsoleState = createMemo(() => {
-    const directory = currentDir()
-    if (!directory) return
-    return globalSync.child(directory, { bootstrap: false })[0].console_state
-  })
-
   const [state, setState] = createStore({
     autoselect: appRoute.kind() === "none",
     busyWorkspaces: {} as Record<string, boolean>,
@@ -1131,22 +1124,6 @@ export default function Layout(props: ParentProps) {
         onSelect: () => openStatus(),
       },
       {
-        id: "plugin.manager",
-        title: "Plugins",
-        category: language.t("command.category.settings"),
-        slash: { name: "plugins" },
-        disabled: !currentDir(),
-        onSelect: () => openPluginsManager(),
-      },
-      {
-        id: "plugin.install",
-        title: "Install plugin",
-        category: language.t("command.category.settings"),
-        slash: { name: "install-plugin" },
-        disabled: !currentDir(),
-        onSelect: () => openInstallPlugin(),
-      },
-      {
         id: "theme.list",
         title: "Themes",
         category: language.t("command.category.theme"),
@@ -1172,16 +1149,6 @@ export default function Layout(props: ParentProps) {
           theme.previewTheme(id)
           return () => theme.cancelPreview()
         },
-      })
-    }
-
-    if ((currentConsoleState()?.switchableOrgCount ?? 0) > 1) {
-      commands.push({
-        id: "org.switch",
-        title: "Switch org",
-        category: language.t("command.category.provider"),
-        slash: { name: "org", aliases: ["orgs", "switch-org"] },
-        onSelect: () => openConsoleOrg(),
       })
     }
 
@@ -1300,47 +1267,6 @@ export default function Layout(props: ParentProps) {
     void import("@/components/dialog-help").then((x) => {
       if (dialogDead || dialogRun !== run) return
       dialog.show(() => <x.DialogHelp />)
-    })
-  }
-
-  function openConsoleOrg() {
-    if (!currentDir()) return
-    const run = ++dialogRun
-    void import("@/components/dialog-console-org").then((x) => {
-      if (dialogDead || dialogRun !== run) return
-      dialog.show(() => <x.DialogConsoleOrg />)
-    })
-  }
-
-  function openPluginsManager() {
-    const directory = sidebarDialogDirectory()
-    if (!directory) {
-      showToast({
-        title: "Open a project first",
-        description: "Plugins are managed per workspace.",
-      })
-      return
-    }
-    const run = ++dialogRun
-    void import("@/components/dialog-plugins").then((x) => {
-      if (dialogDead || dialogRun !== run) return
-      dialog.show(() => <x.DialogPlugins directory={directory} />)
-    })
-  }
-
-  function openInstallPlugin() {
-    const directory = sidebarDialogDirectory()
-    if (!directory) {
-      showToast({
-        title: "Open a project first",
-        description: "Plugins are managed per workspace.",
-      })
-      return
-    }
-    const run = ++dialogRun
-    void import("@/components/dialog-install-plugin").then((x) => {
-      if (dialogDead || dialogRun !== run) return
-      dialog.show(() => <x.DialogInstallPlugin directory={directory} />)
     })
   }
 
@@ -2094,16 +2020,6 @@ export default function Layout(props: ParentProps) {
     navigateWithSidebarReset(`/${base64Encode(directory)}/session`)
   }
 
-  function openAutomations() {
-    clearSidebarHoverState()
-    const directory = currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
-    if (!directory) {
-      void chooseProject()
-      return
-    }
-    navigate(`/${base64Encode(directory)}/automations`)
-  }
-
   const sidebarProject = createMemo(() => {
     if (layout.sidebar.opened()) return currentProject()
     return currentProject()
@@ -2477,8 +2393,6 @@ export default function Layout(props: ParentProps) {
           onLoadMoreProjectSessions={loadMoreProjectSessions}
           onNewChat={openSidebarNewChat}
           onSearch={openSessionList}
-          onPlugins={openPluginsManager}
-          onAutomations={openAutomations}
           onSettings={openSettings}
           onStartProject={() => void chooseProject()}
           onOpenProjectChooser={() => void chooseProject()}
@@ -2609,28 +2523,7 @@ export default function Layout(props: ParentProps) {
               >
                 <div class="flex-1 min-h-0 min-w-0 w-full">
                   <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
-                    <Show
-                      when={appRoute.page() === "automations" || appRoute.page() === "automation-editor"}
-                      fallback={props.children}
-                    >
-                      <DialogAutomations
-                        projects={layout.projects.list()}
-                        currentDir={currentDir()}
-                        automationID={appRoute.automationID()}
-                        embedded
-                        onOpenAutomations={(input) => {
-                          const directory = currentDir() || layout.projects.list()[0]?.worktree
-                          if (!directory) return
-                          navigate(`/${base64Encode(directory)}/automations`, { replace: input?.replace })
-                        }}
-                        onOpenAutomation={(automation) =>
-                          navigate(`/${base64Encode(automation.directory)}/automations/${automation.id}`)
-                        }
-                        onOpenSession={(session) =>
-                          navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
-                        }
-                      />
-                    </Show>
+                    {props.children}
                   </Show>
                 </div>
               </main>

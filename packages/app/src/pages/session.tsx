@@ -1,5 +1,5 @@
 import type { Project, UserMessage } from "@opencode-ai/sdk/v2"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { useDialog } from "@openagent/ui/context/dialog"
 import { createQuery, skipToken, useMutation, useQueryClient } from "@tanstack/solid-query"
 import {
   batch,
@@ -19,13 +19,13 @@ import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { useLocal } from "@/context/local"
 import { selectionFromLines, useFile, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { createStore } from "solid-js/store"
-import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
-import { Select } from "@opencode-ai/ui/select"
-import { createAutoScroll } from "@opencode-ai/ui/hooks"
-import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
-import { Button } from "@opencode-ai/ui/button"
-import { showToast } from "@opencode-ai/ui/toast"
-import { checksum } from "@opencode-ai/core/util/encode"
+import { ResizeHandle } from "@openagent/ui/resize-handle"
+import { Select } from "@openagent/ui/select"
+import { createAutoScroll } from "@openagent/ui/hooks"
+import { previewSelectedLines } from "@openagent/ui/pierre/selection-bridge"
+import { Button } from "@openagent/ui/button"
+import { showToast } from "@openagent/ui/toast"
+import { checksum } from "@openagent/core/util/encode"
 import { useNavigate, useSearchParams } from "@solidjs/router"
 import { NewSessionView, SessionHeader } from "@/components/session"
 import { useComments } from "@/context/comments"
@@ -160,8 +160,6 @@ export default function Page() {
 
   const sessionPanel = useSessionPanelLayout({
     reviewPanelOpened: () => view().reviewPanel.opened(),
-    subagentsOpened: () => view().subagents.opened(),
-    extensionsOpened: () => view().extensions.opened(),
     contextOpened: () => view().context.opened(),
     platform: () => platform.platform,
     channel: () => import.meta.env.VITE_OPENCODE_CHANNEL,

@@ -1,8 +1,8 @@
-import { Button } from "@opencode-ai/ui/button"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { Switch } from "@opencode-ai/ui/switch"
-import { TextField } from "@opencode-ai/ui/text-field"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Button } from "@openagent/ui/button"
+import { Dialog } from "@openagent/ui/dialog"
+import { Switch } from "@openagent/ui/switch"
+import { TextField } from "@openagent/ui/text-field"
+import { useDialog } from "@openagent/ui/context/dialog"
 import { createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 

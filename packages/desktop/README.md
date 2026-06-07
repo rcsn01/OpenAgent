@@ -1,19 +1,25 @@
-# OpenAgent Desktop
+# @openagent/desktop
 
-The OpenAgent Desktop app, built with Electron.
+Electron desktop shell for the OpenAgent GUI.
+
+The desktop app does not bundle an opencode runtime. Startup resolves a server in this order:
+
+1. `OPENAGENT_SERVER_URL`
+2. stored default server URL
+3. `OPENCODE_BIN_PATH` or `opencode` on `PATH` via `opencode server start --json`
+4. server selection/error UI
+
+`OPENCODE_DESKTOP_SERVER_URL` remains as a deprecated alias for one transition release.
 
 ## Development
 
 ```bash
-bun install
-bun dev
+OPENAGENT_SERVER_URL=http://127.0.0.1:4096 bun run dev
 ```
 
 ## Build
 
-Run the `build` script to build the app's JS assets, then `package` to
-bundle the assets as an application. The resulting app will be in `dist/`.
-
 ```bash
-bun run build && bun run package
+bun run build
+bun run package
 ```

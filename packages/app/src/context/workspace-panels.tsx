@@ -3,7 +3,7 @@ import { createContext, useContext, type Accessor, type JSX } from "solid-js"
 export const MIN_WORKSPACE_RIGHT_PANEL_WIDTH = 360
 export const WORKSPACE_PANEL_DIVIDER_WIDTH = 1
 
-export type WorkspaceRightPanelKind = "review" | "subagents" | "extensions" | "context"
+export type WorkspaceRightPanelKind = "review" | "context"
 
 export type WorkspaceRightPanel = {
   kind: WorkspaceRightPanelKind

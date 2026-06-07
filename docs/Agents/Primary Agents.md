@@ -8,14 +8,14 @@ OpenAgent currently ships 3 native user-facing primary agents:
 
 There is no native `chat` primary agent. GUI general-chat workspaces now default to `assistant`.
 
-These agents are registered in `packages/opencode/src/agent/agent.ts`.
+These agents are registered in `external opencode runtime/src/agent/agent.ts`.
 
 ## Quick Comparison
 
 | Agent | Main purpose | Prompt behavior | Tool/capability difference | Default behavior |
 |------|--------------|-----------------|----------------------------|------------------|
 | `build` | Coding agent — code generation, editing, refactoring, debugging | Uses the provider prompt directly | Full normal toolset; can ask questions; can enter plan mode; **blocking `task` allowed**; background/swarm tools denied | Default outside hidden chat workspaces |
-| `assistant` | General-purpose non-coding agent — research, delegation, specialist routing, background work, all new capabilities | Uses the provider prompt plus `assistant.txt` and native OpenSwarm routing guidance | **Blocking `task` allowed** plus assistant-only background tasks, task graphs, `send_message`, and `composio` | Default inside hidden general-chat workspaces; selectable elsewhere |
+| `assistant` | General-purpose non-coding agent — research, delegation, specialist routing, background work, all new capabilities | Uses the provider prompt plus `assistant.txt` and native external orchestration routing guidance | **Blocking `task` allowed** plus assistant-only background tasks, task graphs, `send_message`, and `composio` | Default inside hidden general-chat workspaces; selectable elsewhere |
 | `plan` | Planning and analysis mode | Uses the provider prompt, plus plan reminders injected by `session/prompt.ts` | Edits denied except `.opencode/plans/*.md`; `plan_exit` allowed; **`task` denied**; all swarm tools denied | Selectable primary agent |
 
 ## Build
@@ -40,10 +40,10 @@ Important traits:
 
 - Has `assistant_tools: true`
 - Has `extend_provider_prompt: true`
-- Adds `packages/opencode/src/agent/prompt/assistant.txt`
-- Adds native OpenSwarm routing guidance
+- Adds `external opencode runtime/src/agent/prompt/assistant.txt`
+- Adds native external orchestration routing guidance
 - Unlocks `task`, `background_task`, `background_task_graph`, their management tools, `send_message`, and `composio`
-- Can use `send_message` with existing `general` and OpenSwarm specialist child sessions by default
+- Can use `send_message` with existing `general` and external orchestration specialist child sessions by default
 - Must create the needed child session with `task` before `send_message` if none exists
 - Can spawn registered specialist subagents by exact name:
   - `deep-research`, `data-analyst`, `slides-agent`, `docs-agent`, `image-generation-agent`, `video-generation-agent`
@@ -64,7 +64,7 @@ Important traits:
 - Plan markdown files are the main edit exception
 - `question` is allowed
 - `plan_exit` is allowed
-- Delegation and OpenSwarm meta tools are denied
+- Delegation and external orchestration meta tools are denied
 - `session/prompt.ts` injects planning workflow reminders when this agent is active
 
 When `plan_exit` succeeds, the flow can switch the session back to `build` and inject a synthetic "execute the plan" message.
@@ -102,16 +102,16 @@ There are 3 layers of difference between these agents:
 
 | File | Why it matters |
 |------|----------------|
-| `packages/opencode/src/agent/agent.ts` | Registers native primary agents, specialist subagents, prompts, options, permissions, and default selection behavior |
-| `packages/opencode/src/agent/spawnable.ts` | Blocks primary/removed coordinator names from subagent spawning |
-| `packages/opencode/src/tool/registry.ts` | Gates build/assistant `task`, assistant-only orchestration, and specialist-owned tools |
-| `packages/opencode/src/session/llm.ts` | Decides whether to use provider prompt only or provider prompt plus agent prompt |
-| `packages/opencode/src/session/prompt.ts` | Injects plan reminders and build-switch reminders |
-| `packages/opencode/src/tool/plan.ts` | Implements `plan_exit` and the switch back to `build` |
+| `external opencode runtime/src/agent/agent.ts` | Registers native primary agents, specialist subagents, prompts, options, permissions, and default selection behavior |
+| `external opencode runtime/src/agent/spawnable.ts` | Blocks primary/removed coordinator names from subagent spawning |
+| `external opencode runtime/src/tool/registry.ts` | Gates build/assistant `task`, assistant-only orchestration, and specialist-owned tools |
+| `external opencode runtime/src/session/llm.ts` | Decides whether to use provider prompt only or provider prompt plus agent prompt |
+| `external opencode runtime/src/session/prompt.ts` | Injects plan reminders and build-switch reminders |
+| `external opencode runtime/src/tool/plan.ts` | Implements `plan_exit` and the switch back to `build` |
 
 ## Related Notes
 
-- [[Architecture/OpenSwarm Integration]] — specialist routing, `send_message`, OAuth, and artifact tools
+- [[Architecture/external orchestration Integration]] — specialist routing, `send_message`, OAuth, and artifact tools
 - [[Prompt System/Agent Prompts]] — how prompts are attached to agents
 - [[Agents/Permission System]] — how hard tool constraints are enforced
 - [[Prompt System/Prompt Assembly Flow]] — where these prompts/reminders are joined in runtime

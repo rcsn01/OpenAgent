@@ -34,18 +34,18 @@ At runtime, managed extension skills are normal skills. MCP tools are normal MCP
 | `packages/app/src/pages/session/side-panel/extensions/index.tsx` | Session right-side Extensions panel |
 | `packages/app/src/pages/session/side-panel/extensions/model.ts` | Merges registry, installed state, and live MCP state |
 | `packages/app/src/pages/session/side-panel/extensions/install.ts` | Install follow-up orchestration: install, auth/connect, refresh |
-| `packages/opencode/src/extension/index.ts` | Server-side install/remove/list/live-reload module |
-| `packages/opencode/src/config/extension.ts` | `Config.Info.extensions` schema |
-| `packages/opencode/src/mcp/index.ts` | MCP runtime, local HTTP spawning, OAuth handling, status/tools |
-| `packages/opencode/src/mcp/auth.ts` | Stored MCP OAuth credentials and local signing key metadata |
-| `packages/opencode/src/mcp/oauth-callback.ts` | Local OAuth callback server and pending state tracking |
-| `packages/opencode/test/server/httpapi-experimental.test.ts` | Extension route and install regression tests |
-| `packages/opencode/test/mcp/oauth-browser.test.ts` | Browser/OAuth runtime tests |
-| `packages/opencode/test/mcp/lifecycle.test.ts` | MCP lifecycle and cleanup tests |
+| `external opencode runtime/src/extension/index.ts` | Server-side install/remove/list/live-reload module |
+| `external opencode runtime/src/config/extension.ts` | `Config.Info.extensions` schema |
+| `external opencode runtime/src/mcp/index.ts` | MCP runtime, local HTTP spawning, OAuth handling, status/tools |
+| `external opencode runtime/src/mcp/auth.ts` | Stored MCP OAuth credentials and local signing key metadata |
+| `external opencode runtime/src/mcp/oauth-callback.ts` | Local OAuth callback server and pending state tracking |
+| `external opencode runtime/test/server/httpapi-experimental.test.ts` | Extension route and install regression tests |
+| `external opencode runtime/test/mcp/oauth-browser.test.ts` | Browser/OAuth runtime tests |
+| `external opencode runtime/test/mcp/lifecycle.test.ts` | MCP lifecycle and cleanup tests |
 
 ## Bundle Shape
 
-The server-side install payload is defined by `ExtensionBundle` in `packages/opencode/src/extension/index.ts`.
+The server-side install payload is defined by `ExtensionBundle` in `external opencode runtime/src/extension/index.ts`.
 
 The app registry entry extends that bundle with UI metadata:
 
@@ -68,7 +68,7 @@ An extension should include:
 - human-readable `name` and `description`
 - one or more MCP server configs keyed by stable names
 - skills as `{ path, content }` pairs
-- setup metadata if users need local tools, env vars, or upstream docs
+- setup metadata if users need local tools, env vars, or external docs
 
 ## Managed Config Rules
 
@@ -375,7 +375,7 @@ bun typecheck
 ```
 
 ```sh
-cd packages/opencode
+cd external opencode runtime
 bun test test/server/httpapi-experimental.test.ts test/mcp/oauth-browser.test.ts test/mcp/lifecycle.test.ts
 bun typecheck
 ```

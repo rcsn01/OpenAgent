@@ -22,5 +22,19 @@
     }
   },
   "include": ["src", "package.json"],
-  "exclude": ["dist", "ts-dist"]
+  "exclude": [
+    "dist",
+    "ts-dist",
+    "src/components/dialog-automations.tsx",
+    "src/components/dialog-console-org.tsx",
+    "src/components/dialog-fork.tsx",
+    "src/components/dialog-install-plugin.tsx",
+    "src/components/dialog-plugins.tsx",
+    "src/components/dialog-session-graphs.tsx",
+    "src/context/general-chat.tsx",
+    "src/context/general-chat-route-cache.ts",
+    "src/extensions",
+    "src/pages/session/side-panel/extensions",
+    "src/pages/session/side-panel/subagents"
+  ]
 }

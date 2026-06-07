@@ -29,8 +29,8 @@ chats/
 
 Source:
 
-- `packages/opencode/src/general-chat/general-chat.ts`
-- `packages/opencode/src/general-chat/shared.ts`
+- `external opencode runtime/src/general-chat/general-chat.ts`
+- `external opencode runtime/src/general-chat/shared.ts`
 
 The important nuance is that this is per **root chat tree**, not per every child session.
 
@@ -185,8 +185,8 @@ Global.Path.config/chat
 
 In code this comes from:
 
-- `packages/opencode/src/config/paths.ts`
-- `packages/opencode/src/general-chat/profile.ts`
+- `external opencode runtime/src/config/paths.ts`
+- `external opencode runtime/src/general-chat/profile.ts`
 
 When the current directory is a general-chat workspace:
 

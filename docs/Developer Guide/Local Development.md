@@ -1,81 +1,45 @@
-# OpenAgent
+# Local Development
 
-OpenAgent is a personal fork of the upstream AI coding agent workspace with the hosted console, public release plumbing, contributor governance, and marketing site removed.
+OpenAgent owns the GUI and desktop shell. The opencode runtime runs externally.
 
-## What Remains
+## Packages
 
-- `packages/opencode`: main CLI and TUI runtime
-- `packages/app`: local web UI used by desktop shells
-- `packages/desktop-electron`: Electron desktop wrapper
-- `packages/core`, `packages/ui`, `packages/plugin`, `packages/sdk`, and related shared libraries
-- `sdks/vscode`: VS Code integration
+- `packages/app`: Solid web GUI
+- `packages/desktop`: Electron desktop app
+- `packages/ui`: shared UI
+- `packages/storybook`: component stories
+- `packages/core`: slim GUI utilities
 
-## Local Development
+## Setup
 
 ```bash
 bun install
-bun dev
 ```
 
-Core validation commands:
+Run a stock opencode server separately:
 
 ```bash
-bun run --cwd packages/opencode test
-bun run --cwd packages/opencode typecheck
+opencode server start --hostname 127.0.0.1 --port 4096
 ```
 
-Additional local entry points:
+Run web:
 
 ```bash
-bun --cwd packages/app dev
-bun --cwd packages/desktop-electron dev
+VITE_OPENCODE_SERVER_URL=http://127.0.0.1:4096 bun run --cwd packages/app dev
 ```
 
-## Running the GUI
-
-To start the desktop GUI application in development mode:
+Run desktop:
 
 ```bash
-bun run dev:desktop
+OPENAGENT_SERVER_URL=http://127.0.0.1:4096 bun run --cwd packages/desktop dev
 ```
 
-This is equivalent to running `bun --cwd packages/desktop-electron dev` and starts the Electron shell with the local web UI.
-
-## Packaging and Installing
-
-To build the desktop application for distribution:
+## Checks
 
 ```bash
-# Build the desktop app
-cd packages/desktop-electron
-bun run build
-
-# Package for all platforms
-bun run package
-
-# Package for specific platforms
-bun run package:mac
-bun run package:win
-bun run package:linux
+bun run --cwd packages/core typecheck
+bun run --cwd packages/ui typecheck
+bun run --cwd packages/app typecheck
+bun run --cwd packages/desktop typecheck
+bun run --cwd packages/app test:unit
 ```
-
-Packaging uses `electron-builder` and produces installable artifacts (e.g., `.dmg` for macOS, `.exe` for Windows, `.AppImage`/`.deb` for Linux) in the `packages/desktop-electron/dist` directory.
-
-## Repository
-
-Project home and issue tracker:
-
-- https://github.com/rcsn01/OpenAgent
-
-This fork intentionally does not ship the upstream public docs site, release automation, hosted console, or enterprise surface.
-
-## Knowledge Base
-
-For detailed documentation on subsystems, see the relevant topics in this Obsidian vault:
-
-- [[Prompt System/Index|Prompt System]] — how system prompts are assembled
-- [[Voice Mode/Index|Voice Mode]] — hands-free dictation system
-- [[Desktop/Index|Desktop]] — `/chat` flow internals
-- [[Extensibility/Index|Extensibility]] — adding capabilities without core changes
-- [[Architecture/Task Graph]] — DAG background task design
-- [[Developer Guide/Coding Conventions]] — coding style and conventions

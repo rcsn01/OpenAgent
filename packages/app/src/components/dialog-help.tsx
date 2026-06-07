@@ -1,4 +1,4 @@
-import { Dialog } from "@opencode-ai/ui/dialog"
+import { Dialog } from "@openagent/ui/dialog"
 
 export function DialogHelp() {
   return (

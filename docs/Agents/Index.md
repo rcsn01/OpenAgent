@@ -25,7 +25,7 @@ OpenAgent ships 14 native agents across 4 categories.
 | `general` | `subagent` | General-purpose worker; `todowrite` denied | none | `send_message` only |
 | `explore` | `subagent` | Fast codebase exploration; restricted to `grep`, `glob`, `list`, `bash`, `webfetch`, `websearch`, `read` | none | not a default recipient |
 
-## OpenSwarm Specialist Subagents
+## external orchestration Specialist Subagents
 
 | Agent | Mode | Specialist Tool(s) | Communication |
 |-------|------|--------------------|---------------|
@@ -51,6 +51,6 @@ Cannot be spawned as subagents: `build`, `plan`, `assistant`, `chat`, `orchestra
 ## Related Docs
 
 - [[Agents/Primary Agents]] — detailed breakdown of build, assistant, and plan
-- [[Agents/OpenSwarm Specialists]] — specialist prompts, own tools, role descriptions
+- [[Agents/external orchestration Specialists]] — specialist prompts, own tools, role descriptions
 - [[Agents/Permission System]] — hard enforcement layer, permission evaluation, ask/deny/allow
-- [[Architecture/OpenSwarm Integration]] — native routing, communication flows, per-user OAuth
+- [[Architecture/external orchestration Integration]] — native routing, communication flows, per-user OAuth

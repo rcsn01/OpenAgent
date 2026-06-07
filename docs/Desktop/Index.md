@@ -2,7 +2,7 @@
 
 How the Electron desktop application works, including the GUI chat experience.
 
-The desktop app wraps the shared web UI (`@opencode-ai/app`) and provides platform-specific glue: native dialogs, IPC, auto-update, speech capture, and sidecar server management.
+The desktop app wraps the shared web UI (`@openagent/app`) and provides platform-specific glue: native dialogs, IPC, auto-update, speech capture, and sidecar server management.
 
 General chats are not truly directory-less. They are backed by hidden workspaces under app data, then routed through a special `/chat/:id` URL layer so the hidden path is not exposed in the GUI.
 
@@ -14,7 +14,7 @@ The native `chat` agent has been removed. Hidden general-chat workspaces now use
 - [[Desktop/Shared Chat Profile]] — the first-class shared config bundle for all GUI chats
 - [[Desktop/Session Switching]] — implementation history for seamless project/chat session switching, persistent UI shell, sidebar highlighting, and audio-toggle visibility
 - [[Desktop/Session Side Panels]] — Review, Extensions, and Subagents panel structure; Review-owned file tree behavior
-- [[Desktop/Subagent Graph Panel and Prompt Updates]] — compact graph groups, completed graph retention, newest-first ordering, web tool guidance, and minimal subagent completion updates
+- [[Desktop/Session Panel and Prompt Updates]] — compact graph groups, completed graph retention, newest-first ordering, web tool guidance, and minimal subagent completion updates
 - [[Desktop/Project Sidebar Controls]] — expanded-sidebar project controls for compact/expanded sessions, organize/sort/show, and add project actions
 
 ## Key Source Files
@@ -25,9 +25,9 @@ The native `chat` agent has been removed. Hidden general-chat workspaces now use
 | `packages/desktop-electron/src/preload/` | Electron preload: `window.api` bridge to renderer |
 | `packages/desktop-electron/src/renderer/` | Electron renderer: SolidJS entry point, platform glue |
 | `packages/app/src/` | Shared web UI imported by Electron and the local web target |
-| `packages/opencode/src/general-chat/general-chat.ts` | Allocates hidden chat workspaces and maps them to root sessions |
-| `packages/opencode/src/general-chat/shared.ts` | Chat root, draft workspace behavior, general-chat path detection |
-| `packages/opencode/src/general-chat/profile.ts` | Seeds and repairs the shared chat profile |
+| `external opencode runtime/src/general-chat/general-chat.ts` | Allocates hidden chat workspaces and maps them to root sessions |
+| `external opencode runtime/src/general-chat/shared.ts` | Chat root, draft workspace behavior, general-chat path detection |
+| `external opencode runtime/src/general-chat/profile.ts` | Seeds and repairs the shared chat profile |
 | `packages/app/src/context/app-route.tsx` | Resolves `/chat/:id` to the hidden backing directory |
 | `packages/app/src/pages/session-route-host.tsx` | Persistent session shell mounted across route changes |
 | `packages/app/src/context/general-chat-route-cache.ts` | Caches chat-to-directory route metadata |
@@ -39,4 +39,4 @@ The native `chat` agent has been removed. Hidden general-chat workspaces now use
 ## Related
 
 - [[Agents/Index]] — agent capability matrix; assistant is the default for chat workspaces
-- [[Architecture/OpenSwarm Integration]] — native specialist routing and per-user OAuth
+- [[Architecture/external orchestration Integration]] — native specialist routing and per-user OAuth

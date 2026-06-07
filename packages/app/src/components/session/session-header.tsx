@@ -1,11 +1,11 @@
-import { AppIcon } from "@opencode-ai/ui/app-icon"
-import { Button } from "@opencode-ai/ui/button"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Spinner } from "@opencode-ai/ui/spinner"
-import { showToast } from "@opencode-ai/ui/toast"
-import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
+import { AppIcon } from "@openagent/ui/app-icon"
+import { Button } from "@openagent/ui/button"
+import { DropdownMenu } from "@openagent/ui/dropdown-menu"
+import { Icon } from "@openagent/ui/icon"
+import { IconButton } from "@openagent/ui/icon-button"
+import { Spinner } from "@openagent/ui/spinner"
+import { showToast } from "@openagent/ui/toast"
+import { Tooltip, TooltipKeybind } from "@openagent/ui/tooltip"
 import { createEffect, createMemo, For, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useAppRoute } from "@/context/app-route"
@@ -389,26 +389,6 @@ function SessionHeaderTrailingControls() {
           </Show>
 
           <div class="hidden md:flex items-center gap-1 shrink-0">
-            <TooltipKeybind title="Toggle extensions" keybind={command.keybind("extensions.toggle")}>
-              <Button
-                variant="ghost"
-                class="group/extensions-toggle titlebar-icon w-8 h-6 p-0 box-border"
-                onClick={() => view().extensions.toggle()}
-                aria-label="Toggle extensions"
-                aria-expanded={view().extensions.opened()}
-                aria-controls="extensions-panel"
-              >
-                <Icon
-                  size="small"
-                  name="mcp"
-                  classList={{
-                    "text-icon-strong": view().extensions.opened(),
-                    "text-icon-weak": !view().extensions.opened(),
-                  }}
-                />
-              </Button>
-            </TooltipKeybind>
-
             <TooltipKeybind title={language.t("command.review.toggle")} keybind={command.keybind("review.toggle")}>
               <Button
                 variant="ghost"
@@ -419,27 +399,6 @@ function SessionHeaderTrailingControls() {
                 aria-controls="review-panel"
               >
                 <Icon size="small" name={view().reviewPanel.opened() ? "review-active" : "review"} />
-              </Button>
-            </TooltipKeybind>
-
-            <TooltipKeybind title={language.t("command.subagents.toggle")} keybind={command.keybind("subagents.toggle")}>
-              <Button
-                variant="ghost"
-                class="group/subagents-toggle titlebar-icon w-8 h-6 p-0 box-border"
-                onClick={() => view().subagents.toggle()}
-                aria-label={language.t("command.subagents.toggle")}
-                aria-expanded={view().subagents.opened()}
-                aria-controls="subagents-panel"
-                disabled={!params.id}
-              >
-                <Icon
-                  size="small"
-                  name="branch"
-                  classList={{
-                    "text-icon-strong": view().subagents.opened(),
-                    "text-icon-weak": !view().subagents.opened(),
-                  }}
-                />
               </Button>
             </TooltipKeybind>
 

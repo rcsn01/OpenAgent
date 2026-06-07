@@ -18,9 +18,9 @@ In practice that is the app config directory plus a `chat/` subfolder.
 
 The key code paths are:
 
-- `packages/opencode/src/general-chat/profile.ts`
-- `packages/opencode/src/config/paths.ts`
-- `packages/opencode/src/session/instruction.ts`
+- `external opencode runtime/src/general-chat/profile.ts`
+- `external opencode runtime/src/config/paths.ts`
+- `external opencode runtime/src/session/instruction.ts`
 
 ## When It Applies
 
@@ -103,7 +103,7 @@ Typical workflow:
 
 Use the shared chat directory for local or power-user customization.
 
-Edit `packages/opencode/src/general-chat/profile.ts` when you want the capability to become a built-in default that new managed chat profiles receive automatically.
+Edit `external opencode runtime/src/general-chat/profile.ts` when you want the capability to become a built-in default that new managed chat profiles receive automatically.
 
 That is the path to ship a chat feature in the product itself.
 

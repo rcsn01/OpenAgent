@@ -1,8 +1,7 @@
 import { useNavigate } from "@solidjs/router"
-import { formatTranscript, type TranscriptOptions } from "@opencode-ai/sdk/transcript"
 import { useCommand, type CommandOption } from "@/context/command"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { previewSelectedLines } from "@opencode-ai/ui/pierre/selection-bridge"
+import { useDialog } from "@openagent/ui/context/dialog"
+import { previewSelectedLines } from "@openagent/ui/pierre/selection-bridge"
 import { useFile, selectionFromLines, type FileSelection, type SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -14,12 +13,37 @@ import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
 import { useTerminal } from "@/context/terminal"
-import { showToast } from "@opencode-ai/ui/toast"
-import { findLast } from "@opencode-ai/core/util/array"
+import { showToast } from "@openagent/ui/toast"
+import { findLast } from "@openagent/core/util/array"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { extractPromptFromParts } from "@/utils/prompt"
 import { UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
+
+type TranscriptOptions = {
+  thinking: boolean
+  toolDetails: boolean
+  assistantMetadata: boolean
+  providers: unknown[]
+  filename?: string
+}
+
+function formatTranscript(input: {
+  title: string
+  messages: Array<{ info: { role: string }; parts: Array<{ type?: string; text?: string }> }>
+}) {
+  const lines = [`# ${input.title}`, ""]
+  for (const message of input.messages) {
+    const text = message.parts
+      .filter((part) => part.type === "text" && typeof part.text === "string")
+      .map((part) => part.text)
+      .join("\n\n")
+      .trim()
+    if (!text) continue
+    lines.push(`## ${message.info.role}`, "", text, "")
+  }
+  return lines.join("\n")
+}
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -385,18 +409,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     })
   }
 
-  const fork = () => {
-    void import("@/components/dialog-fork").then((x) => {
-      dialog.show(() => <x.DialogFork />)
-    })
-  }
-
-  const openSessionGraphs = () => {
-    const sessionID = params.id
-    if (!sessionID) return
-    view().subagents.open()
-  }
-
   const transcriptOptions = (overrides?: Partial<TranscriptOptions>) => ({
     thinking: settings.general.showReasoningSummaries(),
     toolDetails: settings.general.shellToolPartsExpanded() || settings.general.editToolPartsExpanded(),
@@ -410,14 +422,13 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     if (!sessionID) return
     const session = info()
     if (!session) return
-    return formatTranscript(
-      session,
-      messages().map((message) => ({
+    return formatTranscript({
+      title: session.title || `Session ${params.id}`,
+      messages: messages().map((message) => ({
         info: message,
-        parts: sync.data.part[message.id] ?? [],
+        parts: (sync.data.part[message.id] ?? []) as Array<{ type?: string; text?: string }>,
       })),
-      transcriptOptions(overrides),
-    )
+    })
   }
 
   const transcriptFilename = () => {
@@ -627,12 +638,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       onSelect: exportTranscript,
     }),
     sessionCommand({
-      id: "session.graphs",
-      title: language.t("command.subagents.toggle"),
-      disabled: !params.id,
-      onSelect: openSessionGraphs,
-    }),
-    sessionCommand({
       id: "session.thinking",
       title: settings.general.showReasoningSummaries() ? "Hide thinking" : "Show thinking",
       slash: { name: "thinking", aliases: ["toggle-thinking"] },
@@ -651,14 +656,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
           ? "Hide tool details"
           : "Show tool details",
       onSelect: toggleToolDetails,
-    }),
-    sessionCommand({
-      id: "session.fork",
-      title: language.t("command.session.fork"),
-      description: language.t("command.session.fork.description"),
-      slash: { name: "fork" },
-      disabled: !params.id || visibleUserMessages().length === 0,
-      onSelect: fork,
     }),
   ]
 
@@ -700,12 +697,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       onSelect: () => view().terminal.toggle(),
     }),
     viewCommand({
-      id: "extensions.toggle",
-      title: "Toggle extensions",
-      keybind: "mod+shift+e",
-      onSelect: () => view().extensions.toggle(),
-    }),
-    viewCommand({
       id: "review.toggle",
       title: language.t("command.review.toggle"),
       keybind: "mod+shift+r",
@@ -716,12 +707,6 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.context.toggle"),
       disabled: !params.id,
       onSelect: () => view().context.toggle(),
-    }),
-    viewCommand({
-      id: "subagents.toggle",
-      title: language.t("command.subagents.toggle"),
-      disabled: !params.id,
-      onSelect: () => view().subagents.toggle(),
     }),
     ...(shown()
       ? [

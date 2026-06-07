@@ -1,13 +1,15 @@
 import "@/index.css"
 import * as Sentry from "@sentry/solid"
-import { I18nProvider } from "@opencode-ai/ui/context"
-import { DialogProvider } from "@opencode-ai/ui/context/dialog"
-import { FileComponentProvider } from "@opencode-ai/ui/context/file"
-import { MarkedProvider } from "@opencode-ai/ui/context/marked"
-import { File } from "@opencode-ai/ui/file"
-import { Font } from "@opencode-ai/ui/font"
-import { Splash } from "@opencode-ai/ui/logo"
-import { ThemeProvider } from "@opencode-ai/ui/theme/context"
+import { I18nProvider } from "@openagent/ui/context"
+import { DialogProvider } from "@openagent/ui/context/dialog"
+import { useDialog } from "@openagent/ui/context/dialog"
+import { FileComponentProvider } from "@openagent/ui/context/file"
+import { MarkedProvider } from "@openagent/ui/context/marked"
+import { File } from "@openagent/ui/file"
+import { Font } from "@openagent/ui/font"
+import { Splash } from "@openagent/ui/logo"
+import { Button } from "@openagent/ui/button"
+import { ThemeProvider } from "@openagent/ui/theme/context"
 import { MetaProvider } from "@solidjs/meta"
 import { type BaseRouterProps, Navigate, Route, Router } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
@@ -250,6 +252,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean }>) {
 function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key: ServerConnection.Key) => void }) {
   const language = useLanguage()
   const server = useServer()
+  const dialog = useDialog()
   const others = () => server.list.filter((s) => ServerConnection.key(s) !== server.key)
   const name = createMemo(() => server.name || server.key)
   const serverToken = "\u0000server\u0000"
@@ -268,6 +271,16 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
           {unreachable()[1]}
         </p>
         <p class="mt-1 text-12-regular text-text-weak">{language.t("app.server.retrying")}</p>
+        <Button
+          class="mt-4 px-3"
+          onClick={() => {
+            void import("@/components/dialog-select-server").then((x) => {
+              dialog.show(() => <x.DialogSelectServer />, props.onRetry)
+            })
+          }}
+        >
+          {language.t("command.server.select")}
+        </Button>
       </div>
       <Show when={others().length > 0}>
         <div class="flex flex-col gap-2 w-full max-w-sm">
@@ -329,7 +342,6 @@ export function AppInterface(props: {
                   <Route path="/chat/:id?" component={RedirectHomeRoute} />
                   <Route path="/:dir" component={SessionIndexRoute} />
                   <Route path="/:dir/session/:id?" component={EmptyRoute} />
-                  <Route path="/:dir/automations/:automationID?" component={EmptyRoute} />
                 </Dynamic>
               </GlobalSyncProvider>
             </GlobalSDKProvider>

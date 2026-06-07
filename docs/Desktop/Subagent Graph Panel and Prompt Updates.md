@@ -1,4 +1,4 @@
-# Subagent Graph Panel and Prompt Updates
+# Session Panel and Prompt Updates
 
 Implementation notes for the subagent graph UX and related assistant prompt changes.
 
@@ -27,7 +27,7 @@ Now terminal graph records remain queryable so the GUI can keep the original gro
 
 Main file:
 
-- `packages/opencode/src/session/task-graph.ts`
+- `external opencode runtime/src/session/task-graph.ts`
 
 Key behavior:
 
@@ -45,7 +45,7 @@ Graph lists now prefer newest-first ordering.
 
 Main files:
 
-- `packages/opencode/src/session/task-graph.ts`
+- `external opencode runtime/src/session/task-graph.ts`
 - `packages/app/src/pages/session/side-panel/subagents/model.ts`
 
 ### Web Tool Guidance
@@ -62,12 +62,12 @@ Updated guidance:
 
 Main files:
 
-- `packages/opencode/src/tool/webfetch.txt`
-- `packages/opencode/src/tool/task.txt`
-- `packages/opencode/src/tool/background_task.txt`
-- `packages/opencode/src/tool/background_task_graph.txt`
-- `packages/opencode/src/session/prompt/beast.txt`
-- `packages/opencode/src/session/prompt/copilot-gpt-5.txt`
+- `external opencode runtime/src/tool/webfetch.txt`
+- `external opencode runtime/src/tool/task.txt`
+- `external opencode runtime/src/tool/background_task.txt`
+- `external opencode runtime/src/tool/background_task_graph.txt`
+- `external opencode runtime/src/session/prompt/beast.txt`
+- `external opencode runtime/src/session/prompt/copilot-gpt-5.txt`
 
 ### WebFetch HTML Text Fix
 
@@ -82,8 +82,8 @@ The fix replaces that dependency with local HTML text extraction:
 
 Main files:
 
-- `packages/opencode/src/tool/webfetch.ts`
-- `packages/opencode/test/tool/webfetch.test.ts`
+- `external opencode runtime/src/tool/webfetch.ts`
+- `external opencode runtime/test/tool/webfetch.test.ts`
 
 ### Minimal Subagent Completion Updates
 
@@ -99,8 +99,8 @@ New behavior:
 
 Main files:
 
-- `packages/opencode/src/tool/background_task.ts`
-- `packages/opencode/src/tool/background_task_graph.ts`
+- `external opencode runtime/src/tool/background_task.ts`
+- `external opencode runtime/src/tool/background_task_graph.ts`
 
 ## Tests
 
@@ -113,14 +113,14 @@ Focused coverage was added for:
 Test files:
 
 - `packages/app/src/pages/session/side-panel/subagents/model.test.ts`
-- `packages/opencode/test/session/task-graph.test.ts`
+- `external opencode runtime/test/session/task-graph.test.ts`
 
 Verification commands run from package directories:
 
 - `bun test --preload ./happydom.ts ./src/pages/session/side-panel/subagents/model.test.ts`
 - `bun test test/session/task-graph.test.ts`
 - `bun typecheck` in `packages/app`
-- `bun typecheck` in `packages/opencode`
+- `bun typecheck` in `external opencode runtime`
 
 ## Related Source Files
 
@@ -128,10 +128,10 @@ Verification commands run from package directories:
 |------|------|
 | `packages/app/src/pages/session/side-panel/subagents/index.tsx` | Subagents side panel UI, compact/expanded graph state |
 | `packages/app/src/pages/session/side-panel/subagents/model.ts` | Converts graph API response into panel groups, sorting, default selection |
-| `packages/opencode/src/session/task-graph.ts` | In-memory graph lifecycle, retention, listing, delivery cleanup |
-| `packages/opencode/src/tool/background_task.ts` | Synthetic delivery reminder for one-off background subagents |
-| `packages/opencode/src/tool/background_task_graph.ts` | Synthetic delivery reminder for graph-backed background subagents |
-| `packages/opencode/src/tool/webfetch.txt` | Tool-facing web fetch guidance |
-| `packages/opencode/src/tool/task.txt` | Delegation guidance for synchronous subagents |
-| `packages/opencode/src/tool/background_task.txt` | Delegation guidance for background subagents |
-| `packages/opencode/src/tool/background_task_graph.txt` | Delegation guidance for graph-backed subagents |
+| `external opencode runtime/src/session/task-graph.ts` | In-memory graph lifecycle, retention, listing, delivery cleanup |
+| `external opencode runtime/src/tool/background_task.ts` | Synthetic delivery reminder for one-off background subagents |
+| `external opencode runtime/src/tool/background_task_graph.ts` | Synthetic delivery reminder for graph-backed background subagents |
+| `external opencode runtime/src/tool/webfetch.txt` | Tool-facing web fetch guidance |
+| `external opencode runtime/src/tool/task.txt` | Delegation guidance for synchronous subagents |
+| `external opencode runtime/src/tool/background_task.txt` | Delegation guidance for background subagents |
+| `external opencode runtime/src/tool/background_task_graph.txt` | Delegation guidance for graph-backed subagents |

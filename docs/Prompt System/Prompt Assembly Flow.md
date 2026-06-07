@@ -2,7 +2,7 @@
 
 ## The Exact Order
 
-In `packages/opencode/src/session/llm.ts`, the system prompt is assembled like this:
+In `external opencode runtime/src/session/llm.ts`, the system prompt is assembled like this:
 
 ```ts
 const basePrompt = input.agent.prompt
@@ -23,7 +23,7 @@ system.push(
 )
 ```
 
-Then the system is further enriched by `packages/opencode/src/session/prompt.ts`:
+Then the system is further enriched by `external opencode runtime/src/session/prompt.ts`:
 
 ```ts
 // 1. Instructions (AGENTS.md, etc.)

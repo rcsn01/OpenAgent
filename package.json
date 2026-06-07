@@ -1,20 +1,19 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "openagent",
-  "description": "AI-powered development tool",
+  "description": "OpenAgent GUI for external opencode servers",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.3.13",
   "scripts": {
-    "dev": "bun run --cwd packages/opencode --conditions=browser src/index.ts",
-    "dev:server": "OPENCODE_DB=opencode-dev.db bun run --cwd packages/opencode --conditions=browser src/index.ts serve --hostname 127.0.0.1 --port 4096 --print-logs",
+    "dev": "bun run dev:web",
+    "dev:server": "opencode server start --hostname 127.0.0.1 --port 4096",
     "dev:desktop": "bun --cwd packages/desktop dev",
-    "dev:desktop:shared": "OPENCODE_DESKTOP_SERVER_URL=http://127.0.0.1:4096 bun --cwd packages/desktop dev",
+    "dev:desktop:shared": "OPENAGENT_SERVER_URL=http://127.0.0.1:4096 bun --cwd packages/desktop dev",
     "dev:web": "bun run script/dev-web.ts",
     "lint": "oxlint",
     "typecheck": "bun turbo typecheck",
     "upgrade-opentui": "bun run script/upgrade-opentui.ts",
-    "postinstall": "bun run --cwd packages/opencode fix-node-pty",
     "prepare": "husky",
     "random": "echo 'Random script'",
     "hello": "echo 'Hello World!'",
@@ -22,9 +21,11 @@
   },
   "workspaces": {
     "packages": [
-      "packages/*",
-      "packages/sdk/js",
-      "packages/slack"
+      "packages/app",
+      "packages/core",
+      "packages/desktop",
+      "packages/storybook",
+      "packages/ui"
     ],
     "catalog": {
       "@effect/opentelemetry": "4.0.0-beta.65",
@@ -99,9 +100,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.933.0",
-    "@opencode-ai/plugin": "workspace:*",
-    "@opencode-ai/script": "workspace:*",
-    "@opencode-ai/sdk": "workspace:*",
+    "@opencode-ai/sdk": "1.15.0",
     "heap-snapshot-toolkit": "1.1.3",
     "typescript": "catalog:"
   },

@@ -172,7 +172,7 @@ If you are just customizing your own setup, edit the shared chat directory direc
 If you want the capability to ship as a built-in default for managed chat profiles, edit:
 
 ```text
-packages/opencode/src/general-chat/profile.ts
+external opencode runtime/src/general-chat/profile.ts
 ```
 
 That is where the default shared chat files are seeded.

@@ -18,7 +18,7 @@ import type {
   TitlebarTheme,
   WindowConfig,
   WslConfig,
-} from "@opencode-ai/core/desktop"
+} from "@openagent/core/desktop"
 
 export type {
   InitStep,

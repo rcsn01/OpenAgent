@@ -1,7 +1,7 @@
 import { createMemo, createEffect, on, onCleanup, For, Show } from "solid-js"
 import type { JSX } from "solid-js"
 import { useSync } from "@/context/sync"
-import { findLast } from "@opencode-ai/core/util/array"
+import { findLast } from "@openagent/core/util/array"
 import { same } from "@/utils/same"
 import type { Message, Part, UserMessage } from "@opencode-ai/sdk/v2/client"
 import { useLanguage } from "@/context/language"

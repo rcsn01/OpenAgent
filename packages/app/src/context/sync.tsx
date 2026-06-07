@@ -1,8 +1,8 @@
 import { batch, createMemo } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
-import { Binary } from "@opencode-ai/core/util/binary"
-import { retry } from "@opencode-ai/core/util/retry"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { Binary } from "@openagent/core/util/binary"
+import { retry } from "@openagent/core/util/retry"
+import { createSimpleContext } from "@openagent/ui/context"
 import {
   clearSessionPrefetch,
   getSessionPrefetch,

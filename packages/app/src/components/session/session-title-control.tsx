@@ -1,13 +1,13 @@
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
 import type { Message as MessageType, Part } from "@opencode-ai/sdk/v2"
-import { Button } from "@opencode-ai/ui/button"
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { InlineInput } from "@opencode-ai/ui/inline-input"
-import { TextField } from "@opencode-ai/ui/text-field"
-import { showToast } from "@opencode-ai/ui/toast"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
+import { Button } from "@openagent/ui/button"
+import { Dialog } from "@openagent/ui/dialog"
+import { DropdownMenu } from "@openagent/ui/dropdown-menu"
+import { IconButton } from "@openagent/ui/icon-button"
+import { InlineInput } from "@openagent/ui/inline-input"
+import { TextField } from "@openagent/ui/text-field"
+import { showToast } from "@openagent/ui/toast"
+import { useDialog } from "@openagent/ui/context/dialog"
 import { useMutation } from "@tanstack/solid-query"
 import { useNavigate } from "@solidjs/router"
 import { createEffect, createMemo, createSignal, on, Show } from "solid-js"
@@ -54,12 +54,6 @@ export function SessionTitleControl() {
   const shareUrl = createMemo(() => info()?.share?.url)
   const shareEnabled = createMemo(() => sync.data.config.share !== "disabled")
   const parentID = createMemo(() => info()?.parentID)
-  const hasSessionFamily = createMemo(() => {
-    const id = sessionID()
-    if (!id) return false
-    if (parentID()) return true
-    return sync.data.session.some((item) => item.parentID === id)
-  })
   const parent = createMemo(() => {
     const id = parentID()
     if (!id) return
@@ -297,12 +291,6 @@ export function SessionTitleControl() {
     const id = parentID()
     if (!id) return
     navigate(href(id))
-  }
-
-  const openSessionGraphs = () => {
-    const id = sessionID()
-    if (!id) return
-    view().subagents.open()
   }
 
   createEffect(
@@ -570,15 +558,6 @@ export function SessionTitleControl() {
                   </KobaltePopover.Content>
                 </KobaltePopover.Portal>
               </KobaltePopover>
-            </Show>
-            <Show when={hasSessionFamily()}>
-              <IconButton
-                icon="branch"
-                variant="ghost"
-                class="titlebar-icon w-7 h-6 p-0 box-border"
-                aria-label="Open subagent graphs"
-                onClick={openSessionGraphs}
-              />
             </Show>
           </div>
         )}

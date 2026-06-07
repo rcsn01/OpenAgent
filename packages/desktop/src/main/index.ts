@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { EventEmitter } from "node:events"
-import { existsSync, mkdirSync, rmSync } from "node:fs"
+import { mkdirSync, rmSync } from "node:fs"
 import * as http from "node:http"
-import { createServer } from "node:net"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { getCACertificates, setDefaultCACertificates } from "node:tls"
@@ -11,10 +10,10 @@ import { app, BrowserWindow } from "electron"
 
 import contextMenu from "electron-context-menu"
 
-import type { InitStep, ServerReadyData, SqliteMigrationProgress, WslConfig } from "../preload/types"
+import type { InitStep, ServerReadyData, WslConfig } from "../preload/types"
 import { checkAppExists, resolveAppPath, wslPath } from "./apps"
 import { CHANNEL, UPDATER_ENABLED } from "./constants"
-import { registerIpcHandlers, sendDeepLinks, sendMenuCommand, sendSqliteMigrationProgress } from "./ipc"
+import { registerIpcHandlers, sendDeepLinks, sendMenuCommand } from "./ipc"
 import { initLogging } from "./logging"
 import { parseMarkdown } from "./markdown"
 import { createMenu } from "./menu"
@@ -26,20 +25,12 @@ import {
   setDefaultServerUrl,
   setWslConfig,
   findOrStartSharedServer,
-  spawnLocalServer,
-  type SidecarListener,
 } from "./server"
-import {
-  createLoadingWindow,
-  createMainWindow,
-  registerRendererProtocol,
-  setBackgroundColor,
-  setDockIcon,
-} from "./windows"
+import { createMainWindow, registerRendererProtocol, setBackgroundColor, setDockIcon } from "./windows"
 import { migrate } from "./migrate"
 import { checkUpdate, checkForUpdates, installUpdate, setupAutoUpdater } from "./updater"
 import { disposeSpeechTranscription } from "./speech"
-import { Deferred, Effect, Fiber } from "effect"
+import { Deferred, Effect } from "effect"
 
 const APP_NAMES: Record<string, string> = {
   dev: "OpenAgent Dev",
@@ -47,16 +38,15 @@ const APP_NAMES: Record<string, string> = {
   prod: "OpenAgent",
 }
 const APP_IDS: Record<string, string> = {
-  dev: "ai.opencode.desktop.dev",
-  beta: "ai.opencode.desktop.beta",
-  prod: "ai.opencode.desktop",
+  dev: "com.rcsn01.openagent.dev",
+  beta: "com.rcsn01.openagent.beta",
+  prod: "com.rcsn01.openagent",
 }
 const TEST_ONBOARDING = process.env.OPENCODE_TEST_ONBOARDING === "1"
-const SHARED_SERVER_URL = process.env.OPENCODE_DESKTOP_SERVER_URL?.trim().replace(/\/+$/, "")
+const FALLBACK_SERVER_URL = "http://127.0.0.1:4096"
 
 let logger: ReturnType<typeof initLogging>
 let mainWindow: BrowserWindow | null = null
-let server: SidecarListener | null = null
 let computerUseBridge: ComputerUseBridge | null = null
 
 const initEmitter = new EventEmitter()
@@ -85,11 +75,43 @@ function setInitStep(step: InitStep) {
   initEmitter.emit("step", step)
 }
 
+function normalizeServerUrl(input: string | undefined | null) {
+  const trimmed = input?.trim()
+  if (!trimmed) return
+  const withProtocol = /^https?:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`
+  return withProtocol.replace(/\/+$/, "")
+}
+
+function envServerUrl() {
+  const openagent = normalizeServerUrl(process.env.OPENAGENT_SERVER_URL)
+  if (openagent) return openagent
+
+  const legacy = normalizeServerUrl(process.env.OPENCODE_DESKTOP_SERVER_URL)
+  if (legacy) logger.warn("OPENCODE_DESKTOP_SERVER_URL is deprecated; use OPENAGENT_SERVER_URL instead")
+  return legacy
+}
+
+function openMainWindow() {
+  mainWindow = createMainWindow()
+  if (!mainWindow) return
+
+  createMenu({
+    trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
+    checkForUpdates: () => {
+      void checkForUpdates(true, killSidecar)
+    },
+    reload: () => mainWindow?.reload(),
+    relaunch: () => {
+      void killSidecar().finally(() => {
+        app.relaunch()
+        app.exit(0)
+      })
+    },
+  })
+}
+
 async function killSidecar() {
-  if (!server) return
-  const current = server
-  server = null
-  await current.stop()
+  return
 }
 
 async function stopComputerUseBridge() {
@@ -129,7 +151,7 @@ const main = Effect.gen(function* () {
 
   process.env.OPENCODE_DISABLE_EMBEDDED_WEB_UI = "true"
 
-  const appId = app.isPackaged ? APP_IDS[CHANNEL] : "ai.opencode.desktop.dev"
+  const appId = app.isPackaged ? APP_IDS[CHANNEL] : "com.rcsn01.openagent.dev"
   const onboardingTestRoot = ((): string | undefined => {
     if (!TEST_ONBOARDING) return
 
@@ -188,7 +210,7 @@ const main = Effect.gen(function* () {
   }
 
   app.on("second-instance", (_event: Event, argv: string[]) => {
-    const urls = argv.filter((arg: string) => arg.startsWith("opencode://"))
+    const urls = argv.filter((arg: string) => arg.startsWith("openagent://") || arg.startsWith("opencode://"))
     if (urls.length) {
       logger.log("deep link received via second-instance", { urls })
       emitDeepLinks(urls)
@@ -226,7 +248,6 @@ const main = Effect.gen(function* () {
   }
 
   const serverReady = Deferred.makeUnsafe<ServerReadyData>()
-  const loadingComplete = Deferred.makeUnsafe<void>()
 
   registerIpcHandlers({
     killSidecar: () => killSidecar(),
@@ -258,7 +279,7 @@ const main = Effect.gen(function* () {
     checkAppExists: (appName) => checkAppExists(appName),
     wslPath: async (path, mode) => wslPath(path, mode),
     resolveAppPath: async (appName) => resolveAppPath(appName),
-    loadingWindowComplete: () => Deferred.doneUnsafe(loadingComplete, Effect.void),
+    loadingWindowComplete: () => undefined,
     runUpdater: async (alertOnFail) => checkForUpdates(alertOnFail, killSidecar),
     checkUpdate: async () => checkUpdate(),
     installUpdate: async () => installUpdate(killSidecar),
@@ -268,188 +289,47 @@ const main = Effect.gen(function* () {
   yield* Effect.promise(() => app.whenReady())
 
   if (!TEST_ONBOARDING) migrate()
+  app.setAsDefaultProtocolClient("openagent")
   app.setAsDefaultProtocolClient("opencode")
   registerRendererProtocol()
   setDockIcon()
   setupAutoUpdater()
 
-  const needsMigration = ((): boolean => {
-    if (SHARED_SERVER_URL) return false
-    if (process.env.OPENCODE_DB === ":memory:") return false
+  const directServerUrl = envServerUrl()
+  const storedServerUrl = normalizeServerUrl(getDefaultServerUrl())
+  const externalServer =
+    directServerUrl || storedServerUrl
+      ? undefined
+      : yield* Effect.promise(() => findOrStartSharedServer()).pipe(
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              logger.warn("external opencode server discovery failed", error)
+              return undefined
+            }),
+          ),
+        )
 
-    const xdg = process.env.XDG_DATA_HOME
-    const base = xdg && xdg.length > 0 ? xdg : join(homedir(), ".local", "share")
-    return !existsSync(join(base, "opencode", "opencode.db"))
-  })()
-  let overlay: BrowserWindow | null = null
+  const resolvedServer: ServerReadyData = directServerUrl
+    ? { url: directServerUrl, username: null, password: null }
+    : storedServerUrl
+      ? { url: storedServerUrl, username: null, password: null }
+      : externalServer
+        ? {
+            url: externalServer.url,
+            username: externalServer.username ?? null,
+            password: externalServer.password ?? null,
+          }
+        : { url: FALLBACK_SERVER_URL, username: null, password: null }
 
-  if (SHARED_SERVER_URL) {
-    logger.log("using shared desktop server", { url: SHARED_SERVER_URL })
-    yield* Deferred.succeed(serverReady, {
-      url: SHARED_SERVER_URL,
-      username: "",
-      password: "",
-    })
-    setInitStep({ phase: "done" })
-
-    mainWindow = createMainWindow()
-    if (mainWindow) {
-      createMenu({
-        trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
-        checkForUpdates: () => {
-          void checkForUpdates(true, killSidecar)
-        },
-        reload: () => mainWindow?.reload(),
-        relaunch: () => {
-          app.relaunch()
-          app.exit(0)
-        },
-      })
-    }
-    return
+  if (externalServer) logger.log("using external opencode server", { url: externalServer.url })
+  if (!directServerUrl && !storedServerUrl && !externalServer) {
+    logger.warn("no external opencode server found; showing server selection UI", { fallback: FALLBACK_SERVER_URL })
   }
 
-  const sharedServer = app.isPackaged
-    ? yield* Effect.promise(() => findOrStartSharedServer()).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            logger.warn("shared server discovery failed", error)
-            return undefined
-          }),
-        ),
-      )
-    : undefined
-  if (sharedServer) {
-    logger.log("using shared server", { url: sharedServer.url })
-    yield* Deferred.succeed(serverReady, {
-      url: sharedServer.url,
-      username: sharedServer.username,
-      password: sharedServer.password,
-    })
-    setInitStep({ phase: "done" })
-
-    mainWindow = createMainWindow()
-    if (mainWindow) {
-      createMenu({
-        trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
-        checkForUpdates: () => {
-          void checkForUpdates(true, killSidecar)
-        },
-        reload: () => mainWindow?.reload(),
-        relaunch: () => {
-          app.relaunch()
-          app.exit(0)
-        },
-      })
-    }
-    return
-  }
-
-  const port = yield* Effect.gen(function* () {
-    const fromEnv = process.env.OPENCODE_PORT
-    if (fromEnv) {
-      const parsed = Number.parseInt(fromEnv, 10)
-      if (!Number.isNaN(parsed)) return parsed
-    }
-
-    const res = yield* Deferred.make<number, unknown>()
-    const server = createServer()
-    server.on("error", (e) => Deferred.failSync(res, () => e))
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address()
-      if (typeof address !== "object" || !address) {
-        server.close()
-        Deferred.failSync(res, () => new Error("Failed to get port"))
-        return
-      }
-      const port = address.port
-      server.close(() => Effect.runSync(Deferred.succeed(res, port)))
-    })
-
-    return yield* Deferred.await(res)
-  })
-  const hostname = "127.0.0.1"
-  const url = `http://${hostname}:${port}`
-  const password = randomUUID()
-
-  const loadingTask = yield* Effect.gen(function* () {
-    logger.log("sidecar connection started", { url })
-
-    initEmitter.on("sqlite", (progress: SqliteMigrationProgress) => {
-      setInitStep({ phase: "sqlite_waiting" })
-      if (overlay) sendSqliteMigrationProgress(overlay, progress)
-      if (mainWindow) sendSqliteMigrationProgress(mainWindow, progress)
-    })
-
-    ensureLoopbackNoProxy()
-    useEnvProxy()
-
-    logger.log("spawning sidecar", { url })
-    const { listener, health } = yield* Effect.promise(() =>
-      spawnLocalServer(hostname, port, password, {
-        needsMigration,
-        userDataPath: app.getPath("userData"),
-        onSqliteProgress: (progress) => initEmitter.emit("sqlite", progress),
-        onStdout: (message) => logger.log("sidecar stdout", { message }),
-        onStderr: (message) => logger.warn("sidecar stderr", { message }),
-        onExit: (code) => logger.warn("sidecar exited", { code }),
-      }),
-    )
-    server = listener
-    yield* Deferred.succeed(serverReady, {
-      url,
-      username: "opencode",
-      password,
-    })
-
-    yield* Effect.promise(() => health.wait).pipe(
-      Effect.timeout("30 seconds"),
-      Effect.catch((e) =>
-        Effect.sync(() => {
-          logger.error("sidecar health check failed", e.toString())
-        }),
-      ),
-    )
-
-    logger.log("loading task finished")
-  }).pipe(Effect.forkChild)
-
-  if (needsMigration) {
-    const show = yield* loadingTask.pipe(
-      Fiber.await,
-      Effect.timeout("1 second"),
-      Effect.as(false),
-      Effect.catch(() => Effect.succeed(true)),
-    )
-    if (show) {
-      overlay = createLoadingWindow()
-      yield* Effect.sleep("1 second")
-    }
-  }
-
-  yield* Fiber.await(loadingTask)
+  yield* Deferred.succeed(serverReady, resolvedServer)
   setInitStep({ phase: "done" })
 
-  if (overlay) yield* Deferred.await(loadingComplete)
-
-  mainWindow = createMainWindow()
-  if (mainWindow) {
-    createMenu({
-      trigger: (id) => mainWindow && sendMenuCommand(mainWindow, id),
-      checkForUpdates: () => {
-        void checkForUpdates(true, killSidecar)
-      },
-      reload: () => mainWindow?.reload(),
-      relaunch: () => {
-        void killSidecar().finally(() => {
-          app.relaunch()
-          app.exit(0)
-        })
-      },
-    })
-  }
-
-  overlay?.close()
+  openMainWindow()
 })
 
 Effect.runFork(main)

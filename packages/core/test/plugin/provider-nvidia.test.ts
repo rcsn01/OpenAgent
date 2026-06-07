@@ -1,8 +1,8 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { PluginV2 } from "@opencode-ai/core/plugin"
-import { ProviderPlugins } from "@opencode-ai/core/plugin/provider"
-import { NvidiaPlugin } from "@opencode-ai/core/plugin/provider/nvidia"
+import { PluginV2 } from "@openagent/core/plugin"
+import { ProviderPlugins } from "@openagent/core/plugin/provider"
+import { NvidiaPlugin } from "@openagent/core/plugin/provider/nvidia"
 import { expectPluginRegistered, it, provider } from "./provider-helper"
 
 describe("NvidiaPlugin", () => {

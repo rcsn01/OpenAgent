@@ -2,7 +2,7 @@
 
 ## Selection Logic
 
-The base prompt is selected at runtime in `packages/opencode/src/session/system.ts` based on the active model's ID string:
+The base prompt is selected at runtime in `external opencode runtime/src/session/system.ts` based on the active model's ID string:
 
 ```ts
 export function provider(model: Provider.Model) {
@@ -31,7 +31,7 @@ Priority order:
 
 ## When It Is Used
 
-The provider prompt is used when the active agent does **not** define its own `prompt` field. The deciding line is in `packages/opencode/src/session/llm.ts`:
+The provider prompt is used when the active agent does **not** define its own `prompt` field. The deciding line is in `external opencode runtime/src/session/llm.ts`:
 
 ```ts
 const basePrompt = input.agent.prompt

@@ -1,6 +1,6 @@
-import { base64Encode } from "@opencode-ai/core/util/encode"
-import { createSimpleContext } from "@opencode-ai/ui/context"
-import { useLocation, useNavigate, useParams } from "@solidjs/router"
+import { base64Encode } from "@openagent/core/util/encode"
+import { createSimpleContext } from "@openagent/ui/context"
+import { useNavigate, useParams } from "@solidjs/router"
 import { createEffect, createMemo } from "solid-js"
 import { decode64 } from "@/utils/base64"
 
@@ -8,15 +8,12 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
   name: "AppRoute",
   init: () => {
     const params = useParams()
-    const location = useLocation()
     const navigate = useNavigate()
 
     const kind = createMemo(() => (params.dir ? "workspace" : "none"))
     const workspaceDirectory = createMemo(() => (params.dir ? decode64(params.dir) ?? "" : ""))
     const page = createMemo(() => {
       if (kind() !== "workspace") return "home" as const
-      if (params.automationID) return "automation-editor" as const
-      if (/\/automations(?:\/|$)/.test(location.pathname)) return "automations" as const
       if (params.id) return "session" as const
       return "new-session" as const
     })
@@ -42,12 +39,6 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
       if (!dir) return "/"
       return `/${dir}/session${sessionID ? `/${sessionID}` : ""}`
     }
-    const automationsHref = (automationID?: string) => {
-      const dir = slug()
-      if (!dir) return "/"
-      return `/${dir}/automations${automationID ? `/${automationID}` : ""}`
-    }
-
     return {
       kind,
       page,
@@ -56,7 +47,6 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
       directory,
       slug,
       sessionID: createMemo(() => routeParams().id),
-      automationID: createMemo(() => (page() === "automation-editor" ? params.automationID : undefined)),
       rootSessionID: createMemo(() => routeParams().id),
       ready: createMemo(() => kind() !== "workspace" || !!workspaceDirectory()),
       chatInfo: {
@@ -64,7 +54,6 @@ export const { use: useAppRoute, provider: AppRouteProvider } = createSimpleCont
         error: undefined,
       },
       href,
-      automationsHref,
     }
   },
 })

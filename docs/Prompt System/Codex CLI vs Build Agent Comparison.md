@@ -107,7 +107,7 @@ Output:
 **Codex CLI** allows spawning subagents with inherited `base_instructions` and supports subagent notifications injected into the parent conversation (`session_prefix.rs`, `format_subagent_notification_message`).
 
 **OpenAgent `build`** can use blocking `task` to spawn subagents, but:
-- Cannot spawn OpenSwarm feature specialists (`deep-research`, `data-analyst`, etc.)
+- Cannot spawn external orchestration feature specialists (`deep-research`, `data-analyst`, etc.)
 - Cannot use background tasks, graph tasks, or `send_message`
 - Background / orchestration tools are `assistant`-only
 
@@ -163,4 +163,4 @@ The architectural intent differs:
 - `docs/Agents/Primary Agents.md` — Build agent definition and capabilities.
 - `docs/Prompt System/Prompt Assembly Flow.md` — System prompt stacking order.
 - `docs/Prompt System/Overview.md` — Layered prompt mental model.
-- `docs/Architecture/OpenSwarm Integration.md` — Subagent routing and communication.
+- `docs/Architecture/external orchestration Integration.md` — Subagent routing and communication.

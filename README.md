@@ -1,37 +1,46 @@
 # OpenAgent
 
-OpenAgent is forked from opencode, with non-linear agent workflows through dependency graph scheduling and hands-off speech recognition with native voice-activity detection.
+OpenAgent is a GUI workspace for stock external opencode servers.
 
-## What makes it different
+This repository owns the desktop shell, web app, shared UI components, and small GUI utilities. It does not vendor or patch the opencode runtime. Runtime behavior comes from an installed `opencode` CLI/server and the pinned `@opencode-ai/sdk` npm package.
 
-**Non-linear orchestration**
-Unlike linear chatbots, OpenAgent runs tasks as a dependency graph. Agents work in parallel, unblock each other, and retry independently. You can kick off a dozen tasks across multiple projects and let them resolve themselves.
+## Workspace
 
-**100% hands-free**
-Built with the same real-time conversation engine as Gemini's app — native voice activity detection, continuous speech recognition, and interruptible responses. No button pushing. Talk to it like a person.
+- `packages/app` — Solid web GUI
+- `packages/desktop` — Electron desktop wrapper
+- `packages/ui` — shared UI components
+- `packages/storybook` — UI component stories
+- `packages/core` — slim shared GUI utility types/functions
 
-**Works directly on your code**
-Because it's built on opencode, it has full repository access: read, edit, test, commit, and push — all autonomously. It can run in the background while you do something else.
+## Development
 
-**Multi-project, multi-thread**
-The non-linear scheduler means you're not locked into one conversation stream. Spin up agents across different repositories simultaneously. Fix a bug in project A, scaffold a feature in project B, and review a PR in project C — all at once.
+Install dependencies:
 
-**Real-world example**
-Connect via Discord call, then go bushwalking. While you're out, it organizes your email, schedules your calendar, writes your child's essay, pushes code for your day job, and moonlights three side contracts — all in parallel, all hands-free.
+```bash
+bun install
+```
 
-**UI**
-The interface is a custom fork of Codex's GUI layout (not opencode's default). Clean three-panel design: sidebar navigation, main chat, and side panels for review/subagents.
+Start a web UI with an external opencode server:
 
-**⚠️ PROPRIETARY SOURCE CODE - VIEW ONLY**
+```bash
+opencode server start --hostname 127.0.0.1 --port 4096
+VITE_OPENCODE_SERVER_URL=http://127.0.0.1:4096 bun run --cwd packages/app dev
+```
 
-This repository is hosted publicly for **educational and portfolio demonstration purposes only**. This project is **NOT Open Source**.
+Start desktop against an existing server:
 
-### ⛔ Licensing & Usage Restrictions
-The source code in this repository is **Proprietary** property of Rcsn01.
-**Copyright (c) 2026 Rcsn01. All rights reserved.**
+```bash
+OPENAGENT_SERVER_URL=http://127.0.0.1:4096 bun run dev:desktop
+```
 
-* **You MAY**: View, read, and inspect the code for educational or review purposes.
-* **You MAY NOT**: Copy, modify, distribute, sublicense, sell, or use this code (in whole or in part) for any commercial or non-commercial purpose.
-* **You MAY NOT**: Use this code to train AI models or create derivative works.
+Desktop can also start an installed external CLI with:
 
-For full legal terms, please refer to the [LICENSE](./LICENSE) file in this repository.
+```bash
+OPENCODE_BIN_PATH=/path/to/opencode bun run dev:desktop
+```
+
+`OPENCODE_DESKTOP_SERVER_URL` is accepted as a deprecated transition alias for `OPENAGENT_SERVER_URL`.
+
+## Licensing
+
+This repository is hosted publicly for educational and portfolio demonstration purposes only. See [LICENSE](./LICENSE).

@@ -110,7 +110,7 @@ The `resolve` method walks upward from a `read` tool's target file and attaches 
 Unlike Codex CLI, OpenAgent supports **agent-specific prompts**:
 
 - `build` uses the provider prompt directly.
-- `assistant` appends `assistant.txt` + OpenSwarm routing guidance.
+- `assistant` appends `assistant.txt` + external orchestration routing guidance.
 - Specialists get their own `role`, `owns`, and `tools` prompts.
 - Plan mode gets injected reminders.
 
@@ -295,10 +295,10 @@ The adoption should be **incremental and backward-compatible** — Codex CLI's p
 - `codex-rs/core/src/client.rs:746-765` — API request payload construction.
 
 ### OpenAgent
-- `packages/opencode/src/session/instruction.ts` — Instruction discovery, loading, per-message resolution.
-- `packages/opencode/src/session/system.ts` — Provider prompt selection, environment info, skills.
-- `packages/opencode/src/session/prompt.ts` — Session loop, tool orchestration, plan/build mode switching.
-- `packages/opencode/src/session/llm.ts` — Prompt assembly, streaming.
+- `external opencode runtime/src/session/instruction.ts` — Instruction discovery, loading, per-message resolution.
+- `external opencode runtime/src/session/system.ts` — Provider prompt selection, environment info, skills.
+- `external opencode runtime/src/session/prompt.ts` — Session loop, tool orchestration, plan/build mode switching.
+- `external opencode runtime/src/session/llm.ts` — Prompt assembly, streaming.
 - `docs/Prompt System/Prompt Assembly Flow.md` — Full system prompt stack.
 - `docs/Agents/Primary Agents.md` — Build agent definition and role.
 - `docs/Prompt System/Codex CLI Prompt Architecture.md` — Prior Codex CLI analysis.

@@ -1,10 +1,10 @@
-import { Button } from "@opencode-ai/ui/button"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Switch } from "@opencode-ai/ui/switch"
-import { Tabs } from "@opencode-ai/ui/tabs"
+import { Button } from "@openagent/ui/button"
+import { useDialog } from "@openagent/ui/context/dialog"
+import { Icon } from "@openagent/ui/icon"
+import { Switch } from "@openagent/ui/switch"
+import { Tabs } from "@openagent/ui/tabs"
 import { useMutation, useQueryClient } from "@tanstack/solid-query"
-import { showToast } from "@opencode-ai/ui/toast"
+import { showToast } from "@openagent/ui/toast"
 import { useNavigate } from "@solidjs/router"
 import { type Accessor, createEffect, createMemo, For, type JSXElement, onCleanup, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
@@ -213,8 +213,6 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
   )
   const pluginCount = createMemo(() => plugins().length)
   const pluginEmpty = createMemo(() => pluginEmptyMessage(language.t("dialog.plugins.empty"), "opencode.json"))
-  const activeOrgName = createMemo(() => sync.data.console_state.activeOrgName)
-  const switchableOrgCount = createMemo(() => sync.data.console_state.switchableOrgCount)
   const formatterItems = createMemo(() => sync.data.formatter ?? [])
   const formatterEnabled = createMemo(() => formatterItems().filter((item) => item.enabled).length)
 
@@ -228,32 +226,8 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
         defaultValue="servers"
         variant="alt"
       >
-        <Show when={activeOrgName() || switchableOrgCount() > 1 || formatterItems().length > 0}>
+        <Show when={formatterItems().length > 0}>
           <div class="px-4 pt-3 pb-2 flex flex-col gap-2">
-            <Show when={activeOrgName() || switchableOrgCount() > 1}>
-              <div class="flex items-center justify-between gap-3 rounded-md bg-background-base px-3 py-2">
-                <div class="min-w-0">
-                  <div class="text-11-medium uppercase tracking-wide text-text-weaker">Org</div>
-                  <div class="truncate text-13-medium text-text-strong">{activeOrgName() ?? "No active org"}</div>
-                </div>
-                <Show when={switchableOrgCount() > 1}>
-                  <Button
-                    variant="ghost"
-                    class="h-7 px-2 shrink-0"
-                    onClick={() => {
-                      const run = ++dialogRun
-                      void import("./dialog-console-org").then((x) => {
-                        if (dialogDead || dialogRun !== run) return
-                        dialog.show(() => <x.DialogConsoleOrg />)
-                      })
-                    }}
-                  >
-                    Switch
-                  </Button>
-                </Show>
-              </div>
-            </Show>
-
             <Show when={formatterItems().length > 0}>
               <div class="rounded-md bg-background-base px-3 py-2">
                 <div class="text-11-medium uppercase tracking-wide text-text-weaker">Formatters</div>
@@ -455,19 +429,6 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                   )}
                 </For>
               </Show>
-              <Button
-                variant="secondary"
-                class="mt-3 self-start h-8 px-3 py-1.5"
-                onClick={() => {
-                  const run = ++dialogRun
-                  void import("./dialog-plugins").then((x) => {
-                    if (dialogDead || dialogRun !== run) return
-                    dialog.show(() => <x.DialogPlugins directory={sync.directory} />)
-                  })
-                }}
-              >
-                Manage plugins
-              </Button>
             </div>
           </div>
         </Tabs.Content>
