@@ -31,6 +31,7 @@ import {
 import { Dynamic } from "solid-js/web"
 import { CommandProvider } from "@/context/command"
 import { CommentsProvider } from "@/context/comments"
+import { AutomationsProvider } from "@/context/automation/store"
 import { FileProvider } from "@/context/file"
 import { AppRouteProvider, useAppRoute } from "@/context/app-route"
 import { GlobalSDKProvider } from "@/context/global-sdk"
@@ -115,11 +116,13 @@ function AppShellProviders(props: ParentProps) {
         <LayoutProvider>
           <NotificationProvider>
             <ModelsProvider>
-              <CommandProvider>
-                <HighlightsProvider>
-                  <Layout>{props.children}</Layout>
-                </HighlightsProvider>
-              </CommandProvider>
+              <AutomationsProvider>
+                <CommandProvider>
+                  <HighlightsProvider>
+                    <Layout>{props.children}</Layout>
+                  </HighlightsProvider>
+                </CommandProvider>
+              </AutomationsProvider>
             </ModelsProvider>
           </NotificationProvider>
         </LayoutProvider>
@@ -342,6 +345,7 @@ export function AppInterface(props: {
                   <Route path="/chat/:id?" component={RedirectHomeRoute} />
                   <Route path="/:dir" component={SessionIndexRoute} />
                   <Route path="/:dir/session/:id?" component={EmptyRoute} />
+                  <Route path="/:dir/automations/:automationID?" component={EmptyRoute} />
                 </Dynamic>
               </GlobalSyncProvider>
             </GlobalSDKProvider>
