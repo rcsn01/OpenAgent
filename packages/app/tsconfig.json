@@ -25,7 +25,6 @@
   "exclude": [
     "dist",
     "ts-dist",
-    "src/components/dialog-automations.tsx",
     "src/components/dialog-console-org.tsx",
     "src/components/dialog-fork.tsx",
     "src/components/dialog-install-plugin.tsx",

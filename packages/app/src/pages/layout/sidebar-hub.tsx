@@ -391,6 +391,7 @@ export const SidebarHub = (props: {
   onLoadMoreProjectSessions: (project: LocalProject) => Promise<void>
   onNewChat: () => void
   onSearch: () => void
+  onAutomations: () => void
   onSettings: () => void
   onStartProject: () => void
   onOpenProjectChooser: () => void
@@ -439,6 +440,7 @@ export const SidebarHub = (props: {
       <div class={`shrink-0 ${sidebarItemGapClass}`}>
         <SidebarAction icon="new-session" label="New session" onClick={props.onNewChat} />
         <SidebarAction icon="magnifying-glass" label="Search" onClick={props.onSearch} />
+        <SidebarAction icon="checklist" label="Automations" onClick={props.onAutomations} />
       </div>
 
       <div class="mt-1 flex-1 min-h-0 overflow-y-auto pr-1 no-scrollbar">

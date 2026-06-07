@@ -59,6 +59,7 @@ import { useTheme, type ColorScheme } from "@openagent/ui/theme/context"
 import { useCommand, type CommandOption } from "@/context/command"
 import { ConstrainDragXAxis, getDraggableId } from "@/utils/solid-dnd"
 import { DebugBar } from "@/components/debug-bar"
+import { DialogAutomations } from "@/components/dialog-automations"
 import { PanelHeader, TitlebarLeadingControls, TitlebarThemeSync } from "@/components/titlebar"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
@@ -1124,6 +1125,13 @@ export default function Layout(props: ParentProps) {
         onSelect: () => openStatus(),
       },
       {
+        id: "automations.open",
+        title: "Automations",
+        category: language.t("command.category.view"),
+        slash: { name: "automations", aliases: ["automation"] },
+        onSelect: () => navigateToAutomation(),
+      },
+      {
         id: "theme.list",
         title: "Themes",
         category: language.t("command.category.theme"),
@@ -1348,6 +1356,17 @@ export default function Layout(props: ParentProps) {
   function navigateToSession(session: Session | undefined) {
     if (!session) return
     navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
+  }
+
+  function navigateToAutomation(input?: { directory?: string; id?: string; replace?: boolean }) {
+    const directory = input?.directory || currentDir() || currentProject()?.worktree || layout.projects.list()[0]?.worktree
+    if (!directory) {
+      void chooseProject()
+      return
+    }
+    navigateWithSidebarReset(`/${base64Encode(directory)}/automations${input?.id ? `/${input.id}` : ""}`, {
+      replace: input?.replace,
+    })
   }
 
   function openProject(directory: string, navigate = true, options?: { replace?: boolean }) {
@@ -2393,6 +2412,7 @@ export default function Layout(props: ParentProps) {
           onLoadMoreProjectSessions={loadMoreProjectSessions}
           onNewChat={openSidebarNewChat}
           onSearch={openSessionList}
+          onAutomations={() => navigateToAutomation()}
           onSettings={openSettings}
           onStartProject={() => void chooseProject()}
           onOpenProjectChooser={() => void chooseProject()}
@@ -2523,7 +2543,24 @@ export default function Layout(props: ParentProps) {
               >
                 <div class="flex-1 min-h-0 min-w-0 w-full">
                   <Show when={!autoselecting.loading} fallback={<div class="size-full" />}>
-                    {props.children}
+                    <Show
+                      when={appRoute.page() === "automations"}
+                      fallback={props.children}
+                    >
+                      <DialogAutomations
+                        embedded
+                        projects={projects()}
+                        currentDir={currentDir()}
+                        automationID={appRoute.automationID()}
+                        onOpenAutomations={(input) => navigateToAutomation({ replace: input?.replace })}
+                        onOpenAutomation={(input) =>
+                          navigateToAutomation({ directory: input.directory, id: input.id })
+                        }
+                        onOpenSession={(input) =>
+                          navigateWithSidebarReset(`/${base64Encode(input.directory)}/session/${input.id}`)
+                        }
+                      />
+                    </Show>
                   </Show>
                 </div>
               </main>
