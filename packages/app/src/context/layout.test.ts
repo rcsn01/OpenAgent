@@ -72,6 +72,7 @@ describe("normalizeSessionSidePanelMode", () => {
   test("accepts supported modes", () => {
     expect(normalizeSessionSidePanelMode("review")).toBe("review")
     expect(normalizeSessionSidePanelMode("context")).toBe("context")
+    expect(normalizeSessionSidePanelMode("extensions")).toBe("extensions")
   })
 
   test("falls back to review for unknown values", () => {

@@ -7,6 +7,7 @@ import { useWorkspacePanels, type WorkspaceRightPanelKind } from "@/context/work
 import type { Sizing } from "@/pages/session/helpers"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { SessionContextTab } from "@/components/session"
+import { SessionExtensionsPanel } from "./extensions"
 import { SessionReviewPanel } from "./review"
 
 type SessionRightPanelItem = {
@@ -18,6 +19,7 @@ type SessionRightPanelItem = {
 
 const rightPanelIcon = (kind: WorkspaceRightPanelKind) => {
   if (kind === "context") return "pin"
+  if (kind === "extensions") return "mcp"
   return "review"
 }
 
@@ -51,7 +53,7 @@ export function SessionSidePanel(props: {
   const { view } = useSessionLayout()
   const workspacePanels = useWorkspacePanels()
 
-  const panelOpen = createMemo(() => view().reviewPanel.opened() || view().context.opened())
+  const panelOpen = createMemo(() => view().reviewPanel.opened() || view().context.opened() || view().extensions.opened())
 
   const contextPanel = createMemo<SessionRightPanelItem>(() => ({
     kind: "context",
@@ -78,10 +80,18 @@ export function SessionSidePanel(props: {
       />
     ),
   }))
+  const extensionsPanel = createMemo<SessionRightPanelItem>(() => ({
+    kind: "extensions",
+    id: "extensions-panel",
+    label: "Extensions",
+    render: () => <SessionExtensionsPanel />,
+  }))
   const activePanel = createMemo<SessionRightPanelItem>(() => {
     switch (layout.sidePanel.active()) {
       case "context":
         return contextPanel()
+      case "extensions":
+        return extensionsPanel()
       case "review":
       default:
         return reviewPanel()

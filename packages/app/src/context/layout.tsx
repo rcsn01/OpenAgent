@@ -60,10 +60,10 @@ type TabHandoff = {
 export type LocalProject = Partial<Project> & { worktree: string; expanded: boolean; pinned?: boolean }
 
 export type ReviewDiffStyle = "unified" | "split"
-export type SessionSidePanelMode = "review" | "context"
+export type SessionSidePanelMode = "review" | "context" | "extensions"
 
 export function normalizeSessionSidePanelMode(mode: unknown): SessionSidePanelMode {
-  if (mode === "review" || mode === "context") return mode
+  if (mode === "review" || mode === "context" || mode === "extensions") return mode
   return "review"
 }
 
@@ -811,6 +811,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const sidePanelActive = createMemo(() => normalizeSessionSidePanelMode(store.sidePanel?.active))
         const reviewPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "review")
         const contextPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "context")
+        const extensionsPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "extensions")
 
         function setTerminalOpened(next: boolean) {
           const current = store.terminal
@@ -909,6 +910,22 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             toggle() {
               if (sidePanelActive() !== "context") {
                 openSidePanel("context")
+                return
+              }
+              setReviewPanelOpened(!mainPanelOpened())
+            },
+          },
+          extensions: {
+            opened: extensionsPanelOpened,
+            open() {
+              openSidePanel("extensions")
+            },
+            close() {
+              setReviewPanelOpened(false)
+            },
+            toggle() {
+              if (sidePanelActive() !== "extensions") {
+                openSidePanel("extensions")
                 return
               }
               setReviewPanelOpened(!mainPanelOpened())

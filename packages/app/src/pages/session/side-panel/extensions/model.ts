@@ -1,15 +1,20 @@
-import type { ExperimentalExtensionsListResponse, McpStatus } from "@opencode-ai/sdk/v2/client"
+import type { Config, McpStatus } from "@opencode-ai/sdk/v2/client"
 import type { ExtensionBundle, ExtensionRegistryEntry, ExtensionSetup } from "@/extensions/registry"
+import { supportedMcp, managedSkillPath, type ExtensionMetadata } from "./install"
 
-export type InstalledExtension = ExperimentalExtensionsListResponse["extensions"][number]
-export type InstalledExtensionServer = InstalledExtension["servers"][number]
-export type ExtensionPanelServer = InstalledExtensionServer & {
+export type ExtensionPanelServer = {
+  key: string
+  status: McpStatus
+  tools: Array<{ name: string }>
   action: "authenticate" | "connect" | "disconnect"
+  supported: boolean
+  configured: boolean
 }
 export type ExtensionPanelSkill = {
   name: string
   description?: string
   location?: string
+  installed: boolean
 }
 export type ExtensionPanelItem = {
   id: string
@@ -19,7 +24,7 @@ export type ExtensionPanelItem = {
   installed: boolean
   active: boolean
   available: boolean
-  config_path?: string
+  needsRepair: boolean
   installed_at?: number
   tags: string[]
   setup?: ExtensionSetup
@@ -38,10 +43,6 @@ function setupSearch(setup?: ExtensionSetup) {
   ]
 }
 
-function finiteNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined
-}
-
 function installBundle(item: ExtensionRegistryEntry): ExtensionBundle {
   return {
     id: item.id,
@@ -58,113 +59,112 @@ function frontmatterValue(content: string, key: string) {
   return match?.[1]?.trim()
 }
 
-function registrySkills(bundle?: ExtensionRegistryEntry | ExtensionBundle): ExtensionPanelSkill[] {
-  return (bundle?.skills ?? []).map((skill) => ({
-    name: frontmatterValue(skill.content, "name") ?? skill.path,
-    description: frontmatterValue(skill.content, "description"),
-    location: skill.path,
-  }))
-}
-
-function installedSkills(item: InstalledExtension, bundle?: ExtensionRegistryEntry): ExtensionPanelSkill[] {
-  if (item.skills.length > 0) {
-    return item.skills.map((skill) => ({
-      name: skill.name,
-      description: skill.description,
-      location: skill.location,
-    }))
-  }
-  return registrySkills(bundle)
+function defaultStatus(configured: boolean): McpStatus {
+  return { status: configured ? "disabled" : "disabled" }
 }
 
 function isOAuthCapable(config: ExtensionBundle["mcp"][string] | undefined) {
   if (!config) return false
   if (config.type === "remote") return config.oauth !== false
-  if (config.type === "builtin") return false
-  return config.transport?.type === "streamable-http" && !!config.oauth
+  return false
 }
 
-function serverAction(
-  status: McpStatus["status"],
-  config?: ExtensionBundle["mcp"][string],
-): ExtensionPanelServer["action"] {
+function serverAction(status: McpStatus["status"], config?: ExtensionBundle["mcp"][string]): ExtensionPanelServer["action"] {
   if (status === "connected") return "disconnect"
   if (status === "needs_auth" || status === "needs_client_registration") return "authenticate"
   if (status === "disabled" && isOAuthCapable(config)) return "authenticate"
   return "connect"
 }
 
-function installedItem(
-  item: InstalledExtension,
-  registry: Map<string, ExtensionRegistryEntry>,
-  live: Record<string, McpStatus>,
-): ExtensionPanelItem {
-  const bundle = registry.get(item.id)
-  const tags = bundle?.tags ?? []
-  const servers = item.servers.map((server) => {
-    const status = live[server.key] ?? server.status
+function registrySkills(input: {
+  bundle: ExtensionRegistryEntry
+  skillFiles: Record<string, boolean>
+}): ExtensionPanelSkill[] {
+  return input.bundle.skills.map((skill) => {
+    const location = skill.path
     return {
-      ...server,
-      status,
-      action: serverAction(status.status, bundle?.mcp[server.key]),
+      name: frontmatterValue(skill.content, "name") ?? skill.path,
+      description: frontmatterValue(skill.content, "description"),
+      location,
+      installed: input.skillFiles[managedSkillPath(input.bundle.id, location)] === true,
     }
   })
-
-  return {
-    id: item.id,
-    name: bundle?.name ?? item.name,
-    description: bundle?.description ?? item.description,
-    version: bundle?.version ?? item.version,
-    installed: true,
-    active: servers.every((server) => server.status.status === "connected"),
-    available: !!bundle,
-    config_path: item.config_path,
-    installed_at: finiteNumber(item.installed_at),
-    tags,
-    setup: bundle?.setup,
-    search: [item.id, bundle?.name, item.name, bundle?.description, item.description, ...tags, ...setupSearch(bundle?.setup)]
-      .filter(Boolean)
-      .join(" "),
-    bundle: bundle ? installBundle(bundle) : undefined,
-    servers,
-    skills: installedSkills(item, bundle),
-  }
 }
 
-function availableItem(item: ExtensionRegistryEntry): ExtensionPanelItem {
-  return {
-    id: item.id,
-    name: item.name,
-    description: item.description,
-    version: item.version,
-    installed: false,
-    active: false,
-    available: true,
-    tags: item.tags ?? [],
-    setup: item.setup,
-    search: [item.id, item.name, item.description, ...(item.tags ?? []), ...setupSearch(item.setup)].filter(Boolean).join(" "),
-    bundle: installBundle(item),
-    servers: Object.keys(item.mcp).map((key) => ({
+function itemFromRegistry(input: {
+  item: ExtensionRegistryEntry
+  config: Config
+  live: Record<string, McpStatus>
+  metadata?: ExtensionMetadata
+  skillFiles: Record<string, boolean>
+}): ExtensionPanelItem {
+  const bundle = installBundle(input.item)
+  const supported = supportedMcp(bundle)
+  const expectedMcpKeys = Object.keys(supported)
+  const supportedAll = expectedMcpKeys.length === Object.keys(bundle.mcp).length
+  const configuredMcp = expectedMcpKeys.every((key) => !!input.config.mcp?.[key])
+  const skills = registrySkills({ bundle: input.item, skillFiles: input.skillFiles })
+  const installedSkills = skills.every((skill) => skill.installed)
+  const hasManagedArtifacts = expectedMcpKeys.length > 0 || skills.length > 0
+  const installed = supportedAll && hasManagedArtifacts && configuredMcp && installedSkills
+  const needsRepair = !!input.metadata && !installed
+
+  const servers = Object.entries(bundle.mcp).map(([key, registryConfig]) => {
+    const supportedServer = key in supported
+    const configured = !!input.config.mcp?.[key]
+    const status = input.live[key] ?? defaultStatus(configured)
+    return {
       key,
-      status: { status: "disabled" as const },
+      status,
       tools: [],
-      action: "connect" as const,
-    })),
-    skills: registrySkills(item),
+      supported: supportedServer,
+      configured,
+      action: serverAction(status.status, registryConfig),
+    }
+  })
+  const tags = input.item.tags ?? []
+
+  return {
+    id: input.item.id,
+    name: input.item.name,
+    description: input.item.description,
+    version: input.item.version,
+    installed,
+    active: installed && servers.length > 0 && servers.every((server) => server.status.status === "connected"),
+    available: supportedAll,
+    needsRepair,
+    installed_at: input.metadata?.installedAt,
+    tags,
+    setup: input.item.setup,
+    search: [input.item.id, input.item.name, input.item.description, ...tags, ...setupSearch(input.item.setup)]
+      .filter(Boolean)
+      .join(" "),
+    bundle: supportedAll ? bundle : undefined,
+    servers,
+    skills,
   }
 }
 
 export function buildExtensionsPanelModel(input: {
   registry: ExtensionRegistryEntry[]
-  installed: InstalledExtension[]
+  config: Config
   live: Record<string, McpStatus>
+  metadata?: Record<string, ExtensionMetadata>
+  skillFiles?: Record<string, boolean>
 }) {
-  const registry = new Map(input.registry.map((item) => [item.id, item] as const))
-  const installed = input.installed.map((item) => installedItem(item, registry, input.live))
-  const installedIDs = new Set(installed.map((item) => item.id))
-  const available = input.registry.filter((item) => !installedIDs.has(item.id)).map(availableItem)
-  return [...installed, ...available].toSorted((a, b) => {
-    if (a.installed !== b.installed) return a.installed ? -1 : 1
-    return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
-  })
+  return input.registry
+    .map((item) =>
+      itemFromRegistry({
+        item,
+        config: input.config,
+        live: input.live,
+        metadata: input.metadata?.[item.id],
+        skillFiles: input.skillFiles ?? {},
+      }),
+    )
+    .toSorted((a, b) => {
+      if (a.installed !== b.installed) return a.installed ? -1 : 1
+      if (a.needsRepair !== b.needsRepair) return a.needsRepair ? -1 : 1
+      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
+    })
 }

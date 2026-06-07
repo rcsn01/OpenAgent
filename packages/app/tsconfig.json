@@ -32,8 +32,6 @@
     "src/components/dialog-session-graphs.tsx",
     "src/context/general-chat.tsx",
     "src/context/general-chat-route-cache.ts",
-    "src/extensions",
-    "src/pages/session/side-panel/extensions",
     "src/pages/session/side-panel/subagents"
   ]
 }

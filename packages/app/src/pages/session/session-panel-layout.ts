@@ -7,6 +7,7 @@ const MIN_SESSION_COLUMN_WIDTH = 420
 export function useSessionPanelLayout(input: {
   reviewPanelOpened: () => boolean
   contextOpened: () => boolean
+  extensionsOpened: () => boolean
   platform: () => "web" | "desktop"
   channel: () => string | undefined
   showFileTreeSetting: () => boolean
@@ -17,7 +18,7 @@ export function useSessionPanelLayout(input: {
   sessionWidth: () => number
 }) {
   const desktopReviewOpen = createMemo(() => input.reviewPanelOpened())
-  const desktopRightPanelOpen = createMemo(() => input.reviewPanelOpened() || input.contextOpened())
+  const desktopRightPanelOpen = createMemo(() => input.reviewPanelOpened() || input.contextOpened() || input.extensionsOpened())
   const fileTreeShown = createMemo(
     () => input.platform() !== "desktop" || input.channel() !== "beta" || input.showFileTreeSetting(),
   )

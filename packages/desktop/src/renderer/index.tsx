@@ -169,6 +169,18 @@ const createPlatform = (): Platform => {
       return window.api.readTextFile(path)
     },
 
+    writeExtensionSkillFile(projectDirectory, extensionID, relativePath, content) {
+      return window.api.writeExtensionSkillFile(projectDirectory, extensionID, relativePath, content)
+    },
+
+    readExtensionSkillFile(projectDirectory, extensionID, relativePath) {
+      return window.api.readExtensionSkillFile(projectDirectory, extensionID, relativePath)
+    },
+
+    removeExtensionSkillRoot(projectDirectory, extensionID) {
+      return window.api.removeExtensionSkillRoot(projectDirectory, extensionID)
+    },
+
     openLink(url: string) {
       window.api.openLink(url)
     },

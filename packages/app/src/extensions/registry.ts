@@ -1,6 +1,25 @@
-import type { ExperimentalExtensionsInstallData } from "@opencode-ai/sdk/v2/client"
+import type { McpLocalConfig, McpRemoteConfig } from "@opencode-ai/sdk/v2/client"
 
-export type ExtensionBundle = NonNullable<ExperimentalExtensionsInstallData["body"]>
+export type ExtensionMcpConfig = McpLocalConfig | McpRemoteConfig
+export type UnsupportedExtensionMcpConfig = {
+  type: "builtin"
+  id: string
+  enabled?: boolean
+}
+
+export type ExtensionSkillBundle = {
+  path: string
+  content: string
+}
+
+export type ExtensionBundle = {
+  id: string
+  version: string
+  name: string
+  description?: string
+  mcp: Record<string, ExtensionMcpConfig | UnsupportedExtensionMcpConfig>
+  skills: ExtensionSkillBundle[]
+}
 
 export type ExtensionSetup = {
   prerequisites?: string[]
@@ -23,16 +42,9 @@ export type ExtensionInstallAction = {
 }
 
 function installAction(config: ExtensionBundle["mcp"][string]): ExtensionInstallAction["action"] {
-  if (config.type === "builtin") return "connect"
-
   if (config.type === "remote") {
     return config.oauth !== false ? "authenticate" : "connect"
   }
-
-  if (config.transport?.type === "streamable-http" && config.oauth) {
-    return "authenticate"
-  }
-
   return "connect"
 }
 
@@ -50,10 +62,12 @@ function skill(input: {
 }
 
 export function extensionInstallActions(bundle: ExtensionBundle): ExtensionInstallAction[] {
-  return Object.entries(bundle.mcp).map(([key, config]) => ({
-    key,
-    action: installAction(config),
-  }))
+  return Object.entries(bundle.mcp)
+    .filter(([, config]) => config.type !== "builtin")
+    .map(([key, config]) => ({
+      key,
+      action: installAction(config),
+    }))
 }
 
 const googleCalendar = {
@@ -87,13 +101,6 @@ const googleCalendar = {
         "--tool-tier",
         "extended",
       ],
-      transport: {
-        type: "streamable-http" as const,
-        host: "localhost",
-        path: "/mcp",
-        portEnv: "WORKSPACE_MCP_PORT",
-      },
-      oauth: {},
       environment: {
         GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
         GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
@@ -293,13 +300,6 @@ const gmail = {
         "--tool-tier",
         "extended",
       ],
-      transport: {
-        type: "streamable-http" as const,
-        host: "localhost",
-        path: "/mcp",
-        portEnv: "WORKSPACE_MCP_PORT",
-      },
-      oauth: {},
       environment: {
         GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
         GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
@@ -357,13 +357,6 @@ const googleDrive = {
         "--tool-tier",
         "extended",
       ],
-      transport: {
-        type: "streamable-http" as const,
-        host: "localhost",
-        path: "/mcp",
-        portEnv: "WORKSPACE_MCP_PORT",
-      },
-      oauth: {},
       environment: {
         GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
         GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
@@ -416,9 +409,6 @@ const teams = {
         AZURE_CLIENT_ID: "{env:AZURE_CLIENT_ID}",
         AZURE_TENANT_ID: "{env:AZURE_TENANT_ID}",
       },
-      tool_filter: {
-        allow_prefixes: ["auth_", "chat_", "chats_", "team_", "teams_", "channel_", "channels_", "presence_", "search_"],
-      },
     },
   },
   skills: [
@@ -463,9 +453,6 @@ const outlook = {
       environment: {
         AZURE_CLIENT_ID: "{env:AZURE_CLIENT_ID}",
         AZURE_TENANT_ID: "{env:AZURE_TENANT_ID}",
-      },
-      tool_filter: {
-        allow_prefixes: ["auth_", "mail_", "email_", "calendar_", "event_", "events_", "meeting_", "meetings_", "file_", "files_"],
       },
     },
   },
