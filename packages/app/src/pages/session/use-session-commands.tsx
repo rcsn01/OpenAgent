@@ -708,6 +708,12 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       disabled: !params.id,
       onSelect: () => view().context.toggle(),
     }),
+    viewCommand({
+      id: "extensions.toggle",
+      title: "Toggle extensions",
+      description: "Browse and manage app-owned extensions",
+      onSelect: () => view().extensions.toggle(),
+    }),
     ...(shown()
       ? [
           viewCommand({

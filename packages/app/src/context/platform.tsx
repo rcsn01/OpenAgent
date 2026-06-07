@@ -86,6 +86,15 @@ export type Platform = {
   /** Read a UTF-8 text file (desktop only) */
   readTextFile?(path: string): Promise<string>
 
+  /** Write one project-local extension-managed skill file (desktop only) */
+  writeExtensionSkillFile?(projectDirectory: string, extensionID: string, relativePath: string, content: string): Promise<void>
+
+  /** Read one project-local extension-managed skill file (desktop only) */
+  readExtensionSkillFile?(projectDirectory: string, extensionID: string, relativePath: string): Promise<string>
+
+  /** Remove one project-local extension-managed skill root (desktop only) */
+  removeExtensionSkillRoot?(projectDirectory: string, extensionID: string): Promise<void>
+
   /** Storage mechanism, defaults to localStorage */
   storage?: (name?: string) => SyncStorage | AsyncStorage
 

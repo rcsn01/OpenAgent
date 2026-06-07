@@ -407,6 +407,22 @@ function SessionHeaderTrailingControls() {
               keybind={command.keybind("context.toggle")}
               tooltip="label"
             />
+
+            <TooltipKeybind title="Toggle extensions" keybind={command.keybind("extensions.toggle")}>
+              <Button
+                variant="ghost"
+                class="group/extensions-toggle titlebar-icon w-8 h-6 p-0 box-border"
+                classList={{
+                  "bg-surface-base-active": view().extensions.opened(),
+                }}
+                onClick={() => view().extensions.toggle()}
+                aria-label="Toggle extensions"
+                aria-expanded={view().extensions.opened()}
+                aria-controls="extensions-panel"
+              >
+                <Icon size="small" name="mcp" />
+              </Button>
+            </TooltipKeybind>
           </div>
         </div>
     </div>

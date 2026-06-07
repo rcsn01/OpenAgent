@@ -1,9 +1,14 @@
-import type { ExtensionBundle } from "@/extensions/registry"
+import type { Config } from "@opencode-ai/sdk/v2/client"
+import type { AsyncStorage, SyncStorage } from "@solid-primitives/storage"
+import type { ExtensionBundle, ExtensionMcpConfig } from "@/extensions/registry"
 import { extensionInstallActions } from "@/extensions/registry"
 
+export const EXTENSION_SKILL_ROOT = ".agents/skills/extensions"
+
 export type ExtensionInstallClient = {
-  experimental: {
-    install: (bundle: ExtensionBundle) => Promise<unknown>
+  config: {
+    get: () => Promise<unknown>
+    update: (config: Config) => Promise<unknown>
   }
   mcp: {
     connect: (input: { name: string }) => Promise<unknown>
@@ -13,7 +18,24 @@ export type ExtensionInstallClient = {
   }
 }
 
+export type ExtensionInstallFilesystem = {
+  writeExtensionSkillFile: (projectDirectory: string, extensionID: string, relativePath: string, content: string) => Promise<void>
+  readExtensionSkillFile?: (projectDirectory: string, extensionID: string, relativePath: string) => Promise<string>
+  removeExtensionSkillRoot: (projectDirectory: string, extensionID: string) => Promise<void>
+}
+
+export type ExtensionMetadata = {
+  installedAt: number
+  skillRoot: string
+  mcpKeys: string[]
+}
+
 export type ExtensionSetupValues = Record<string, string | undefined>
+export type ExtensionProjectMetadata = Record<string, ExtensionMetadata>
+type StorageLike = SyncStorage | AsyncStorage | undefined
+
+const METADATA_STORAGE = "opencode.extensions.dat"
+const metadataKey = (directory: string) => `extensions:${directory}`
 
 function unwrapClientResult(result: unknown) {
   if (typeof result === "object" && result !== null && "data" in result) return result.data
@@ -35,14 +57,125 @@ function assertSuccessfulAction(result: unknown, name: string) {
   throw new Error(`MCP server ${name} returned ${data.status.replaceAll("_", " ")}`)
 }
 
-function cloneBundle(bundle: ExtensionBundle): ExtensionBundle {
-  return JSON.parse(JSON.stringify(bundle)) as ExtensionBundle
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
 }
 
 function envPlaceholder(value: unknown) {
   if (typeof value !== "string") return
   const match = value.match(/^\{env:([^}]+)\}$/)
   return match?.[1]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function configFromResult(result: unknown): Config {
+  const data = unwrapClientResult(result)
+  if (!isRecord(data)) return {}
+  return data as Config
+}
+
+function storageFrom(input: { storage?: (name?: string) => StorageLike }) {
+  return input.storage?.(METADATA_STORAGE)
+}
+
+async function storageGet(storage: StorageLike, key: string) {
+  const value = storage?.getItem(key)
+  return value instanceof Promise ? await value : value
+}
+
+async function storageSet(storage: StorageLike, key: string, value: string) {
+  const result = storage?.setItem(key, value)
+  if (result instanceof Promise) await result
+}
+
+export async function readExtensionProjectMetadata(input: {
+  directory: string
+  storage?: (name?: string) => StorageLike
+}): Promise<ExtensionProjectMetadata> {
+  const raw = await storageGet(storageFrom(input), metadataKey(input.directory))
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!isRecord(parsed)) return {}
+    const next: ExtensionProjectMetadata = {}
+    for (const [id, value] of Object.entries(parsed)) {
+      if (!isRecord(value)) continue
+      const installedAt = typeof value.installedAt === "number" && Number.isFinite(value.installedAt) ? value.installedAt : undefined
+      const skillRoot = typeof value.skillRoot === "string" ? value.skillRoot : undefined
+      const mcpKeys = Array.isArray(value.mcpKeys) ? value.mcpKeys.filter((item): item is string => typeof item === "string") : []
+      if (!installedAt || !skillRoot) continue
+      next[id] = { installedAt, skillRoot, mcpKeys }
+    }
+    return next
+  } catch {
+    return {}
+  }
+}
+
+export async function writeExtensionProjectMetadata(input: {
+  directory: string
+  metadata: ExtensionProjectMetadata
+  storage?: (name?: string) => StorageLike
+}) {
+  await storageSet(storageFrom(input), metadataKey(input.directory), JSON.stringify(input.metadata))
+}
+
+export function managedSkillRoot(extensionID: string) {
+  return `${EXTENSION_SKILL_ROOT}/${extensionID}`
+}
+
+export function managedSkillPath(extensionID: string, relativePath: string) {
+  return `${managedSkillRoot(extensionID)}/${relativePath}`
+}
+
+function invalidPathSegment(segment: string) {
+  return !segment || segment === "." || segment === ".."
+}
+
+export function validateSkillPath(path: string) {
+  if (!path.endsWith("/SKILL.md")) throw new Error(`Extension skill path must end with SKILL.md: ${path}`)
+  if (path.startsWith("/") || path.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(path)) {
+    throw new Error(`Extension skill path must be relative: ${path}`)
+  }
+  const normalized = path.replaceAll("\\", "/")
+  if (normalized.split("/").some(invalidPathSegment)) throw new Error(`Extension skill path cannot traverse directories: ${path}`)
+  return normalized
+}
+
+function frontmatter(content: string) {
+  const match = content.match(/^---\n([\s\S]*?)\n---(?:\n|$)/)
+  if (!match) throw new Error("Extension skills must include YAML frontmatter.")
+  const block = match[1] ?? ""
+  const value = (key: string) => block.match(new RegExp(`^${key}:\\s*(.+)$`, "m"))?.[1]?.trim()
+  if (!value("name")) throw new Error("Extension skill frontmatter must include name.")
+  if (!value("description")) throw new Error("Extension skill frontmatter must include description.")
+}
+
+export function validateBundleSkills(bundle: ExtensionBundle) {
+  const seen = new Set<string>()
+  for (const skill of bundle.skills) {
+    const path = validateSkillPath(skill.path)
+    if (seen.has(path)) throw new Error(`Extension contains duplicate skill path: ${path}`)
+    seen.add(path)
+    frontmatter(skill.content)
+  }
+}
+
+export function supportedMcpConfig(config: ExtensionBundle["mcp"][string]): ExtensionMcpConfig | undefined {
+  if (config.type === "builtin") return
+  return clone(config)
+}
+
+export function supportedMcp(bundle: ExtensionBundle) {
+  return Object.fromEntries(
+    Object.entries(bundle.mcp).flatMap(([key, config]) => {
+      const supported = supportedMcpConfig(config)
+      return supported ? [[key, supported] as const] : []
+    }),
+  )
 }
 
 export function missingSetupVariables(bundle: ExtensionBundle, setup?: ExtensionSetupValues) {
@@ -66,7 +199,7 @@ export function applySetupValues(bundle: ExtensionBundle, setup?: ExtensionSetup
     throw new Error(`Enter ${missing.join(", ")} in Setup before installing ${bundle.name}.`)
   }
 
-  const next = cloneBundle(bundle)
+  const next = clone(bundle)
   for (const config of Object.values(next.mcp)) {
     if (!("environment" in config)) continue
     const environment = config.environment
@@ -80,16 +213,38 @@ export function applySetupValues(bundle: ExtensionBundle, setup?: ExtensionSetup
   return next
 }
 
-export async function installExtension(input: {
+function mergeConfigMcp(config: Config, mcp: Record<string, ExtensionMcpConfig>): Config {
+  return {
+    ...config,
+    mcp: {
+      ...(config.mcp ?? {}),
+      ...mcp,
+    },
+  }
+}
+
+function removeConfigMcp(config: Config, keys: string[]): Config {
+  const current = { ...(config.mcp ?? {}) }
+  for (const key of keys) delete current[key]
+  const next: Config = { ...config, mcp: current }
+  if (Object.keys(current).length === 0) delete next.mcp
+  return next
+}
+
+async function writeSkills(input: {
+  directory: string
   bundle: ExtensionBundle
-  client: ExtensionInstallClient
-  refresh: () => Promise<void>
-  setup?: ExtensionSetupValues
+  filesystem: ExtensionInstallFilesystem
 }) {
-  const bundle = applySetupValues(input.bundle, input.setup)
-  assertSuccessfulAction(await input.client.experimental.install(bundle), bundle.id)
+  validateBundleSkills(input.bundle)
+  for (const skill of input.bundle.skills) {
+    await input.filesystem.writeExtensionSkillFile(input.directory, input.bundle.id, validateSkillPath(skill.path), skill.content)
+  }
+}
+
+async function connectServers(input: { bundle: ExtensionBundle; client: ExtensionInstallClient }) {
   await Promise.all(
-    extensionInstallActions(bundle).map(async (server) => {
+    extensionInstallActions(input.bundle).map(async (server) => {
       if (server.action === "authenticate") {
         const authenticated = readActionResult(await input.client.mcp.auth.authenticate({ name: server.key }), server.key)
         if (
@@ -105,5 +260,64 @@ export async function installExtension(input: {
       return assertSuccessfulAction(await input.client.mcp.connect({ name: server.key }), server.key)
     }),
   )
-  await input.refresh()
+}
+
+export async function installExtension(input: {
+  directory: string
+  bundle: ExtensionBundle
+  client: ExtensionInstallClient
+  filesystem: ExtensionInstallFilesystem
+  refresh: () => Promise<void>
+  setup?: ExtensionSetupValues
+  storage?: (name?: string) => StorageLike
+}) {
+  const bundle = applySetupValues(input.bundle, input.setup)
+  const mcp = supportedMcp(bundle)
+  const mcpKeys = Object.keys(mcp)
+  if (mcpKeys.length !== Object.keys(bundle.mcp).length) {
+    throw new Error(`${bundle.name} includes MCP entries that are not supported by this OpenAgent build.`)
+  }
+
+  await writeSkills({ directory: input.directory, bundle, filesystem: input.filesystem })
+  try {
+    const previous = configFromResult(await input.client.config.get())
+    await input.client.config.update(mergeConfigMcp(previous, mcp))
+
+    const metadata = await readExtensionProjectMetadata(input)
+    metadata[bundle.id] = {
+      installedAt: Date.now(),
+      skillRoot: managedSkillRoot(bundle.id),
+      mcpKeys,
+    }
+    await writeExtensionProjectMetadata({ ...input, metadata })
+    await connectServers({ bundle, client: input.client })
+    await input.refresh()
+  } catch (error) {
+    await input.filesystem.removeExtensionSkillRoot(input.directory, bundle.id).catch(() => undefined)
+    throw error
+  }
+}
+
+export async function removeExtension(input: {
+  directory: string
+  bundle: ExtensionBundle
+  client: Pick<ExtensionInstallClient, "config">
+  filesystem: ExtensionInstallFilesystem
+  refresh: () => Promise<void>
+  storage?: (name?: string) => StorageLike
+}) {
+  const metadata = await readExtensionProjectMetadata(input)
+  const owned = metadata[input.bundle.id]
+  const mcpKeys = owned?.mcpKeys.length ? owned.mcpKeys : Object.keys(supportedMcp(input.bundle))
+  const previous = configFromResult(await input.client.config.get())
+  await input.client.config.update(removeConfigMcp(previous, mcpKeys))
+  try {
+    await input.filesystem.removeExtensionSkillRoot(input.directory, input.bundle.id)
+    delete metadata[input.bundle.id]
+    await writeExtensionProjectMetadata({ ...input, metadata })
+    await input.refresh()
+  } catch (error) {
+    await input.client.config.update(previous).catch(() => undefined)
+    throw error
+  }
 }

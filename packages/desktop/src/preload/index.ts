@@ -52,6 +52,12 @@ const api: ElectronAPI = {
   saveFilePicker: (opts) => ipcRenderer.invoke("save-file-picker", opts),
   writeTextFile: (path, content) => ipcRenderer.invoke("write-text-file", path, content),
   readTextFile: (path) => ipcRenderer.invoke("read-text-file", path),
+  writeExtensionSkillFile: (projectDirectory, extensionID, relativePath, content) =>
+    ipcRenderer.invoke("write-extension-skill-file", projectDirectory, extensionID, relativePath, content),
+  readExtensionSkillFile: (projectDirectory, extensionID, relativePath) =>
+    ipcRenderer.invoke("read-extension-skill-file", projectDirectory, extensionID, relativePath),
+  removeExtensionSkillRoot: (projectDirectory, extensionID) =>
+    ipcRenderer.invoke("remove-extension-skill-root", projectDirectory, extensionID),
   openLink: (url) => ipcRenderer.send("open-link", url),
   openPath: (path, app) => ipcRenderer.invoke("open-path", path, app),
   readClipboardImage: () => ipcRenderer.invoke("read-clipboard-image"),

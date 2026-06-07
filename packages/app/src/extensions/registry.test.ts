@@ -38,7 +38,7 @@ describe("OFFICIAL_EXTENSIONS", () => {
     expect(extension?.skills[0]?.content).toContain("For Calculator and similar keypad apps, prefer keyboard input")
     expect(extension?.skills[0]?.content).toContain("always pass the app name or bundle identifier")
     expect(extension?.skills[0]?.content).toContain("Do not compile or run helper programs")
-    expect(extensionInstallActions(extension!)).toEqual([{ key: "computer_use", action: "connect" }])
+    expect(extensionInstallActions(extension!)).toEqual([])
   })
 
   test("includes Gmail and Drive as individual Google Workspace extensions", () => {
@@ -48,34 +48,26 @@ describe("OFFICIAL_EXTENSIONS", () => {
     expect(gmail?.mcp.google_workspace_gmail).toMatchObject({
       type: "local",
       command: expect.arrayContaining(["workspace-mcp", "gmail:send"]),
-      oauth: {},
     })
     expect(drive?.mcp.google_workspace_drive).toMatchObject({
       type: "local",
       command: expect.arrayContaining(["workspace-mcp", "drive:full"]),
-      oauth: {},
     })
-    expect(extensionInstallActions(gmail!)).toEqual([{ key: "google_workspace_gmail", action: "authenticate" }])
-    expect(extensionInstallActions(drive!)).toEqual([{ key: "google_workspace_drive", action: "authenticate" }])
+    expect(extensionInstallActions(gmail!)).toEqual([{ key: "google_workspace_gmail", action: "connect" }])
+    expect(extensionInstallActions(drive!)).toEqual([{ key: "google_workspace_drive", action: "connect" }])
   })
 
-  test("includes Teams and Outlook with Microsoft Graph tool filters", () => {
+  test("includes Teams and Outlook with stock Microsoft Graph MCP configs", () => {
     const teams = OFFICIAL_EXTENSIONS.find((item) => item.id === "teams")
     const outlook = OFFICIAL_EXTENSIONS.find((item) => item.id === "outlook")
 
     expect(teams?.mcp.microsoft_teams).toMatchObject({
       type: "local",
       command: ["uvx", "graph-mcp"],
-      tool_filter: {
-        allow_prefixes: expect.arrayContaining(["chat_", "teams_", "channel_", "presence_", "search_"]),
-      },
     })
     expect(outlook?.mcp.microsoft_outlook).toMatchObject({
       type: "local",
       command: ["uvx", "graph-mcp"],
-      tool_filter: {
-        allow_prefixes: expect.arrayContaining(["mail_", "calendar_", "meeting_", "files_"]),
-      },
     })
   })
 
@@ -107,13 +99,6 @@ describe("OFFICIAL_EXTENSIONS", () => {
         "--tool-tier",
         "extended",
       ],
-      transport: {
-        type: "streamable-http",
-        host: "localhost",
-        path: "/mcp",
-        portEnv: "WORKSPACE_MCP_PORT",
-      },
-      oauth: {},
       environment: {
         GOOGLE_OAUTH_CLIENT_ID: "{env:GOOGLE_OAUTH_CLIENT_ID}",
         GOOGLE_OAUTH_CLIENT_SECRET: "{env:GOOGLE_OAUTH_CLIENT_SECRET}",
@@ -152,10 +137,10 @@ describe("OFFICIAL_EXTENSIONS", () => {
     ])
   })
 
-  test("authenticates the bundled Google Calendar MCP immediately after install", () => {
+  test("connects the bundled Google Calendar MCP after install", () => {
     const extension = OFFICIAL_EXTENSIONS.find((item) => item.id === "google-calendar")
 
-    expect(extensionInstallActions(extension!)).toEqual([{ key: "google_workspace_calendar", action: "authenticate" }])
+    expect(extensionInstallActions(extension!)).toEqual([{ key: "google_workspace_calendar", action: "connect" }])
   })
 
   test("uses authenticate for remote OAuth servers and connect otherwise", () => {
@@ -170,8 +155,6 @@ describe("OFFICIAL_EXTENSIONS", () => {
           local_auth: {
             type: "local",
             command: ["demo"],
-            transport: { type: "streamable-http", host: "127.0.0.1", path: "/mcp", portEnv: "DEMO_PORT" },
-            oauth: {},
           },
           local_tool: { type: "local", command: ["demo"] },
           builtin_tool: { type: "builtin", id: "computer-use" },
@@ -181,9 +164,8 @@ describe("OFFICIAL_EXTENSIONS", () => {
     ).toEqual([
       { key: "remote_auth", action: "authenticate" },
       { key: "remote_plain", action: "connect" },
-      { key: "local_auth", action: "authenticate" },
+      { key: "local_auth", action: "connect" },
       { key: "local_tool", action: "connect" },
-      { key: "builtin_tool", action: "connect" },
     ])
   })
 })

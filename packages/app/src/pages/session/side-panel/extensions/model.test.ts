@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import type { ExperimentalExtensionsListResponse, McpStatus } from "@opencode-ai/sdk/v2/client"
+import type { Config, McpStatus } from "@opencode-ai/sdk/v2/client"
 import { buildExtensionsPanelModel } from "./model"
+import { managedSkillPath } from "./install"
 import type { ExtensionRegistryEntry } from "@/extensions/registry"
+
+const skill = {
+  path: "skills/calendar/SKILL.md",
+  content: "---\nname: google-calendar:general\ndescription: Manage calendar workflows\n---\n",
+}
 
 const registryEntry = (input: Partial<ExtensionRegistryEntry> & Pick<ExtensionRegistryEntry, "id" | "version" | "name">) =>
   ({
@@ -15,80 +21,83 @@ const registryEntry = (input: Partial<ExtensionRegistryEntry> & Pick<ExtensionRe
     skills: input.skills ?? [],
   }) satisfies ExtensionRegistryEntry
 
-const installedEntry = (
-  input: Partial<ExperimentalExtensionsListResponse["extensions"][number]> &
-    Pick<ExperimentalExtensionsListResponse["extensions"][number], "id" | "version" | "name">,
-) =>
-  ({
-    id: input.id,
-    version: input.version,
-    name: input.name,
-    description: input.description,
-    installed: true,
-    active: input.active ?? false,
-    installed_at: input.installed_at ?? 1,
-    config_path: input.config_path ?? "/repo/.opencode/opencode.json",
-    skill_roots: input.skill_roots ?? [],
-    servers: input.servers ?? [],
-    skills: input.skills ?? [],
-  }) satisfies ExperimentalExtensionsListResponse["extensions"][number]
-
 describe("buildExtensionsPanelModel", () => {
-  test("merges registry metadata into installed extensions", () => {
+  test("derives installed state from config and managed skills", () => {
     const model = buildExtensionsPanelModel({
       registry: [
         registryEntry({
-          id: "calendar",
+          id: "google-calendar",
           version: "2.0.0",
-          name: "Calendar",
+          name: "Google Calendar",
           description: "Registry description",
           tags: ["schedule"],
-        }),
-      ],
-      installed: [
-        installedEntry({
-          id: "calendar",
-          version: "1.0.0",
-          name: "Old Calendar",
-          description: "Installed description",
-          servers: [
-            {
-              key: "calendar-main",
-              status: { status: "disabled" },
-              tools: [{ name: "list_events", description: "List events" }],
+          mcp: {
+            google_workspace_calendar: {
+              type: "local",
+              command: ["uvx", "workspace-mcp"],
             },
-          ],
+          },
+          skills: [skill],
         }),
       ],
+      config: {
+        mcp: {
+          google_workspace_calendar: {
+            type: "local",
+            command: ["uvx", "workspace-mcp"],
+          },
+        },
+      } satisfies Config,
       live: {
-        "calendar-main": { status: "connected" } satisfies McpStatus,
+        google_workspace_calendar: { status: "connected" } satisfies McpStatus,
+      },
+      metadata: {
+        "google-calendar": {
+          installedAt: 1,
+          skillRoot: ".agents/skills/extensions/google-calendar",
+          mcpKeys: ["google_workspace_calendar"],
+        },
+      },
+      skillFiles: {
+        [managedSkillPath("google-calendar", skill.path)]: true,
       },
     })
 
     expect(model).toHaveLength(1)
     expect(model[0]).toMatchObject({
-      id: "calendar",
-      name: "Calendar",
+      id: "google-calendar",
+      name: "Google Calendar",
       version: "2.0.0",
+      installed: true,
       active: true,
       available: true,
+      needsRepair: false,
       tags: ["schedule"],
     })
     expect(model[0]?.servers[0]).toMatchObject({
-      key: "calendar-main",
+      key: "google_workspace_calendar",
       action: "disconnect",
       status: { status: "connected" },
     })
   })
 
-  test("includes registry-only extensions after installed ones", () => {
+  test("sorts installed extensions before available extensions", () => {
     const model = buildExtensionsPanelModel({
       registry: [
-        registryEntry({ id: "alpha", version: "1.0.0", name: "Alpha" }),
-        registryEntry({ id: "beta", version: "1.0.0", name: "Beta" }),
+        registryEntry({ id: "alpha", version: "1.0.0", name: "Alpha", mcp: {}, skills: [] }),
+        registryEntry({
+          id: "beta",
+          version: "1.0.0",
+          name: "Beta",
+          mcp: { beta_mcp: { type: "local", command: ["beta"] } },
+          skills: [skill],
+        }),
       ],
-      installed: [installedEntry({ id: "beta", version: "1.0.0", name: "Beta" })],
+      config: { mcp: { beta_mcp: { type: "local", command: ["beta"] } } },
       live: {},
+      skillFiles: {
+        [managedSkillPath("beta", skill.path)]: true,
+      },
     })
 
     expect(model.map((item) => `${item.installed ? "installed" : "available"}:${item.id}`)).toEqual([
@@ -99,68 +108,50 @@ describe("buildExtensionsPanelModel", () => {
 
   test("maps auth-needed states to authenticate actions", () => {
     const model = buildExtensionsPanelModel({
-      registry: [],
-      installed: [
-        installedEntry({
+      registry: [
+        registryEntry({
           id: "mail",
           version: "1.0.0",
           name: "Mail",
-          servers: [
-            {
-              key: "mail-main",
-              status: { status: "needs_auth" },
-              tools: [],
-            },
-          ],
+          mcp: { mail_main: { type: "remote", url: "https://example.com/mcp" } },
         }),
       ],
-      live: {},
+      config: {},
+      live: {
+        mail_main: { status: "needs_auth" },
+      },
     })
 
     expect(model[0]?.servers[0]?.action).toBe("authenticate")
   })
 
-  test("maps disabled installed local HTTP OAuth servers to authenticate actions", () => {
+  test("marks metadata drift as repair needed", () => {
     const model = buildExtensionsPanelModel({
       registry: [
         registryEntry({
           id: "google-calendar",
           version: "1.0.0",
           name: "Google Calendar",
-          mcp: {
-            google_workspace_calendar: {
-              type: "local",
-              enabled: false,
-              command: ["uvx", "workspace-mcp"],
-              transport: {
-                type: "streamable-http",
-                host: "localhost",
-                path: "/mcp",
-                portEnv: "WORKSPACE_MCP_PORT",
-              },
-              oauth: {},
-            },
-          },
+          mcp: { google_workspace_calendar: { type: "local", command: ["uvx", "workspace-mcp"] } },
+          skills: [skill],
         }),
       ],
-      installed: [
-        installedEntry({
-          id: "google-calendar",
-          version: "1.0.0",
-          name: "Google Calendar",
-          servers: [
-            {
-              key: "google_workspace_calendar",
-              status: { status: "disabled" },
-              tools: [],
-            },
-          ],
-        }),
-      ],
+      config: { mcp: { google_workspace_calendar: { type: "local", command: ["uvx", "workspace-mcp"] } } },
       live: {},
+      metadata: {
+        "google-calendar": {
+          installedAt: 1,
+          skillRoot: ".agents/skills/extensions/google-calendar",
+          mcpKeys: ["google_workspace_calendar"],
+        },
+      },
+      skillFiles: {},
     })
 
-    expect(model[0]?.servers[0]?.action).toBe("authenticate")
+    expect(model[0]).toMatchObject({
+      installed: false,
+      needsRepair: true,
+    })
   })
 
   test("keeps setup metadata on bundled extensions and indexes it for search", () => {
@@ -183,15 +174,10 @@ describe("buildExtensionsPanelModel", () => {
               command: ["uvx", "workspace-mcp"],
             },
           },
-          skills: [
-            {
-              path: "skills/calendar/SKILL.md",
-              content: "---\nname: google-calendar:general\ndescription: Manage calendar workflows\n---\n",
-            },
-          ],
+          skills: [skill],
         }),
       ],
-      installed: [],
+      config: {},
       live: {},
     })
 
@@ -210,7 +196,30 @@ describe("buildExtensionsPanelModel", () => {
         name: "google-calendar:general",
         description: "Manage calendar workflows",
         location: "skills/calendar/SKILL.md",
+        installed: false,
       },
     ])
+  })
+
+  test("marks unsupported backend-only MCP configs unavailable", () => {
+    const model = buildExtensionsPanelModel({
+      registry: [
+        registryEntry({
+          id: "computer-use",
+          version: "1.0.0",
+          name: "Computer Use",
+          mcp: { computer_use: { type: "builtin", id: "computer-use" } },
+          skills: [skill],
+        }),
+      ],
+      config: {},
+      live: {},
+    })
+
+    expect(model[0]).toMatchObject({
+      available: false,
+      installed: false,
+    })
+    expect(model[0]?.bundle).toBeUndefined()
   })
 })

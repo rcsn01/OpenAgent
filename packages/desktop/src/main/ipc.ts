@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
-import { readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import path from "node:path"
 import { BrowserWindow, Notification, app, clipboard, dialog, ipcMain, shell } from "electron"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
@@ -39,6 +40,23 @@ import { setTitlebar, updateTitlebar } from "./windows"
 const pickerFilters = (ext?: string[]) => {
   if (!ext || ext.length === 0) return undefined
   return [{ name: "Files", extensions: ext }]
+}
+
+const extensionIDPattern = /^[a-z0-9][a-z0-9-]*$/i
+
+function resolveExtensionSkillPath(projectDirectory: string, extensionID: string, relativePath?: string) {
+  if (!extensionIDPattern.test(extensionID)) throw new Error("Invalid extension ID.")
+  if (path.isAbsolute(extensionID)) throw new Error("Invalid extension ID.")
+
+  const projectRoot = path.resolve(projectDirectory)
+  const skillRoot = path.resolve(projectRoot, ".agents", "skills", "extensions", extensionID)
+  const target = relativePath === undefined ? skillRoot : path.resolve(skillRoot, relativePath)
+  const relative = path.relative(skillRoot, target)
+  if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Extension skill path cannot leave its managed root.")
+  if (relativePath !== undefined && !relativePath.replaceAll("\\", "/").endsWith("/SKILL.md")) {
+    throw new Error("Extension skill files must be named SKILL.md.")
+  }
+  return target
 }
 
 type Deps = {
@@ -201,6 +219,32 @@ export function registerIpcHandlers(deps: Deps) {
 
   ipcMain.handle("read-text-file", async (_event: IpcMainInvokeEvent, path: string) => {
     return readFile(path, "utf8")
+  })
+
+  ipcMain.handle(
+    "write-extension-skill-file",
+    async (
+      _event: IpcMainInvokeEvent,
+      projectDirectory: string,
+      extensionID: string,
+      relativePath: string,
+      content: string,
+    ) => {
+      const target = resolveExtensionSkillPath(projectDirectory, extensionID, relativePath)
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, content, "utf8")
+    },
+  )
+
+  ipcMain.handle(
+    "read-extension-skill-file",
+    async (_event: IpcMainInvokeEvent, projectDirectory: string, extensionID: string, relativePath: string) => {
+      return readFile(resolveExtensionSkillPath(projectDirectory, extensionID, relativePath), "utf8")
+    },
+  )
+
+  ipcMain.handle("remove-extension-skill-root", async (_event: IpcMainInvokeEvent, projectDirectory: string, extensionID: string) => {
+    await rm(resolveExtensionSkillPath(projectDirectory, extensionID), { recursive: true, force: true })
   })
 
   ipcMain.on("open-link", (_event: IpcMainEvent, url: string) => {

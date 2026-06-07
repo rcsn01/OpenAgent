@@ -14,7 +14,14 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { OFFICIAL_EXTENSIONS } from "@/extensions/registry"
 import { formatServerError } from "@/utils/server-errors"
-import { installExtension, missingSetupVariables } from "./install"
+import {
+  installExtension,
+  managedSkillPath,
+  missingSetupVariables,
+  readExtensionProjectMetadata,
+  removeExtension,
+  validateSkillPath,
+} from "./install"
 import { buildExtensionsPanelModel, type ExtensionPanelItem } from "./model"
 
 type ExtensionBrowseKind = "skills" | "mcp" | "extensions"
@@ -76,6 +83,8 @@ function hasSetupDetails(item: ExtensionPanelItem) {
 }
 
 function itemStatus(item: ExtensionPanelItem) {
+  if (!item.available) return "Unavailable"
+  if (item.needsRepair) return "Repair needed"
   if (!item.installed) return "Not installed"
   if (item.active) return "Installed and connected"
   if (item.servers.some((server) => server.status.status === "failed")) return "Installed with errors"
@@ -86,6 +95,8 @@ function itemStatus(item: ExtensionPanelItem) {
 }
 
 function statusBadgeClass(item: ExtensionPanelItem) {
+  if (!item.available) return "bg-surface-raised-base text-text-danger-base"
+  if (item.needsRepair) return "bg-surface-raised-base text-icon-warning-base"
   if (!item.installed) return "bg-surface-raised-base text-text-weaker"
   if (item.active) return "bg-surface-raised-base text-icon-success-base"
   if (item.servers.some((server) => server.status.status === "failed")) return "bg-surface-raised-base text-text-danger-base"
@@ -107,7 +118,6 @@ export function SessionExtensionsPanel() {
   const platform = usePlatform()
   const globalSync = useGlobalSync()
   const queryClient = useQueryClient()
-  const client = () => sdk.client.experimental.extensions
   const [pending, setPending] = createStore({
     install: undefined as string | undefined,
     remove: undefined as string | undefined,
@@ -121,16 +131,36 @@ export function SessionExtensionsPanel() {
   })
   const [setupValues, setSetupValues] = createStore<Record<string, Record<string, string>>>({})
 
-  const query = createQuery(() => ({
-    queryKey: [sdk.directory, "experimental", "extensions"],
-    queryFn: () => client().list().then((result) => result.data?.extensions ?? []),
+  const metadataQuery = createQuery(() => ({
+    queryKey: [sdk.directory, "extensions", "metadata"],
+    queryFn: () => readExtensionProjectMetadata({ directory: sdk.directory, storage: platform.storage }),
+  }))
+  const skillFilesQuery = createQuery(() => ({
+    queryKey: [sdk.directory, "extensions", "skills"],
+    queryFn: async () => {
+      const read = platform.readExtensionSkillFile
+      if (platform.platform !== "desktop" || !read) return {}
+      const result: Record<string, boolean> = {}
+      for (const extension of OFFICIAL_EXTENSIONS) {
+        for (const skill of extension.skills) {
+          const relativePath = validateSkillPath(skill.path)
+          const key = managedSkillPath(extension.id, relativePath)
+          result[key] = await read(sdk.directory, extension.id, relativePath)
+            .then((content) => content.trim().length > 0)
+            .catch(() => false)
+        }
+      }
+      return result
+    },
   }))
 
   const model = createMemo(() =>
     buildExtensionsPanelModel({
       registry: OFFICIAL_EXTENSIONS,
-      installed: query.data ?? [],
+      config: sync.data.config ?? {},
       live: sync.data.mcp ?? {},
+      metadata: metadataQuery.data ?? {},
+      skillFiles: skillFilesQuery.data ?? {},
     }),
   )
   const entries = createMemo<ExtensionListEntry[]>(() => {
@@ -185,12 +215,18 @@ export function SessionExtensionsPanel() {
       skills: items.reduce((sum, item) => sum + item.skills.length, 0),
     }
   })
+  const loadError = createMemo(() => metadataQuery.error ?? skillFilesQuery.error)
+  const loadErrorText = createMemo(() => {
+    const error = loadError()
+    return error instanceof Error ? error.message : String(error)
+  })
   const selected = createMemo(() => model().find((item) => item.id === view.selected))
   const busy = createMemo(() => pending.install !== undefined || pending.remove !== undefined || pending.server !== undefined)
 
   const refresh = async () => {
     await globalSync.refresh(sdk.directory)
-    await queryClient.invalidateQueries({ queryKey: [sdk.directory, "experimental", "extensions"] })
+    await queryClient.invalidateQueries({ queryKey: [sdk.directory, "extensions", "metadata"] })
+    await queryClient.invalidateQueries({ queryKey: [sdk.directory, "extensions", "skills"] })
   }
 
   const fail = (error: unknown) => {
@@ -203,6 +239,22 @@ export function SessionExtensionsPanel() {
   }
 
   const setupFor = (item: ExtensionPanelItem) => setupValues[item.id] ?? {}
+  const filesystem = () => {
+    if (
+      platform.platform !== "desktop" ||
+      !platform.writeExtensionSkillFile ||
+      !platform.removeExtensionSkillRoot ||
+      !platform.readExtensionSkillFile
+    ) {
+      return
+    }
+    return {
+      writeExtensionSkillFile: platform.writeExtensionSkillFile,
+      readExtensionSkillFile: platform.readExtensionSkillFile,
+      removeExtensionSkillRoot: platform.removeExtensionSkillRoot,
+    }
+  }
+  const canInstallRemove = () => !!filesystem()
 
   const setupMissing = (item: ExtensionPanelItem) => {
     if (!item.bundle) return []
@@ -249,13 +301,24 @@ export function SessionExtensionsPanel() {
 
   const install = async (item: ExtensionPanelItem) => {
     if (!item.bundle || busy()) return
+    const fs = filesystem()
+    if (!fs) {
+      showToast({
+        variant: "error",
+        title: "Desktop required",
+        description: "Extension install and remove writes project-local skill files, so it is only available in the desktop app.",
+      })
+      return
+    }
     setPending("install", item.id)
     try {
       await installExtension({
+        directory: sdk.directory,
         bundle: item.bundle,
         client: {
-          experimental: {
-            install: (bundle) => client().install(bundle),
+          config: {
+            get: () => sdk.client.config.get(),
+            update: (config) => sdk.client.config.update({ config }),
           },
           mcp: {
             connect: (input) => sdk.client.mcp.connect(input),
@@ -264,8 +327,10 @@ export function SessionExtensionsPanel() {
             },
           },
         },
+        filesystem: fs,
         refresh,
         setup: setupFor(item),
+        storage: platform.storage,
       })
     } catch (error) {
       await refresh()
@@ -276,12 +341,32 @@ export function SessionExtensionsPanel() {
   }
 
   const remove = async (item: ExtensionPanelItem) => {
-    if (!item.installed || busy()) return
+    if (!item.bundle || !item.installed || busy()) return
+    const fs = filesystem()
+    if (!fs) {
+      showToast({
+        variant: "error",
+        title: "Desktop required",
+        description: "Extension install and remove writes project-local skill files, so it is only available in the desktop app.",
+      })
+      return
+    }
     setPending("remove", item.id)
     try {
-      await client().remove({ id: item.id })
+      await removeExtension({
+        directory: sdk.directory,
+        bundle: item.bundle,
+        client: {
+          config: {
+            get: () => sdk.client.config.get(),
+            update: (config) => sdk.client.config.update({ config }),
+          },
+        },
+        filesystem: fs,
+        refresh,
+        storage: platform.storage,
+      })
       setView({ selected: undefined, selectedKind: undefined })
-      await refresh()
     } catch (error) {
       fail(error)
     } finally {
@@ -312,7 +397,7 @@ export function SessionExtensionsPanel() {
           variant="ghost"
           class="size-7 !p-0 text-icon-success-base"
           aria-label="Installed"
-          disabled={busy()}
+          disabled={busy() || !canInstallRemove()}
           onClick={() => void remove(props.item)}
         >
           <Show
@@ -334,8 +419,12 @@ export function SessionExtensionsPanel() {
           variant="ghost"
           class="size-7 !p-0"
           aria-label="Install"
-          disabled={busy()}
+          disabled={busy() || !props.item.available}
           onClick={() => {
+            if (!canInstallRemove()) {
+              void install(props.item)
+              return
+            }
             if (requiresSetupInput(props.item)) {
               setView({ selected: props.item.id, selectedKind: "extensions" })
               return
@@ -442,7 +531,12 @@ export function SessionExtensionsPanel() {
                       Required before install: {setupMissing(props.item).join(", ")}
                     </div>
                   </Show>
-                  <Button size="small" variant="primary" disabled={!props.item.bundle || busy()} onClick={() => void install(props.item)}>
+                  <Button
+                    size="small"
+                    variant="primary"
+                    disabled={!props.item.bundle || busy() || !props.item.available}
+                    onClick={() => void install(props.item)}
+                  >
                     <Show when={pending.install === props.item.id} fallback={props.item.installed ? "Update setup" : "Install"}>
                       <Spinner class="size-3" />
                     </Show>
@@ -508,7 +602,7 @@ export function SessionExtensionsPanel() {
                     <Button
                       size="small"
                       variant="secondary"
-                      disabled={!props.item.installed || busy()}
+                      disabled={(!props.item.installed && !server.configured) || busy() || !server.supported}
                       onClick={() => void toggleServer(server)}
                     >
                       <Show when={pending.server === server.key} fallback={actionLabel(server.action)}>
@@ -544,16 +638,6 @@ export function SessionExtensionsPanel() {
           </Show>
         </section>
 
-        <Show when={props.item.config_path}>
-          {(path) => (
-            <section class="space-y-2">
-              <SectionTitle icon="code">Installed Config</SectionTitle>
-              <div class="truncate rounded-md border border-border-weaker-base bg-background-stronger px-3 py-2 text-11-regular text-text-weak">
-                {path()}
-              </div>
-            </section>
-          )}
-        </Show>
       </div>
     </div>
   )
@@ -609,15 +693,15 @@ export function SessionExtensionsPanel() {
         fallback={
           <>
             <div class="app-inner-border-b bg-background-stronger px-4 py-3.5">
-              <Show when={query.isLoading}>
+              <Show when={metadataQuery.isLoading || skillFilesQuery.isLoading}>
                 <div class="mt-2 flex items-center gap-2 text-12-regular text-text-weak">
                   <Spinner class="size-3" />
                   Loading extensions...
                 </div>
               </Show>
-              <Show when={query.error}>
+              <Show when={loadError()}>
                 <div class="mt-2 text-12-regular text-text-danger-base">
-                  {query.error instanceof Error ? query.error.message : String(query.error)}
+                  {loadErrorText()}
                 </div>
               </Show>
 
@@ -626,7 +710,7 @@ export function SessionExtensionsPanel() {
                   entries={(Object.entries(browseLabels) as Array<[ExtensionBrowseKind, string]>).map(([value, label]) => ({
                     value,
                     label,
-                    count: kindCounts()[value],
+                    count: kindCounts()?.[value] ?? 0,
                   }))}
                   value={view.kind}
                   onChange={(kind) => setView("kind", kind)}
@@ -649,7 +733,11 @@ export function SessionExtensionsPanel() {
             <List
               class="flex-1 min-h-0 !gap-2 !px-3 !pt-3 [&_[data-slot=list-search-wrapper]]:!mb-1 [&_[data-slot=list-search]]:!bg-background-base [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0 [&_[data-slot=list-items]]:gap-2 [&_[data-slot=list-item]]:p-0 [&_[data-slot=list-item][data-active=true]]:bg-transparent"
               search={{ placeholder: "Search extensions", autofocus: false }}
-              emptyMessage={query.isLoading ? "Loading extensions..." : `No ${browseLabels[view.kind].toLowerCase()} match this filter.`}
+              emptyMessage={
+                metadataQuery.isLoading || skillFilesQuery.isLoading
+                  ? "Loading extensions..."
+                  : `No ${browseLabels[view.kind].toLowerCase()} match this filter.`
+              }
               key={(entry) => entry.id}
               items={filteredEntries}
               filterKeys={["search"]}

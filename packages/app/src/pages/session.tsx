@@ -161,6 +161,7 @@ export default function Page() {
   const sessionPanel = useSessionPanelLayout({
     reviewPanelOpened: () => view().reviewPanel.opened(),
     contextOpened: () => view().context.opened(),
+    extensionsOpened: () => view().extensions.opened(),
     platform: () => platform.platform,
     channel: () => import.meta.env.VITE_OPENCODE_CHANNEL,
     showFileTreeSetting: settings.general.showFileTree,
