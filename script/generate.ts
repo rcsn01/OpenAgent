@@ -1,9 +1,3 @@
 #!/usr/bin/env bun
 
-import { $ } from "bun"
-
-await $`bun ./packages/sdk/js/script/build.ts`
-
-await $`bun dev generate > ../sdk/openapi.json`.cwd("packages/opencode")
-
-await $`./script/format.ts`
+throw new Error("OpenAgent uses the pinned external @opencode-ai/sdk package; local SDK generation is not available.")

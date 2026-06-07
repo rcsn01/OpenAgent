@@ -1,15 +1,5 @@
 const server = Bun.spawn({
-  cmd: [
-    "bun",
-    "run",
-    "--cwd",
-    "packages/opencode",
-    "--conditions=browser",
-    "src/index.ts",
-    "server",
-    "start",
-    "--json",
-  ],
+  cmd: [process.env.OPENCODE_BIN_PATH || "opencode", "server", "start", "--json"],
   stdout: "pipe",
   stderr: "inherit",
 })
@@ -18,7 +8,13 @@ const output = await new Response(server.stdout).text()
 const code = await server.exited
 if (code !== 0) process.exit(code)
 
-const metadata = JSON.parse(output) as { url: string; username?: string; password?: string }
+const metadata = JSON.parse(
+  output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .at(-1) ?? output,
+) as { url: string; username?: string; password?: string }
 const authToken = metadata.password
   ? Buffer.from(`${metadata.username || "opencode"}:${metadata.password}`).toString("base64")
   : undefined

@@ -1,13 +1,13 @@
 {
-  "name": "@opencode-ai/desktop",
+  "name": "@openagent/desktop",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
+  "homepage": "https://github.com/rcsn01/OpenAgent",
   "author": {
     "name": "OpenAgent",
-    "email": "hello@opencode.ai"
+    "email": "hello@openagent.dev"
   },
   "scripts": {
     "typecheck": "tsgo -b",
@@ -36,9 +36,9 @@
   "devDependencies": {
     "@actions/artifact": "4.0.0",
     "@lydell/node-pty": "catalog:",
-    "@opencode-ai/app": "workspace:*",
-    "@opencode-ai/core": "workspace:*",
-    "@opencode-ai/ui": "workspace:*",
+    "@openagent/app": "workspace:*",
+    "@openagent/core": "workspace:*",
+    "@openagent/ui": "workspace:*",
     "@sentry/solid": "catalog:",
     "@sentry/vite-plugin": "catalog:",
     "@solid-primitives/i18n": "2.2.1",

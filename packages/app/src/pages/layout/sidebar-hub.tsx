@@ -1,10 +1,10 @@
-import { base64Encode } from "@opencode-ai/core/util/encode"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { base64Encode } from "@openagent/core/util/encode"
+import { getFilename } from "@openagent/core/util/path"
 import { type Session } from "@opencode-ai/sdk/v2/client"
-import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
-import { Icon } from "@opencode-ai/ui/icon"
-import { IconButton } from "@opencode-ai/ui/icon-button"
-import { Tooltip } from "@opencode-ai/ui/tooltip"
+import { DropdownMenu } from "@openagent/ui/dropdown-menu"
+import { Icon } from "@openagent/ui/icon"
+import { IconButton } from "@openagent/ui/icon-button"
+import { Tooltip } from "@openagent/ui/tooltip"
 import { createMemo, For, Show, type Accessor, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useGlobalSync } from "@/context/global-sync"
@@ -391,8 +391,6 @@ export const SidebarHub = (props: {
   onLoadMoreProjectSessions: (project: LocalProject) => Promise<void>
   onNewChat: () => void
   onSearch: () => void
-  onPlugins: () => void
-  onAutomations: () => void
   onSettings: () => void
   onStartProject: () => void
   onOpenProjectChooser: () => void
@@ -441,8 +439,6 @@ export const SidebarHub = (props: {
       <div class={`shrink-0 ${sidebarItemGapClass}`}>
         <SidebarAction icon="new-session" label="New session" onClick={props.onNewChat} />
         <SidebarAction icon="magnifying-glass" label="Search" onClick={props.onSearch} />
-        <SidebarAction icon="providers" label="Plugins" onClick={props.onPlugins} />
-        <SidebarAction icon="checklist" label="Automations" onClick={props.onAutomations} />
       </div>
 
       <div class="mt-1 flex-1 min-h-0 overflow-y-auto pr-1 no-scrollbar">

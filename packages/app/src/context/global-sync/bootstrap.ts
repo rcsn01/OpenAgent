@@ -10,9 +10,9 @@ import type {
   Session,
   Todo,
 } from "@opencode-ai/sdk/v2/client"
-import { showToast } from "@opencode-ai/ui/toast"
-import { getFilename } from "@opencode-ai/core/util/path"
-import { retry } from "@opencode-ai/core/util/retry"
+import { showToast } from "@openagent/ui/toast"
+import { getFilename } from "@openagent/core/util/path"
+import { retry } from "@openagent/core/util/retry"
 import { batch } from "solid-js"
 import { reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type { State, VcsCache } from "./types"
@@ -90,32 +90,27 @@ export const loadGlobalConfigQuery = (sdk: OpencodeClient) =>
     queryFn: () => retry(() => sdk.global.config.get().then((x) => x.data!)),
   })
 
+const listProjects = (sdk: OpencodeClient) =>
+  retry(() =>
+    sdk.project.list().then((x) => {
+      return (x.data ?? [])
+        .filter((p) => !!p?.id)
+        .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
+        .slice()
+        .sort((a, b) => cmp(a.id, b.id))
+    }),
+  )
+
 export const loadProjectsQuery = (sdk: OpencodeClient) =>
   queryOptions({
     queryKey: ["project"],
-    queryFn: () =>
-      retry(() =>
-        sdk.project.list().then((x) => {
-          return (x.data ?? [])
-            .filter((p) => !!p?.id)
-            .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
-            .slice()
-            .sort((a, b) => cmp(a.id, b.id))
-        }),
-      ),
+    queryFn: () => listProjects(sdk),
   })
 
 export const loadOpenProjectsQuery = (sdk: OpencodeClient) =>
   queryOptions({
     queryKey: ["project", "open"],
-    queryFn: () =>
-      retry(() =>
-        sdk.project.opened().then((x) => {
-          return (x.data ?? [])
-            .filter((p) => !!p?.id)
-            .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
-        }),
-      ),
+    queryFn: () => listProjects(sdk),
   })
 
 export async function bootstrapGlobal(input: {
@@ -251,16 +246,6 @@ export async function bootstrapDirectory(input: {
           .then((data) => input.setStore("agent", data)),
       () =>
         retry(() => input.sdk.config.get().then((x) => input.setStore("config", reconcile(x.data!, { merge: false })))),
-      () =>
-        retry(() =>
-          input.sdk.experimental.console.get().then((x) =>
-            input.setStore("console_state", {
-              activeOrgName: x.data?.activeOrgName,
-              consoleManagedProviders: x.data?.consoleManagedProviders ?? [],
-              switchableOrgCount: x.data?.switchableOrgCount ?? 0,
-            }),
-          ),
-        ),
       () => retry(() => input.sdk.session.status().then((x) => input.setStore("session_status", x.data!))),
       () => retry(() => input.sdk.formatter.status().then((x) => input.setStore("formatter", x.data ?? []))),
       !seededProject &&

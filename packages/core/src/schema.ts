@@ -26,12 +26,12 @@ export const optionalOmitUndefined = <S extends Schema.Top>(schema: S) =>
  * Strip `readonly` from a nested type. Stand-in for `effect`'s `Types.DeepMutable`
  * until `effect:core/x228my` ("Types.DeepMutable widens unknown to `{}`") lands.
  *
- * The upstream version falls through `unknown` into `{ -readonly [K in keyof T]: ... }`
+ * The external version falls through `unknown` into `{ -readonly [K in keyof T]: ... }`
  * where `keyof unknown = never`, so `unknown` collapses to `{}`. This local
  * version gates the object branch on `extends object` (which `unknown` does
  * not) so `unknown` passes through untouched.
  *
- * Primitive bailout matches upstream — without it, branded strings like
+ * Primitive bailout matches external — without it, branded strings like
  * `string & Brand<"SessionID">` fall into the object branch and get their
  * prototype methods walked.
  *

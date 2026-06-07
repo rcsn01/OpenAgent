@@ -1,6 +1,6 @@
 import { createStore, produce } from "solid-js/store"
 import { batch, createEffect, createMemo, onCleanup, onMount, type Accessor } from "solid-js"
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@openagent/ui/context"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { useGlobalSync } from "./global-sync"
 import { useGlobalSDK } from "./global-sdk"
@@ -60,10 +60,10 @@ type TabHandoff = {
 export type LocalProject = Partial<Project> & { worktree: string; expanded: boolean; pinned?: boolean }
 
 export type ReviewDiffStyle = "unified" | "split"
-export type SessionSidePanelMode = "review" | "subagents" | "extensions" | "context"
+export type SessionSidePanelMode = "review" | "context"
 
 export function normalizeSessionSidePanelMode(mode: unknown): SessionSidePanelMode {
-  if (mode === "review" || mode === "subagents" || mode === "extensions" || mode === "context") return mode
+  if (mode === "review" || mode === "context") return mode
   return "review"
 }
 
@@ -472,13 +472,8 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         return
       }
 
-      void Promise.allSettled(projects.map((project) => globalSdk.client.project.open({ directory: project.worktree })))
-        .then(() => globalSdk.client.project.opened())
-        .then((response) => {
-          globalSync.set("openProject", response.data ?? [])
-          server.projects.markMigrated()
-        })
-        .catch(() => undefined)
+      globalSync.set("openProject", globalSync.data.project.filter((project) => projects.some((item) => item.worktree === project.worktree)))
+      server.projects.markMigrated()
     })
 
     createEffect(() => {
@@ -497,16 +492,14 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const root = rootFor(project.worktree)
           if (root === project.worktree) continue
 
-          void globalSdk.client.project.close({ projectID: project.id ?? "global", directory: project.worktree })
-
           if (!seen.has(root)) {
-            void globalSdk.client.project.open({ directory: root }).then((response) => {
-              if (!response.data) return
+            const next = globalSync.data.project.find((item) => item.worktree === root)
+            if (next) {
               globalSync.set("openProject", (current) => {
-                if (current.find((item) => item.worktree === response.data!.worktree)) return current
-                return [response.data!, ...current]
+                if (current.find((item) => item.worktree === next.worktree)) return current
+                return [next, ...current]
               })
-            })
+            }
             seen.add(root)
           }
 
@@ -644,20 +637,16 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const root = rootFor(directory)
           if (openProjects().find((x) => x.worktree === root)) return
           server.projects.open(root)
-          void globalSdk.client.project.open({ directory: root }).then((response) => {
-            if (!response.data) return
-            globalSync.set("openProject", (current) => {
-              if (current.find((item) => item.worktree === response.data!.worktree)) return current
-              return [response.data!, ...current]
-            })
-            void globalSync.project.loadSessions(response.data.worktree)
+          const project = globalSync.data.project.find((item) => item.worktree === root)
+          if (!project) return
+          globalSync.set("openProject", (current) => {
+            if (current.find((item) => item.worktree === project.worktree)) return current
+            return [project, ...current]
           })
+          void globalSync.project.loadSessions(project.worktree)
         },
         close(directory: string) {
-          const project = openProjects().find((x) => x.worktree === directory)
-          void globalSdk.client.project.close({ projectID: project?.id ?? "global", directory }).then(() => {
-            globalSync.set("openProject", (current) => current.filter((item) => item.worktree !== directory))
-          })
+          globalSync.set("openProject", (current) => current.filter((item) => item.worktree !== directory))
           server.projects.close(directory)
         },
         expand(directory: string) {
@@ -821,8 +810,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const mainPanelOpened = createMemo(() => store.review?.panelOpened ?? true)
         const sidePanelActive = createMemo(() => normalizeSessionSidePanelMode(store.sidePanel?.active))
         const reviewPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "review")
-        const subagentsPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "subagents")
-        const extensionsPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "extensions")
         const contextPanelOpened = createMemo(() => mainPanelOpened() && sidePanelActive() === "context")
 
         function setTerminalOpened(next: boolean) {
@@ -906,38 +893,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             toggle() {
               if (sidePanelActive() !== "review") {
                 openSidePanel("review")
-                return
-              }
-              setReviewPanelOpened(!mainPanelOpened())
-            },
-          },
-          subagents: {
-            opened: subagentsPanelOpened,
-            open() {
-              openSidePanel("subagents")
-            },
-            close() {
-              setReviewPanelOpened(false)
-            },
-            toggle() {
-              if (sidePanelActive() !== "subagents") {
-                openSidePanel("subagents")
-                return
-              }
-              setReviewPanelOpened(!mainPanelOpened())
-            },
-          },
-          extensions: {
-            opened: extensionsPanelOpened,
-            open() {
-              openSidePanel("extensions")
-            },
-            close() {
-              setReviewPanelOpened(false)
-            },
-            toggle() {
-              if (sidePanelActive() !== "extensions") {
-                openSidePanel("extensions")
                 return
               }
               setReviewPanelOpened(!mainPanelOpened())

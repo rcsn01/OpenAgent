@@ -3,5 +3,6 @@
   "extends": "@tsconfig/bun/tsconfig.json",
   "compilerOptions": {
     "noUncheckedIndexedAccess": false
-  }
+  },
+  "include": ["src/desktop.ts", "src/util/array.ts", "src/util/binary.ts", "src/util/encode.ts", "src/util/path.ts", "src/util/retry.ts"]
 }

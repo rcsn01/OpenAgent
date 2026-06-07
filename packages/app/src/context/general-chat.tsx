@@ -1,4 +1,4 @@
-import { createSimpleContext } from "@opencode-ai/ui/context"
+import { createSimpleContext } from "@openagent/ui/context"
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { createEffect, createMemo, createResource, onCleanup } from "solid-js"
 import { useAppRoute } from "@/context/app-route"

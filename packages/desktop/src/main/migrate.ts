@@ -1,12 +1,13 @@
 import { app } from "electron"
 import log from "electron-log/main.js"
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { CHANNEL } from "./constants"
 import { getStore } from "./store"
 
 const TAURI_MIGRATED_KEY = "tauriMigrated"
+const ELECTRON_APP_ID_MIGRATED_KEY = "electronAppIdMigrated"
 
 // Resolve the directory where Tauri stored its .dat files for the given app identifier.
 // Mirrors Tauri's AppLocalData / AppData resolution per OS.
@@ -29,6 +30,38 @@ const TAURI_APP_IDS: Record<string, string> = {
 }
 function tauriAppId() {
   return app.isPackaged ? TAURI_APP_IDS[CHANNEL] : "ai.opencode.desktop.dev"
+}
+
+const ELECTRON_OLD_APP_IDS: Record<string, string> = {
+  dev: "ai.opencode.desktop.dev",
+  beta: "ai.opencode.desktop.beta",
+  prod: "ai.opencode.desktop",
+}
+
+function migrateElectronAppData() {
+  if (getStore().get(ELECTRON_APP_ID_MIGRATED_KEY)) return
+
+  const oldId = app.isPackaged ? ELECTRON_OLD_APP_IDS[CHANNEL] : ELECTRON_OLD_APP_IDS.dev
+  const source = join(app.getPath("appData"), oldId)
+  const target = app.getPath("userData")
+  if (source === target || !existsSync(source)) {
+    getStore().set(ELECTRON_APP_ID_MIGRATED_KEY, true)
+    return
+  }
+
+  mkdirSync(target, { recursive: true })
+  for (const filename of readdirSync(source)) {
+    const src = join(source, filename)
+    const dest = join(target, filename)
+    if (existsSync(dest)) continue
+    try {
+      copyFileSync(src, dest)
+      log.log("electron app id migration: copied", filename)
+    } catch (error) {
+      log.warn("electron app id migration: failed to copy", filename, error)
+    }
+  }
+  getStore().set(ELECTRON_APP_ID_MIGRATED_KEY, true)
 }
 
 // Migrate a single Tauri .dat file into the corresponding electron-store.
@@ -67,6 +100,8 @@ function migrateFile(datPath: string, filename: string) {
 }
 
 export function migrate() {
+  migrateElectronAppData()
+
   if (getStore().get(TAURI_MIGRATED_KEY)) {
     log.log("tauri migration: already done, skipping")
     return

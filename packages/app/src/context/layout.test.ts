@@ -71,8 +71,6 @@ describe("pruneSessionKeys", () => {
 describe("normalizeSessionSidePanelMode", () => {
   test("accepts supported modes", () => {
     expect(normalizeSessionSidePanelMode("review")).toBe("review")
-    expect(normalizeSessionSidePanelMode("subagents")).toBe("subagents")
-    expect(normalizeSessionSidePanelMode("extensions")).toBe("extensions")
     expect(normalizeSessionSidePanelMode("context")).toBe("context")
   })
 

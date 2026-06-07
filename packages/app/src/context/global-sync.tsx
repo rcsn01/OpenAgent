@@ -7,8 +7,8 @@ import type {
   ProviderListResponse,
   Todo,
 } from "@opencode-ai/sdk/v2/client"
-import { showToast } from "@opencode-ai/ui/toast"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { showToast } from "@openagent/ui/toast"
+import { getFilename } from "@openagent/core/util/path"
 import { batch, createContext, getOwner, onCleanup, onMount, type ParentProps, untrack, useContext } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -379,10 +379,6 @@ function createGlobalSync() {
         },
         setGlobalProject: setProjects,
       })
-      if (event.type === "project.opened" || event.type === "project.closed") {
-        if (recent) return
-        void queryClient.fetchQuery(queryOptionsApi.openProjects()).then(setOpenProjects)
-      }
       if (event.type === "server.connected" || event.type === "global.disposed") {
         if (recent) return
         for (const directory of Object.keys(children.children)) {

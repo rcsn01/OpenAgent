@@ -1,13 +1,13 @@
-# OpenSwarm Specialists
+# external orchestration Specialists
 
-The OpenSwarm-style specialist team is registered as native subagents in `packages/opencode/src/agent/agent.ts`. Each specialist gets a generated prompt via `specialistPrompt()` with shared OpenSwarm guidance plus role-specific instructions.
+The external orchestration-style specialist team is registered as native subagents in `external opencode runtime/src/agent/agent.ts`. Each specialist gets a generated prompt via `specialistPrompt()` with shared external orchestration guidance plus role-specific instructions.
 
 All specialists explicitly cannot call delegation, background task, or `send_message` tools.
 
 ## Shared Specialist Prompt
 
 Every specialist receives the same base guidance:
-- Part of an OpenSwarm-style multi-agent system
+- Part of an external orchestration-style multi-agent system
 - Stay inside your specialty
 - If work belongs to another specialist, name the correct owner briefly
 - Do not attempt partial work outside your domain
@@ -30,7 +30,7 @@ Every specialist receives the same base guidance:
 ### slides-agent
 - **Owns:** presentation creation, editing, visual polish, HTML decks, PPTX export
 - **Specialist tools:** `slides_plan`, `slides_modify`, `slides`, `slides_theme`, `slide_screenshot`, `slide_overflow_check`
-  - `slides_plan` — create a substantive OpenSwarm-style storyline and slide plan from a user request
+  - `slides_plan` — create a substantive external orchestration-style storyline and slide plan from a user request
   - `slides_modify` — enrich or repair one slide from a self-contained content brief
   - `slides` — create/export the HTML project and PPTX; title-only inputs are enriched before export
   - `slides_theme` — persist theme tokens with CSS variable generation
@@ -72,11 +72,11 @@ Every specialist receives the same base guidance:
 - `build` and `assistant` can spawn any subagent through `task`
 - The runtime uses the exact requested agent name; no automatic mode conversion
 - Blocked spawn names: `build`, `plan`, `assistant`, `chat`, `orchestrator`
-- All OpenSwarm specialists, `general`, and `explore` cannot use `task` themselves
+- All external orchestration specialists, `general`, and `explore` cannot use `task` themselves
 
 ## Related Docs
 
 - [[Agents/Index]] — full agent capability matrix
 - [[Agents/Primary Agents]] — build, assistant, and plan comparison
 - [[Agents/Permission System]] — tool registry gating and permission enforcement
-- [[Architecture/OpenSwarm Integration]] — native routing, communication flows, OAuth
+- [[Architecture/external orchestration Integration]] — native routing, communication flows, OAuth

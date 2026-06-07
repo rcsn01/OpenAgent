@@ -1,7 +1,7 @@
-import { Dialog } from "@opencode-ai/ui/dialog"
-import { List } from "@opencode-ai/ui/list"
-import { useDialog } from "@opencode-ai/ui/context/dialog"
-import { useTheme, type ColorScheme } from "@opencode-ai/ui/theme/context"
+import { Dialog } from "@openagent/ui/dialog"
+import { List } from "@openagent/ui/list"
+import { useDialog } from "@openagent/ui/context/dialog"
+import { useTheme, type ColorScheme } from "@openagent/ui/theme/context"
 import { createMemo } from "solid-js"
 
 type ThemeItem =

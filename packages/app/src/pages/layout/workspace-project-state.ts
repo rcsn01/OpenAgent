@@ -1,5 +1,5 @@
 import { createEffect, createMemo, untrack, type Accessor } from "solid-js"
-import { getFilename } from "@opencode-ai/core/util/path"
+import { getFilename } from "@openagent/core/util/path"
 import { produce } from "solid-js/store"
 import { type Session } from "@opencode-ai/sdk/v2/client"
 import { useGlobalSync } from "@/context/global-sync"

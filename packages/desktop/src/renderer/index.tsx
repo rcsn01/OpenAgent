@@ -13,7 +13,7 @@ import {
   PlatformProvider,
   ServerConnection,
   useCommand,
-} from "@opencode-ai/app"
+} from "@openagent/app"
 import * as Sentry from "@sentry/solid"
 import type { AsyncStorage } from "@solid-primitives/storage"
 import { MemoryRouter } from "@solidjs/router"
@@ -23,7 +23,7 @@ import pkg from "../../package.json"
 import { initI18n, t } from "./i18n"
 import { webviewZoom } from "./webview-zoom"
 import "./styles.css"
-import { useTheme } from "@opencode-ai/ui/theme"
+import { useTheme } from "@openagent/ui/theme"
 
 const root = document.getElementById("root")
 if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
@@ -56,6 +56,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 void initI18n()
 
 const deepLinkEvent = "opencode:deep-link"
+const FALLBACK_SERVER_URL = "http://127.0.0.1:4096"
 
 const emitDeepLinks = (urls: string[]) => {
   if (urls.length === 0) return
@@ -326,7 +327,7 @@ render(() => {
 
   const [windowCount] = createResource(() => window.api.getWindowCount())
 
-  // Fetch the bundled sidecar credentials, or an external shared dev server URL.
+  // Fetch the startup server selected by the desktop main process.
   const [serverData] = createResource(() => window.api.awaitInitialization(() => undefined))
 
   const [defaultServer] = createResource(() =>
@@ -339,20 +340,9 @@ render(() => {
   const servers = () => {
     const data = serverData()
     if (!data) return []
-    if (!data.username && !data.password) {
-      const server: ServerConnection.Http = {
-        displayName: "Shared Dev Server",
-        type: "http",
-        http: {
-          url: data.url,
-        },
-      }
-      return [server] as ServerConnection.Any[]
-    }
-    const server: ServerConnection.Sidecar = {
-      displayName: "Local Server",
-      type: "sidecar",
-      variant: "base",
+    const server: ServerConnection.Http = {
+      displayName: "opencode Server",
+      type: "http",
       http: {
         url: data.url,
         username: data.username ?? undefined,
@@ -413,7 +403,7 @@ render(() => {
               defaultServer.latest ?? (availableServers[0] ? ServerConnection.key(availableServers[0]) : undefined)
             return (
               <AppInterface
-                defaultServer={defaultKey ?? ServerConnection.Key.make("sidecar")}
+                defaultServer={defaultKey ?? ServerConnection.Key.make(FALLBACK_SERVER_URL)}
                 servers={availableServers}
                 router={MemoryRouter}
               >

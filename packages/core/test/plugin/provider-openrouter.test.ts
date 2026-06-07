@@ -1,8 +1,8 @@
 import { describe, expect } from "bun:test"
 import { Effect } from "effect"
-import { PluginV2 } from "@opencode-ai/core/plugin"
-import { ProviderPlugins } from "@opencode-ai/core/plugin/provider"
-import { OpenRouterPlugin } from "@opencode-ai/core/plugin/provider/openrouter"
+import { PluginV2 } from "@openagent/core/plugin"
+import { ProviderPlugins } from "@openagent/core/plugin/provider"
+import { OpenRouterPlugin } from "@openagent/core/plugin/provider/openrouter"
 import { expectPluginRegistered, it, model, provider } from "./provider-helper"
 
 describe("OpenRouterPlugin", () => {

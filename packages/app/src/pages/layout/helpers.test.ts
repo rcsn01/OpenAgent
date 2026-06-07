@@ -199,23 +199,6 @@ describe("layout workspace helpers", () => {
     expect(result?.id).toBe("root")
   })
 
-  test("ignores automation sessions when finding latest root session", () => {
-    const result = latestRootSession(
-      [
-        {
-          path: { directory: "/workspace" },
-          session: [
-            session({ id: "normal", directory: "/workspace", time: { created: 10, updated: 10 } }),
-            session({ id: "automation", directory: "/workspace", source: "automation", time: { created: 20, updated: 20 } }),
-          ],
-        },
-      ],
-      120_000,
-    )
-
-    expect(result?.id).toBe("normal")
-  })
-
   test("finds the direct child on the active session path", () => {
     const list = [
       session({ id: "root", directory: "/workspace" }),

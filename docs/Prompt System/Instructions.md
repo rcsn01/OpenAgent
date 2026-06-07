@@ -6,7 +6,7 @@
 
 ## Files That Are Checked
 
-The instruction loader (`packages/opencode/src/session/instruction.ts`) looks for these files:
+The instruction loader (`external opencode runtime/src/session/instruction.ts`) looks for these files:
 
 1. Project-level (searched upward from current directory to worktree root):
    - `AGENTS.md`

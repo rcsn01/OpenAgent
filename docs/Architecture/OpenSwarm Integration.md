@@ -1,6 +1,6 @@
-# OpenSwarm Integration
+# external orchestration Integration
 
-OpenAgent implements the OpenSwarm-style routing model natively in the TypeScript runtime. It does not vendor Agency Swarm or run OpenSwarm as a Python sidecar.
+OpenAgent implements the external orchestration-style routing model natively in the TypeScript runtime. It does not vendor Agency Swarm or run external orchestration as a Python sidecar.
 
 The current design has one coordinator: the native `assistant` agent. The separate `orchestrator` agent was removed and its routing behavior was merged into `assistant`.
 
@@ -34,7 +34,7 @@ Hidden/system agents still exist for internal runtime jobs:
 
 ## Specialist Agents
 
-The OpenSwarm-style specialist team is registered as native subagents:
+The external orchestration-style specialist team is registered as native subagents:
 
 | Agent | Owns |
 |-------|------|
@@ -46,7 +46,7 @@ The OpenSwarm-style specialist team is registered as native subagents:
 | `video-generation-agent` | video generation, editing, assembly, and clip workflows |
 
 `general` and `explore` are also built-in subagents:
-- `general` is a generic provider-prompt subagent with `todowrite` denied. It is useful as a lightweight fallback worker and is a default `send_message` recipient, but it is not one of the OpenSwarm specialists.
+- `general` is a generic provider-prompt subagent with `todowrite` denied. It is useful as a lightweight fallback worker and is a default `send_message` recipient, but it is not one of the external orchestration specialists.
 - `explore` is a fast codebase exploration subagent restricted to `grep`, `glob`, `list`, `bash`, `webfetch`, `websearch`, and `read`. It is spawnable but is not a default communication recipient.
 
 ## Spawn Rules
@@ -75,11 +75,11 @@ This keeps user-facing primaries and removed/merged coordinator names out of chi
 
 ### `send_message`
 
-`send_message` is the OpenSwarm-style bounded delegation surface.
+`send_message` is the external orchestration-style bounded delegation surface.
 
 Use it when `assistant` needs one or more subagents or specialists to continue independent work and return results. The recipient must already have an existing child session.
 
-Default `send_message` recipients include `general` plus the OpenSwarm specialist team.
+Default `send_message` recipients include `general` plus the external orchestration specialist team.
 
 `send_message` does not create child sessions. If no matching child session exists, assistant must first decide which subagent type is needed and create that child session with `task`. After that, `send_message` can continue the existing session by `task_id` or by reusing the newest matching child session for that recipient.
 
@@ -93,7 +93,7 @@ Blocking subagent delegation is available to:
 
 Only `build` and `assistant` receive `task`.
 
-The rest of the orchestration and OpenSwarm communication tools are assistant-only:
+The rest of the orchestration and external orchestration communication tools are assistant-only:
 
 - `background_task`
 - `background_task_list`
@@ -105,7 +105,7 @@ The rest of the orchestration and OpenSwarm communication tools are assistant-on
 - `background_task_graph_cancel`
 - `send_message`
 
-`send_message` can target `general` and the OpenSwarm specialists. Conversation handoff is not a tool surface; the primary agent keeps ownership and reports results back to the user.
+`send_message` can target `general` and the external orchestration specialists. Conversation handoff is not a tool surface; the primary agent keeps ownership and reports results back to the user.
 
 Those assistant-only tools are denied for:
 
@@ -113,10 +113,10 @@ Those assistant-only tools are denied for:
 - `plan`
 - `explore`
 - `general`
-- all OpenSwarm specialists
+- all external orchestration specialists
 - any removed or merged coordinator such as `orchestrator`
 
-`task` is denied for `plan`, `explore`, `general`, all OpenSwarm specialists, and blocked/removed coordinator names.
+`task` is denied for `plan`, `explore`, `general`, all external orchestration specialists, and blocked/removed coordinator names.
 
 Specialist tools remain owner-gated. For example:
 
@@ -158,7 +158,7 @@ Current specialist tooling includes:
 - native research report generation with a source ledger shape
 - local Data Analyst kernel scaffolding with artifact paths and timeout/error reporting
 - native docs artifact helpers
-- OpenSwarm-style Slides Agent workflow: `slides_plan` for storyline, `slides_modify` for per-slide enrichment, then `slides` for editable HTML project, inferred/editorial theme CSS, previews, and valid image-backed PPTX output
+- external orchestration-style Slides Agent workflow: `slides_plan` for storyline, `slides_modify` for per-slide enrichment, then `slides` for editable HTML project, inferred/editorial theme CSS, previews, and valid image-backed PPTX output
 - slide theme management through `slides_theme`
 - slide screenshot previews through `slide_screenshot`
 - slide density and overflow QA through `slide_overflow_check`
@@ -180,19 +180,19 @@ Tool results should return structured metadata and file attachments where possib
 
 | File | Role |
 |------|------|
-| `packages/opencode/src/agent/agent.ts` | Registers native primary agents, specialist subagents, prompts, permissions, and defaults |
-| `packages/opencode/src/agent/communication.ts` | Defines default communication flows |
-| `packages/opencode/src/agent/spawnable.ts` | Blocks non-spawnable primary/removed coordinator names |
-| `packages/opencode/src/tool/registry.ts` | Gates build/assistant `task`, assistant-only orchestration, and specialist-owned tools |
-| `packages/opencode/src/tool/task.ts` | Synchronous/background subagent entry point |
-| `packages/opencode/src/session/task-execution.ts` | Shared child-session execution machinery |
-| `packages/opencode/src/tool/send_message.ts` | Bounded subagent/specialist delegation |
-| `packages/opencode/src/integration/auth.ts` | Per-user integration credential service |
-| `packages/opencode/src/server/routes/instance/integration.ts` | Integration OAuth/status APIs |
-| `packages/opencode/src/tool/openswarm/` | Shared OpenSwarm specialist artifact/tool helpers |
-| `packages/opencode/src/tool/openswarm/slides_html.ts` | HTML slide project generation and optional Playwright screenshot export |
-| `packages/opencode/src/tool/openswarm/slide_qa.ts` | Theme tokens, SVG slide previews, and overflow heuristics |
-| `packages/opencode/src/tool/openswarm_stub.ts` | Setup-aware specialist tool implementations |
+| `external opencode runtime/src/agent/agent.ts` | Registers native primary agents, specialist subagents, prompts, permissions, and defaults |
+| `external opencode runtime/src/agent/communication.ts` | Defines default communication flows |
+| `external opencode runtime/src/agent/spawnable.ts` | Blocks non-spawnable primary/removed coordinator names |
+| `external opencode runtime/src/tool/registry.ts` | Gates build/assistant `task`, assistant-only orchestration, and specialist-owned tools |
+| `external opencode runtime/src/tool/task.ts` | Synchronous/background subagent entry point |
+| `external opencode runtime/src/session/task-execution.ts` | Shared child-session execution machinery |
+| `external opencode runtime/src/tool/send_message.ts` | Bounded subagent/specialist delegation |
+| `external opencode runtime/src/integration/auth.ts` | Per-user integration credential service |
+| `external opencode runtime/src/server/routes/instance/integration.ts` | Integration OAuth/status APIs |
+| `external opencode runtime/src/tool/openswarm/` | Shared external orchestration specialist artifact/tool helpers |
+| `external opencode runtime/src/tool/openswarm/slides_html.ts` | HTML slide project generation and optional Playwright screenshot export |
+| `external opencode runtime/src/tool/openswarm/slide_qa.ts` | Theme tokens, SVG slide previews, and overflow heuristics |
+| `external opencode runtime/src/tool/openswarm_stub.ts` | Setup-aware specialist tool implementations |
 
 ## Test Coverage
 
@@ -211,11 +211,11 @@ Core tests cover:
 Useful focused command:
 
 ```bash
-bun test --cwd packages/opencode test/agent/agent.test.ts test/tool/task.test.ts test/tool/openswarm-routing.test.ts test/tool/registry.test.ts
+bun test --cwd external opencode runtime test/agent/agent.test.ts test/tool/task.test.ts test/tool/openswarm-routing.test.ts test/tool/registry.test.ts
 ```
 
 Pair it with:
 
 ```bash
-bun run --cwd packages/opencode typecheck
+bun run --cwd external opencode runtime typecheck
 ```

@@ -30,15 +30,15 @@ For agent definitions and tool access rules, see [[Agents/Index]].
 
 | File | Role |
 |------|------|
-| `packages/opencode/src/session/llm.ts` | Prompt assembly and streaming |
-| `packages/opencode/src/session/prompt.ts` | Session loop, tool resolution, shell prompting |
-| `packages/opencode/src/session/system.ts` | Provider prompt selection + environment + skills |
-| `packages/opencode/src/session/instruction.ts` | AGENTS.md discovery, loading, dynamic rules |
-| `packages/opencode/src/agent/agent.ts` | Agent registry: built-in + config + markdown agents |
-| `packages/opencode/src/skill/index.ts` | Skill discovery, loading, and formatting |
+| `external opencode runtime/src/session/llm.ts` | Prompt assembly and streaming |
+| `external opencode runtime/src/session/prompt.ts` | Session loop, tool resolution, shell prompting |
+| `external opencode runtime/src/session/system.ts` | Provider prompt selection + environment + skills |
+| `external opencode runtime/src/session/instruction.ts` | AGENTS.md discovery, loading, dynamic rules |
+| `external opencode runtime/src/agent/agent.ts` | Agent registry: built-in + config + markdown agents |
+| `external opencode runtime/src/skill/index.ts` | Skill discovery, loading, and formatting |
 
 ## Related
 
 - [[Agents/Index]] — agent capability matrix and tool access rules
 - [[Agents/Permission System]] — hard permission enforcement for tool access
-- [[Architecture/OpenSwarm Integration]] — assistant-only swarm tools, specialist routing, per-user OAuth
+- [[Architecture/external orchestration Integration]] — assistant-only swarm tools, specialist routing, per-user OAuth

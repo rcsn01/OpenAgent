@@ -4,12 +4,11 @@ import { createStore } from "solid-js/store"
 import type { State } from "./types"
 import { applyDirectoryEvent, applyGlobalEvent, cleanupDroppedSessionCaches } from "./event-reducer"
 
-const rootSession = (input: { id: string; parentID?: string; archived?: number; source?: "user" | "automation"; title?: string }) =>
+const rootSession = (input: { id: string; parentID?: string; archived?: number; title?: string }) =>
   ({
     id: input.id,
     parentID: input.parentID,
     title: input.title ?? input.id,
-    source: input.source ?? "user",
     time: {
       created: 1,
       updated: 1,
@@ -166,112 +165,6 @@ describe("applyDirectoryEvent", () => {
     })
 
     expect(store.sessionTotal).toBe(2)
-  })
-
-  test("skips automation root sessions before they can trim sidebar sessions", () => {
-    const [store, setStore] = createStore(
-      baseState({
-        session: [rootSession({ id: "user_1" })],
-        sessionTotal: 1,
-        limit: 1,
-      }),
-    )
-
-    applyDirectoryEvent({
-      event: { type: "session.created", properties: { info: rootSession({ id: "auto_1", source: "automation" }) } },
-      store,
-      setStore,
-      push() {},
-      directory: "/tmp",
-      loadLsp() {},
-    })
-
-    expect(store.session.map((x) => x.id)).toEqual(["user_1"])
-    expect(store.sessionTotal).toBe(1)
-  })
-
-  test("ignores unknown automation root sessions that arrive through update events", () => {
-    const [store, setStore] = createStore(
-      baseState({
-        session: [rootSession({ id: "user_1" })],
-        sessionTotal: 1,
-      }),
-    )
-
-    applyDirectoryEvent({
-      event: { type: "session.updated", properties: { info: rootSession({ id: "auto_1", source: "automation" }) } },
-      store,
-      setStore,
-      push() {},
-      directory: "/tmp",
-      loadLsp() {},
-    })
-
-    expect(store.session.map((x) => x.id)).toEqual(["user_1"])
-    expect(store.sessionTotal).toBe(1)
-  })
-
-  test("updates loaded automation root sessions without clearing their live caches", () => {
-    const message = userMessage("msg_1", "auto_1")
-    const [store, setStore] = createStore(
-      baseState({
-        session: [rootSession({ id: "auto_1", source: "automation" }), rootSession({ id: "user_1" })],
-        message: { auto_1: [message] },
-        part: { [message.id]: [textPart("prt_1", "auto_1", message.id)] },
-        session_status: { auto_1: { type: "busy" } },
-        sessionTotal: 1,
-      }),
-    )
-
-    applyDirectoryEvent({
-      event: {
-        type: "session.updated",
-        properties: { info: rootSession({ id: "auto_1", source: "automation", title: "[Automation] updated" }) },
-      },
-      store,
-      setStore,
-      push() {},
-      directory: "/tmp",
-      loadLsp() {},
-    })
-
-    expect(store.session.map((x) => x.id)).toEqual(["auto_1", "user_1"])
-    expect(store.session.find((x) => x.id === "auto_1")?.title).toBe("[Automation] updated")
-    expect(store.message.auto_1).toEqual([message])
-    expect(store.part[message.id]?.map((x) => x.id)).toEqual(["prt_1"])
-    expect(store.session_status.auto_1).toEqual({ type: "busy" })
-    expect(store.sessionTotal).toBe(1)
-  })
-
-  test("removes loaded automation root sessions when archived", () => {
-    const message = userMessage("msg_1", "auto_1")
-    const [store, setStore] = createStore(
-      baseState({
-        session: [rootSession({ id: "auto_1", source: "automation" }), rootSession({ id: "user_1" })],
-        message: { auto_1: [message] },
-        part: { [message.id]: [textPart("prt_1", "auto_1", message.id)] },
-        session_status: { auto_1: { type: "busy" } },
-        sessionTotal: 1,
-      }),
-    )
-
-    applyDirectoryEvent({
-      event: {
-        type: "session.updated",
-        properties: { info: rootSession({ id: "auto_1", source: "automation", archived: 10 }) },
-      },
-      store,
-      setStore,
-      push() {},
-      directory: "/tmp",
-      loadLsp() {},
-    })
-
-    expect(store.session.map((x) => x.id)).toEqual(["user_1"])
-    expect(store.message.auto_1).toBeUndefined()
-    expect(store.part[message.id]).toBeUndefined()
-    expect(store.session_status.auto_1).toBeUndefined()
-    expect(store.sessionTotal).toBe(1)
   })
 
   test("cleans session caches when archived", () => {
