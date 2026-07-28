@@ -16,22 +16,25 @@ OpenAgent owns the GUI and desktop shell. The opencode runtime runs externally.
 bun install
 ```
 
-Run a stock opencode server separately:
+Run the Electron desktop app and a managed stock opencode server together:
 
 ```bash
-opencode server start --hostname 127.0.0.1 --port 4096
+bun run dev
 ```
 
-Run web:
+Run the browser-only web app and a managed stock opencode server together:
 
 ```bash
-VITE_OPENCODE_SERVER_URL=http://127.0.0.1:4096 bun run --cwd packages/app dev
+bun run dev:web
 ```
 
-Run desktop:
+The managed commands reuse a healthy server already listening on port `4096`.
+When they start the server themselves, they stop it when the UI process exits.
+To run the pieces independently:
 
 ```bash
-OPENAGENT_SERVER_URL=http://127.0.0.1:4096 bun run --cwd packages/desktop dev
+bun run dev:server
+bun run dev:desktop:shared
 ```
 
 ## Checks
