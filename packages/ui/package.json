@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "@kobalte/core": "catalog:",
+    "@moirasia/ui-css": "file:../../../../packages/ui-css",
     "@opencode-ai/sdk": "1.15.0",
     "@openagent/core": "workspace:*",
     "@pierre/diffs": "catalog:",
